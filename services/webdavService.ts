@@ -1,28 +1,8 @@
-import { PublicData, PrivateData, WebDavConfig } from '../types';
+import { PublicData, PrivateData } from '../types';
 
-const getEnvConfig = (): WebDavConfig => {
-  const env = (import.meta as any).env || {};
-  
-  return {
-    url: env.VITE_WEBDAV_URL || '',
-    username: env.VITE_WEBDAV_USERNAME || '',
-    password: env.VITE_WEBDAV_PASSWORD || '',
-    path: env.VITE_WEBDAV_PATH || 'my-collection/',
-  };
-};
-
-const config = getEnvConfig();
-
-// 格式化 Base URL
-const getBaseUrl = () => {
-  if (!config.url) return '';
-  let url = config.url.endsWith('/') ? config.url : `${config.url}/`;
-  let path = config.path.replace(/^\/|\/$/g, '');
-  return `${url}${path}/`;
-};
-
-const FULL_PATH = getBaseUrl();
-const AUTH_HEADER = 'Basic ' + btoa(`${config.username}:${config.password}`);
+// The frontend now talks to the Vercel API Proxy, not WebDAV directly.
+// This solves CORS issues and hides credentials from the client.
+const PROXY_URL = '/api/webdav';
 
 export const DEFAULT_PUBLIC_DATA: PublicData = {
   settings: {
@@ -41,43 +21,44 @@ export const DEFAULT_PRIVATE_DATA: PrivateData = {
   password: 'password'
 };
 
+const fetchProxy = async (filename: string, options: RequestInit = {}) => {
+  // filename can be empty string (for directory operations)
+  const url = `${PROXY_URL}?filename=${encodeURIComponent(filename)}`;
+  return fetch(url, options);
+};
+
 const ensureDirectory = async () => {
-  if (!config.url) return;
   try {
-    const res = await fetch(FULL_PATH, {
+    // Check if directory exists
+    const res = await fetchProxy('', {
       method: 'PROPFIND',
-      headers: {
-        'Authorization': AUTH_HEADER,
-        'Depth': '0'
-      }
+      headers: { 'Depth': '0' }
     });
+    
     if (res.status === 404) {
-      await fetch(FULL_PATH, {
-        method: 'MKCOL',
-        headers: { 'Authorization': AUTH_HEADER }
-      });
+      // Create directory
+      await fetchProxy('', { method: 'MKCOL' });
     }
   } catch (e) {
-    console.error("WebDAV Connect Error:", e);
+    console.error("WebDAV Directory Check Error:", e);
   }
 };
 
 const fetchJson = async <T>(filename: string, defaultValue: T): Promise<T> => {
-  if (!config.url) return defaultValue;
   await ensureDirectory();
   try {
-    const response = await fetch(`${FULL_PATH}${filename}`, {
+    const response = await fetchProxy(filename, {
       method: 'GET',
-      headers: {
-        'Authorization': AUTH_HEADER,
-        'Cache-Control': 'no-cache'
-      }
+      headers: { 'Cache-Control': 'no-cache' }
     });
+    
     if (response.status === 404) {
+      // Initialize file if not found
       await saveJson(filename, defaultValue);
       return defaultValue;
     }
-    if (!response.ok) throw new Error(`WebDAV Error: ${response.status}`);
+    
+    if (!response.ok) throw new Error(`Proxy/WebDAV Error: ${response.status}`);
     return await response.json();
   } catch (error) {
     console.error(`Failed to fetch ${filename}`, error);
@@ -86,15 +67,13 @@ const fetchJson = async <T>(filename: string, defaultValue: T): Promise<T> => {
 };
 
 const saveJson = async <T>(filename: string, data: T): Promise<boolean> => {
-  if (!config.url) return false;
   try {
-    const response = await fetch(`${FULL_PATH}${filename}`, {
+    const response = await fetchProxy(filename, {
       method: 'PUT',
       headers: {
-        'Authorization': AUTH_HEADER,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(data, null, 2)
+      body: JSON.stringify(data)
     });
     return response.ok;
   } catch (error) {
