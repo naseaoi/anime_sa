@@ -30,7 +30,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+      <div className="fixed top-4 right-4 z-[1000] flex flex-col gap-2 pointer-events-none">
         {toasts.map(toast => (
           <div key={toast.id} className={`pointer-events-auto min-w-[300px] max-w-sm p-4 rounded-xl shadow-lg border flex items-start gap-3 animate-in slide-in-from-right-full duration-300 ${
             toast.type === 'success' ? 'bg-white border-emerald-100 text-emerald-800' :
@@ -206,7 +206,7 @@ export const ConfirmModal: React.FC<{
 }> = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', type = 'info' }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed top-0 left-0 w-screen h-screen z-60 flex items-center justify-center bg-ink/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-ink/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full border border-white/50 animate-in zoom-in-95 duration-200 p-6">
         <h3 className="text-lg font-bold text-ink mb-2">{title}</h3>
         <p className="text-subtle text-sm mb-6 leading-relaxed">{message}</p>
@@ -253,7 +253,7 @@ export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: stri
 }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed top-0 left-0 w-screen h-screen z-50 flex items-center justify-center bg-ink/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[900] flex items-center justify-center bg-ink/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-white/50 animate-in zoom-in-95 slide-in-from-bottom-2 duration-200 flex flex-col">
         <div className="px-6 py-4 border-b border-border flex justify-between items-center sticky top-0 bg-white/95 backdrop-blur z-10">
           <h3 className="font-semibold text-ink">{title}</h3>
