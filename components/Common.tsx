@@ -1,5 +1,55 @@
-import React from 'react';
-import { Loader2, X } from 'lucide-react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { Loader2, X, Check, ChevronDown, AlertTriangle, Info } from 'lucide-react';
+
+// --- Toast System ---
+
+type ToastType = 'success' | 'error' | 'info';
+interface ToastMessage {
+  id: string;
+  type: ToastType;
+  message: string;
+}
+
+const ToastContext = createContext<{ showToast: (msg: string, type?: ToastType) => void } | null>(null);
+
+export const useToast = () => {
+  const context = useContext(ToastContext);
+  if (!context) throw new Error('useToast must be used within a ToastProvider');
+  return context;
+};
+
+export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const showToast = useCallback((message: string, type: ToastType = 'info') => {
+    const id = Date.now().toString();
+    setToasts(prev => [...prev, { id, type, message }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
+  }, []);
+
+  return (
+    <ToastContext.Provider value={{ showToast }}>
+      {children}
+      <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+        {toasts.map(toast => (
+          <div key={toast.id} className={`pointer-events-auto min-w-[300px] max-w-sm p-4 rounded-xl shadow-lg border flex items-start gap-3 animate-in slide-in-from-right-full duration-300 ${
+            toast.type === 'success' ? 'bg-white border-emerald-100 text-emerald-800' :
+            toast.type === 'error' ? 'bg-white border-red-100 text-red-800' :
+            'bg-white border-stone-200 text-ink'
+          }`}>
+            <div className={`mt-0.5 ${
+               toast.type === 'success' ? 'text-emerald-500' :
+               toast.type === 'error' ? 'text-red-500' : 'text-blue-500'
+            }`}>
+              {toast.type === 'success' ? <Check size={18} /> : toast.type === 'error' ? <AlertTriangle size={18} /> : <Info size={18} />}
+            </div>
+            <p className="text-sm font-medium leading-tight pt-0.5">{toast.message}</p>
+          </div>
+        ))}
+      </div>
+    </ToastContext.Provider>
+  );
+};
 
 // --- Primitives ---
 
@@ -54,6 +104,83 @@ export const TextArea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement
   );
 };
 
+export const MultiSelect: React.FC<{ 
+  label?: string; 
+  options: { id: string; name: string }[]; 
+  value: string[]; 
+  onChange: (value: string[]) => void;
+  placeholder?: string;
+}> = ({ label, options, value, onChange, placeholder = "Select..." }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const toggleOption = (id: string) => {
+    if (value.includes(id)) {
+      onChange(value.filter(v => v !== id));
+    } else {
+      onChange([...value, id]);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5 w-full relative" ref={containerRef}>
+      {label && <label className="text-xs font-semibold text-subtle uppercase tracking-wider">{label}</label>}
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full px-3 py-2 bg-white border border-border rounded-lg text-ink cursor-pointer flex items-center justify-between hover:border-stone-400 transition-colors ${isOpen ? 'ring-4 ring-stone-100 border-ink' : ''}`}
+      >
+        <div className="flex flex-wrap gap-1">
+          {value.length === 0 ? (
+            <span className="text-stone-400 text-sm">{placeholder}</span>
+          ) : (
+            value.map(id => {
+              const opt = options.find(o => o.id === id);
+              return opt ? (
+                <span key={id} className="text-[10px] bg-stone-100 text-ink px-1.5 py-0.5 rounded border border-stone-200">
+                  {opt.name}
+                </span>
+              ) : null;
+            })
+          )}
+        </div>
+        <ChevronDown size={16} className={`text-stone-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-border rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto p-1">
+          {options.length === 0 ? (
+            <div className="p-2 text-xs text-stone-400 text-center">暂无选项</div>
+          ) : (
+            options.map(option => {
+              const isSelected = value.includes(option.id);
+              return (
+                <div 
+                  key={option.id} 
+                  onClick={() => toggleOption(option.id)}
+                  className={`px-3 py-2 text-sm rounded cursor-pointer flex items-center justify-between transition-colors ${isSelected ? 'bg-ink/5 text-ink font-medium' : 'text-subtle hover:bg-stone-50'}`}
+                >
+                  <span>{option.name}</span>
+                  {isSelected && <Check size={14} className="text-ink" />}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- Admin Components ---
 
 export const AdminCard: React.FC<{ title?: string; action?: React.ReactNode; children: React.ReactNode; className?: string }> = ({ title, action, children, className = '' }) => (
@@ -67,6 +194,35 @@ export const AdminCard: React.FC<{ title?: string; action?: React.ReactNode; chi
     <div className="p-6">{children}</div>
   </div>
 );
+
+export const ConfirmModal: React.FC<{ 
+  isOpen: boolean; 
+  onClose: () => void; 
+  onConfirm: () => void; 
+  title: string; 
+  message: string; 
+  confirmText?: string;
+  type?: 'danger' | 'info';
+}> = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', type = 'info' }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full border border-white/50 animate-in zoom-in-95 duration-200 p-6">
+        <h3 className="text-lg font-bold text-ink mb-2">{title}</h3>
+        <p className="text-subtle text-sm mb-6 leading-relaxed">{message}</p>
+        <div className="flex gap-3 justify-end">
+          <Button variant="ghost" onClick={onClose}>取消</Button>
+          <Button 
+            variant={type === 'danger' ? 'danger' : 'primary'} 
+            onClick={() => { onConfirm(); onClose(); }}
+          >
+            {confirmText}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // --- Visual Components ---
 

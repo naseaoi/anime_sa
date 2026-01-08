@@ -19,9 +19,26 @@ export const DEFAULT_PRIVATE_DATA: PrivateData = {
   password: 'password'
 };
 
+// Helper to strip XML tags from error messages
+const stripXml = (text: string): string => {
+  if (!text) return '';
+  // Simple regex to remove tags
+  const stripped = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  return stripped.substring(0, 150) + (stripped.length > 150 ? '...' : '');
+};
+
 const fetchProxy = async (filename: string, options: RequestInit = {}) => {
   const url = `${PROXY_URL}?filename=${encodeURIComponent(filename)}`;
-  return fetch(url, options);
+  // Force no-store to prevent mobile browser caching of PROPFIND/GET
+  const newOptions = {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Pragma': 'no-cache'
+    }
+  };
+  return fetch(url, newOptions);
 };
 
 let isDirectoryEnsured = false;
@@ -37,7 +54,9 @@ export const testConnection = async (): Promise<{ success: boolean; message: str
       return { success: false, message: "连接验证未通过，无法确认文件夹状态。" };
     }
   } catch (e: any) {
-    return { success: false, message: `连接错误: ${e.message || e}` };
+    // Return cleaned error message
+    const msg = e.message || String(e);
+    return { success: false, message: `连接错误: ${stripXml(msg)}` };
   }
 };
 
@@ -87,24 +106,18 @@ const fetchJson = async <T>(filename: string, defaultValue: T): Promise<T> => {
     await ensureDirectory();
   } catch (e) {
     console.warn("Skipping fetch due to directory error, returning default data.");
-    // If we can't ensure directory, we probably can't fetch. 
-    // But for first load, we might want to return default data so the app doesn't crash.
     return defaultValue; 
   }
   
   try {
     const response = await fetchProxy(filename, {
-      method: 'GET',
-      headers: { 'Cache-Control': 'no-cache' }
+      method: 'GET'
     });
     
     if (response.status === 404) {
       console.log(`${filename} not found, initializing with default data...`);
       // Try to save immediately to initialize
-      const saved = await saveJson(filename, defaultValue);
-      if (!saved) {
-          console.error(`Failed to initialize ${filename} after 404.`);
-      }
+      await saveJson(filename, defaultValue);
       return defaultValue;
     }
     
@@ -120,7 +133,8 @@ const fetchJson = async <T>(filename: string, defaultValue: T): Promise<T> => {
   }
 };
 
-const saveJson = async <T>(filename: string, data: T): Promise<boolean> => {
+// Returns { success, error } instead of boolean to let UI handle alerts
+const saveJson = async <T>(filename: string, data: T): Promise<{ success: boolean; error?: string }> => {
   try {
     await ensureDirectory();
     
@@ -135,14 +149,13 @@ const saveJson = async <T>(filename: string, data: T): Promise<boolean> => {
     if (!response.ok) {
       const errText = await response.text();
       console.error(`Save failed ${response.status}:`, errText);
-      alert(`保存失败: ${response.status}\n${errText.substring(0, 100)}`);
-      return false;
+      return { success: false, error: `${response.status} ${stripXml(errText)}` };
     }
     
-    return true;
-  } catch (error) {
+    return { success: true };
+  } catch (error: any) {
     console.error(`Failed to save ${filename}`, error);
-    return false;
+    return { success: false, error: stripXml(error.message || String(error)) };
   }
 };
 

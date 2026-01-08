@@ -1,13 +1,21 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2, Save, CloudUpload, AlertCircle, RefreshCw, X, Check, Search, ExternalLink } from 'lucide-react';
+import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2, CloudUpload, AlertCircle, RefreshCw, Check, Search, ExternalLink, X } from 'lucide-react';
 import { webdav, DEFAULT_PUBLIC_DATA, testConnection } from './services/webdavService';
 import { PublicData, CardData, Tag } from './types';
-import { Button, Input, Modal, PageLoader, ImagePreview, Rating, TextArea, AdminCard } from './components/Common';
+import { Button, Input, Modal, PageLoader, ImagePreview, Rating, TextArea, AdminCard, ToastProvider, useToast, ConfirmModal, MultiSelect } from './components/Common';
 
 // --- Main App ---
 
 const App: React.FC = () => {
+  return (
+    <ToastProvider>
+      <MainRouter />
+    </ToastProvider>
+  );
+};
+
+const MainRouter: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<PublicData>(DEFAULT_PUBLIC_DATA);
 
@@ -36,7 +44,7 @@ const App: React.FC = () => {
       </Routes>
     </BrowserRouter>
   );
-};
+}
 
 // --- Public View ---
 
@@ -157,6 +165,7 @@ const AdminLayout: React.FC<{ initialData: PublicData; refreshData: () => Promis
   const [checking, setChecking] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const location = useLocation();
+  const { showToast } = useToast();
 
   useEffect(() => {
     const expiry = localStorage.getItem('tat_expiry');
@@ -171,11 +180,13 @@ const AdminLayout: React.FC<{ initialData: PublicData; refreshData: () => Promis
 
   const handleSync = async () => {
     setSyncing(true);
-    const success = await webdav.savePublicData(localData);
-    if (success) {
+    const result = await webdav.savePublicData(localData);
+    if (result.success) {
       await refreshData();
       setHasChanges(false);
-      alert('已同步到云端');
+      showToast('同步成功，数据已更新', 'success');
+    } else {
+      showToast(`同步失败: ${result.error}`, 'error');
     }
     setSyncing(false);
   };
@@ -332,6 +343,7 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCard, setEditingCard] = useState<Partial<CardData>>({});
   const [search, setSearch] = useState('');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const filtered = data.cards.filter(c => c.title.toLowerCase().includes(search.toLowerCase()));
 
@@ -347,9 +359,11 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
     setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm('此操作不可恢复，确定删除吗？')) return;
-    onUpdate({ ...data, cards: data.cards.filter(c => c.id !== id) });
+  const confirmDelete = () => {
+    if (deleteId) {
+      onUpdate({ ...data, cards: data.cards.filter(c => c.id !== deleteId) });
+      setDeleteId(null);
+    }
   };
 
   return (
@@ -369,7 +383,7 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
               <ImagePreview src={card.coverUrl} alt={card.title} />
               <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all translate-y-2 group-hover:translate-y-0">
                 <button onClick={() => { setEditingCard(card); setIsModalOpen(true); }} className="p-2 bg-white/90 backdrop-blur text-ink hover:text-blue-600 rounded-lg shadow-sm"><Edit2 size={14} /></button>
-                <button onClick={() => handleDelete(card.id)} className="p-2 bg-white/90 backdrop-blur text-ink hover:text-red-600 rounded-lg shadow-sm"><Trash2 size={14} /></button>
+                <button onClick={() => setDeleteId(card.id)} className="p-2 bg-white/90 backdrop-blur text-ink hover:text-red-600 rounded-lg shadow-sm"><Trash2 size={14} /></button>
               </div>
             </div>
             <div className="p-4 flex-1 flex flex-col">
@@ -417,31 +431,29 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
 
           <TextArea label="详细信息 / 简介" value={editingCard.description || ''} onChange={e => setEditingCard({...editingCard, description: e.target.value})} placeholder="输入关于此卡片的详细描述..." />
           
-          <div>
-            <label className="text-xs font-semibold text-subtle uppercase block mb-3">所属分类</label>
-            <div className="flex flex-wrap gap-2 p-3 bg-stone-50 rounded-lg border border-border">
-              {data.tags.length === 0 && <span className="text-xs text-stone-400 italic">请先在「分类管理」中添加标签</span>}
-              {data.tags.map(tag => {
-              const active = editingCard.tagIds?.includes(tag.id);
-              return (
-                <button 
-                  key={tag.id} 
-                  onClick={() => {
-                    const ids = editingCard.tagIds || [];
-                    setEditingCard({...editingCard, tagIds: active ? ids.filter(i => i !== tag.id) : [...ids, tag.id]});
-                  }} 
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-all ${active ? 'bg-ink text-white border-ink shadow-sm' : 'bg-white text-subtle border-border hover:border-stone-400'}`}
-                >
-                  {tag.name}
-                </button>
-              )})}
-            </div>
-          </div>
+          <MultiSelect 
+            label="所属分类"
+            options={data.tags}
+            value={editingCard.tagIds || []}
+            onChange={ids => setEditingCard({...editingCard, tagIds: ids})}
+            placeholder="选择标签..."
+          />
+
           <div className="pt-2">
             <Button onClick={handleSave} className="w-full">保存卡片</Button>
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal 
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={confirmDelete}
+        title="删除卡片"
+        message="确定要删除这张卡片吗？此操作无法撤销。"
+        confirmText="删除"
+        type="danger"
+      />
     </div>
   );
 };
@@ -450,6 +462,7 @@ const AdminTags: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void 
   const [newTag, setNewTag] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [tempName, setTempName] = useState('');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const handleAdd = () => {
     if (!newTag.trim()) return;
@@ -506,7 +519,7 @@ const AdminTags: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void 
                 </div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={() => startEdit(tag)} className="p-2 text-stone-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={14} /></button>
-                  <button onClick={() => onUpdate({ ...data, tags: data.tags.filter(t => t.id !== tag.id) })} className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                  <button onClick={() => setDeleteId(tag.id)} className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
                 </div>
               </>
             )}
@@ -514,6 +527,18 @@ const AdminTags: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void 
         ))}
       </div>
       {data.tags.length === 0 && <div className="text-center py-10 text-stone-400 italic">暂无分类数据</div>}
+
+      <ConfirmModal 
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={() => {
+           if (deleteId) onUpdate({ ...data, tags: data.tags.filter(t => t.id !== deleteId) });
+        }}
+        title="删除分类"
+        message="确定要删除这个分类吗？相关卡片的标签也会被移除。"
+        confirmText="删除"
+        type="danger"
+      />
     </div>
   );
 };
@@ -523,6 +548,7 @@ const AdminSettings: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => v
   const [creds, setCreds] = useState({ username: '', password: '' });
   const [testStatus, setTestStatus] = useState<{success?: boolean; message: string} | null>(null);
   const [testing, setTesting] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => { webdav.getPrivateData().then(setCreds); }, []);
 
@@ -532,6 +558,12 @@ const AdminSettings: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => v
     const result = await testConnection();
     setTestStatus(result);
     setTesting(false);
+  };
+
+  const saveCreds = async () => {
+    const result = await webdav.savePrivateData(creds);
+    if (result.success) showToast('密码已即时更新', 'success');
+    else showToast(`更新失败: ${result.error}`, 'error');
   };
 
   return (
@@ -581,8 +613,8 @@ const AdminSettings: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => v
              </div>
              <Input label="管理账号" value={creds.username} onChange={e => setCreds({...creds, username: e.target.value})} />
              <Input label="新密码" type="password" value={creds.password} onChange={e => setCreds({...creds, password: e.target.value})} />
-             <Button variant="danger" className="w-full mt-2" onClick={async () => { await webdav.savePrivateData(creds); alert('密码已即时更新'); }}>
-               <Save size={16} /> 保存账号变更
+             <Button variant="danger" className="w-full mt-2" onClick={saveCreds}>
+               <CloudUpload size={16} /> 保存账号变更
              </Button>
           </div>
         </AdminCard>
