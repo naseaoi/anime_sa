@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2, CloudUpload, AlertCircle, RefreshCw, Check, Search, ExternalLink, X, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
+import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2, CloudUpload, AlertCircle, RefreshCw, Check, Search, ExternalLink, X, ChevronLeft, ChevronRight, ArrowRight, Sparkles } from 'lucide-react';
 import { webdav, DEFAULT_PUBLIC_DATA, testConnection } from './services/webdavService';
 import { PublicData, CardData, Tag } from './types';
 import { Button, Input, Modal, PageLoader, ImagePreview, Rating, TextArea, AdminCard, ToastProvider, useToast, ConfirmModal, MultiSelect } from './components/Common';
@@ -46,7 +46,7 @@ const MainRouter: React.FC = () => {
   );
 }
 
-// --- Public View (Redesigned Gallery) ---
+// --- Public View (Exhibition Style) ---
 
 const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
   const [activeTag, setActiveTag] = useState<string>('all');
@@ -56,29 +56,39 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
     ? data.cards 
     : data.cards.filter(c => c.tagIds.includes(activeTag)), [data.cards, activeTag]);
 
+  const getYear = (dateStr?: string) => {
+    if (!dateStr || typeof dateStr !== 'string') return 'N/A';
+    return dateStr.split('-')[0] || 'N/A';
+  };
+
   return (
-    <div className="min-h-screen bg-[#fafaf9] flex flex-col md:flex-row">
-      {/* Vertical Sidebar Navigation */}
-      <aside className="md:w-72 md:h-screen md:sticky md:top-0 bg-white border-r border-stone-100 p-8 flex flex-col z-40">
-        <div className="flex items-center gap-4 mb-16">
-          <img src={data.settings.iconUrl} alt="Logo" className="w-10 h-10 rounded-2xl shadow-sm object-cover" />
+    <div className="min-h-screen bg-[#fcfcfb] flex flex-col lg:flex-row font-sans selection:bg-ink selection:text-white">
+      {/* Dynamic Sidebar Nav */}
+      <aside className="lg:w-80 lg:h-screen lg:sticky lg:top-0 bg-white border-r border-stone-100 p-10 flex flex-col z-40">
+        <div className="flex items-center gap-4 mb-20 group cursor-pointer" onClick={() => window.location.reload()}>
+          <div className="relative">
+             <img src={data.settings.iconUrl} alt="Logo" className="w-12 h-12 rounded-2xl shadow-xl object-cover relative z-10" />
+             <div className="absolute inset-0 bg-ink rounded-2xl blur-lg opacity-20 group-hover:opacity-40 transition-opacity" />
+          </div>
           <div>
-            <h1 className="font-black text-xl text-ink leading-tight tracking-tighter uppercase">{data.settings.title}</h1>
-            <span className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Collections</span>
+            <h1 className="font-black text-2xl text-ink leading-none tracking-tighter uppercase">{data.settings.title}</h1>
+            <div className="flex items-center gap-2 mt-1">
+               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+               <span className="text-[9px] text-stone-400 font-black uppercase tracking-[0.2em]">Live Archive</span>
+            </div>
           </div>
         </div>
 
-        <nav className="flex flex-col gap-2 overflow-y-auto no-scrollbar flex-1">
+        <nav className="flex flex-col gap-1.5 overflow-y-auto no-scrollbar flex-1">
           <button 
             onClick={() => setActiveTag('all')}
-            className={`group flex items-center justify-between py-3 px-4 rounded-xl transition-all ${activeTag === 'all' ? 'bg-ink text-white shadow-xl translate-x-1' : 'text-subtle hover:text-ink hover:bg-stone-50'}`}
+            className={`group flex items-center justify-between py-4 px-5 rounded-2xl transition-all duration-500 ${activeTag === 'all' ? 'bg-ink text-white shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] translate-x-2' : 'text-subtle hover:text-ink hover:bg-stone-50'}`}
           >
-            <span className="text-sm font-bold tracking-tight">EXPLORE ALL</span>
-            <span className={`text-[10px] font-mono opacity-50 ${activeTag === 'all' ? 'text-white' : ''}`}>{data.cards.length}</span>
+            <span className="text-sm font-black tracking-tight uppercase">Show All</span>
+            <span className={`text-[10px] font-mono font-bold ${activeTag === 'all' ? 'opacity-50' : 'text-stone-300'}`}>{data.cards.length}</span>
           </button>
           
-          <div className="my-6 border-t border-stone-50" />
-          <span className="text-[10px] font-black text-stone-300 tracking-widest uppercase mb-4 px-4">Categories</span>
+          <div className="h-px bg-stone-50 my-8 w-1/2" />
           
           {data.tags.map(tag => {
             const count = data.cards.filter(c => c.tagIds.includes(tag.id)).length;
@@ -86,65 +96,75 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
               <button 
                 key={tag.id}
                 onClick={() => setActiveTag(tag.id)}
-                className={`group flex items-center justify-between py-3 px-4 rounded-xl transition-all ${activeTag === tag.id ? 'bg-ink text-white shadow-xl translate-x-1' : 'text-subtle hover:text-ink hover:bg-stone-50'}`}
+                className={`group flex items-center justify-between py-4 px-5 rounded-2xl transition-all duration-500 ${activeTag === tag.id ? 'bg-ink text-white shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] translate-x-2' : 'text-subtle hover:text-ink hover:bg-stone-50'}`}
               >
-                <span className="text-sm font-bold tracking-tight uppercase">{tag.name}</span>
-                <span className={`text-[10px] font-mono opacity-50 ${activeTag === tag.id ? 'text-white' : ''}`}>{count}</span>
+                <span className="text-sm font-black tracking-tight uppercase">{tag.name}</span>
+                <span className={`text-[10px] font-mono font-bold ${activeTag === tag.id ? 'opacity-50' : 'text-stone-300'}`}>{count}</span>
               </button>
             );
           })}
         </nav>
 
-        <div className="mt-8 pt-8 border-t border-stone-100">
-           <p className="text-[10px] text-stone-400 font-medium italic">Curating the fine details of life.</p>
+        <div className="mt-10 pt-10 border-t border-stone-50 space-y-4">
+           <div className="flex items-center gap-3 text-stone-300">
+             <Sparkles size={14} />
+             <p className="text-[10px] font-bold uppercase tracking-widest">Niche Archive Project</p>
+           </div>
+           <p className="text-[11px] text-stone-400 leading-relaxed italic">"Everything you collect is a piece of the puzzle that is you."</p>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 p-6 md:p-12 lg:p-16">
+      {/* Exhibition Content */}
+      <main className="flex-1 p-6 md:p-16 lg:p-24 overflow-x-hidden">
         {filteredCards.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center opacity-20 py-24">
-            <Grid className="w-24 h-24 mb-6 stroke-[0.5]" />
-            <p className="text-xl font-medium">No masterpieces found</p>
+          <div className="h-full flex flex-col items-center justify-center py-40">
+            <div className="relative mb-10">
+               <Grid className="w-32 h-32 text-stone-100 stroke-[0.5]" />
+               <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-4 h-4 bg-stone-200 rounded-full animate-ping" />
+               </div>
+            </div>
+            <p className="text-2xl font-black text-stone-200 uppercase tracking-widest">Archive Empty</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-12">
             {filteredCards.map((card, idx) => (
               <div 
                 key={card.id} 
                 onClick={() => setSelectedCard(card)} 
-                className={`group cursor-pointer relative ${idx === 0 ? 'md:col-span-2' : ''} animate-in fade-in slide-in-from-bottom-8 duration-700`}
-                style={{ animationDelay: `${idx * 100}ms` }}
+                className={`group cursor-pointer relative animate-in fade-in slide-in-from-bottom-12 duration-1000 fill-mode-both ${idx === 0 ? 'md:col-span-2 xl:col-span-2' : ''}`}
+                style={{ animationDelay: `${idx * 150}ms` }}
               >
-                <div className={`relative overflow-hidden rounded-[2.5rem] bg-stone-200 aspect-video shadow-2xl transition-all duration-700 group-hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.15)] group-hover:-translate-y-2`}>
-                   <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full scale-105 group-hover:scale-100 transition-transform duration-1000 ease-out" />
+                <div className="relative overflow-hidden rounded-[3rem] bg-stone-100 aspect-video shadow-2xl transition-all duration-700 group-hover:shadow-[0_60px_100px_-20px_rgba(0,0,0,0.2)] group-hover:-translate-y-3">
+                   <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full scale-110 group-hover:scale-100 transition-transform duration-[1.5s] ease-out" />
                    
-                   {/* Glass Overlay on Hover */}
-                   <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                   {/* Artistic Overlays */}
+                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60 group-hover:opacity-100 transition-opacity duration-700" />
                    
-                   {/* Content Label */}
-                   <div className="absolute bottom-6 left-6 right-6">
-                      <div className="bg-white/90 backdrop-blur-xl p-6 rounded-[2rem] shadow-xl translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-between">
-                         <div>
-                            <h3 className="font-black text-ink text-lg tracking-tighter uppercase mb-1">{card.title}</h3>
-                            <div className="flex items-center gap-3">
-                               <Rating value={card.rating} />
-                               <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">{card.endDate || 'Continuing'}</span>
-                            </div>
-                         </div>
-                         <div className="w-12 h-12 rounded-full bg-ink text-white flex items-center justify-center -rotate-45 group-hover:rotate-0 transition-transform duration-500">
-                            <ArrowRight size={20} />
-                         </div>
+                   {/* Info Floating Tag */}
+                   <div className="absolute top-8 left-8">
+                      <div className="bg-white/10 backdrop-blur-md border border-white/20 px-4 py-2 rounded-full flex items-center gap-3">
+                         <span className="text-[10px] font-black text-white uppercase tracking-widest">{getYear(card.startDate)}</span>
+                         <div className="w-1 h-1 rounded-full bg-white/40" />
+                         <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">{data.tags.find(t => t.id === card.tagIds[0])?.name || 'Item'}</span>
                       </div>
                    </div>
-                </div>
-                {/* Visual Label for inactive state */}
-                <div className="mt-6 px-4 group-hover:opacity-0 transition-opacity duration-300">
-                   <h3 className="font-bold text-ink truncate mb-1">{card.title}</h3>
-                   <div className="flex gap-2 items-center">
-                     <span className="text-[10px] font-black text-stone-300 tracking-widest uppercase">{card.startDate.split('-')[0]}</span>
-                     <div className="w-1 h-1 rounded-full bg-stone-200" />
-                     <span className="text-[10px] font-black text-stone-300 tracking-widest uppercase">{data.tags.find(t => t.id === card.tagIds[0])?.name || 'Item'}</span>
+
+                   {/* Title & Interaction Label */}
+                   <div className="absolute bottom-10 left-10 right-10">
+                      <div className="flex items-end justify-between gap-6 translate-y-4 group-hover:translate-y-0 transition-transform duration-700">
+                         <div className="flex-1 min-w-0">
+                            <h3 className="font-black text-white text-3xl md:text-4xl tracking-tighter uppercase truncate mb-4 drop-shadow-2xl">{card.title}</h3>
+                            <div className="flex items-center gap-4">
+                               <Rating value={card.rating} />
+                               <div className="h-px w-8 bg-white/20" />
+                               <span className="text-[11px] font-black text-white/60 uppercase tracking-[0.2em]">{card.endDate ? 'Archived' : 'Ongoing'}</span>
+                            </div>
+                         </div>
+                         <div className="flex-shrink-0 w-16 h-16 rounded-full bg-white text-ink flex items-center justify-center shadow-2xl transition-all duration-500 scale-0 group-hover:scale-100 group-hover:rotate-[360deg]">
+                            <ArrowRight size={24} />
+                         </div>
+                      </div>
                    </div>
                 </div>
               </div>
@@ -153,37 +173,56 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
         )}
       </main>
 
-      {/* Detail Modal Redesign */}
+      {/* Expanded Modal */}
       <Modal isOpen={!!selectedCard} onClose={() => setSelectedCard(null)} title={selectedCard?.title || ''}>
         {selectedCard && (
-          <div className="space-y-8 py-2">
-            <div className="aspect-video rounded-[2rem] overflow-hidden border border-stone-100 shadow-2xl"><ImagePreview src={selectedCard.coverUrl} alt={selectedCard.title} /></div>
+          <div className="space-y-12 py-4">
+            <div className="aspect-video rounded-[3rem] overflow-hidden border border-stone-100 shadow-2xl group relative">
+               <ImagePreview src={selectedCard.coverUrl} alt={selectedCard.title} />
+               <div className="absolute inset-0 bg-ink/5 group-hover:bg-transparent transition-colors" />
+            </div>
             
-            <div className="flex flex-col md:flex-row gap-8">
-               <div className="flex-1 space-y-6">
-                  <div>
-                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest block mb-4">The Narrative</label>
-                    <div className="text-lg text-ink leading-relaxed whitespace-pre-wrap font-medium">
-                      {selectedCard.description || <span className="text-stone-300 italic">No description provided for this collection.</span>}
+            <div className="flex flex-col md:flex-row gap-12">
+               <div className="flex-1 space-y-10">
+                  <div className="relative">
+                    <div className="absolute -left-6 top-0 bottom-0 w-1 bg-ink/5 rounded-full" />
+                    <label className="text-[10px] font-black text-stone-300 uppercase tracking-[0.3em] block mb-6">Manifesto & Narrative</label>
+                    <div className="text-xl text-ink leading-[1.7] whitespace-pre-wrap font-medium tracking-tight">
+                      {selectedCard.description || <span className="text-stone-200 italic font-light tracking-normal text-lg">"Silence is often the most profound description."</span>}
                     </div>
                   </div>
                </div>
 
-               <div className="md:w-56 space-y-6">
-                  <div className="bg-stone-50 p-6 rounded-[2rem] border border-stone-100">
-                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest block mb-3">Timeline</label>
-                    <div className="text-sm font-bold text-ink mb-1">{selectedCard.startDate}</div>
-                    <div className="text-[10px] font-bold text-stone-300 uppercase tracking-widest">to</div>
-                    <div className="text-sm font-bold text-ink mt-1">{selectedCard.endDate || 'Present'}</div>
+               <div className="md:w-64 space-y-8 flex-shrink-0">
+                  <div className="bg-stone-50/50 p-8 rounded-[2.5rem] border border-stone-100/50 backdrop-blur-sm">
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest block mb-4">Historical Record</label>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="text-[10px] font-bold text-stone-300 uppercase tracking-widest mb-1">Initiated</div>
+                        <div className="text-sm font-black text-ink font-mono">{selectedCard.startDate || 'Unknown'}</div>
+                      </div>
+                      <div className="flex justify-center py-2"><div className="w-px h-6 bg-stone-200" /></div>
+                      <div>
+                        <div className="text-[10px] font-bold text-stone-300 uppercase tracking-widest mb-1">Concluded</div>
+                        <div className="text-sm font-black text-ink font-mono">{selectedCard.endDate || 'Active'}</div>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="bg-stone-50 p-6 rounded-[2rem] border border-stone-100">
-                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest block mb-3">Critique</label>
-                    <div className="flex items-center gap-2"><Rating value={selectedCard.rating} /><span className="text-ink font-mono text-sm font-black ml-2">{selectedCard.rating}</span></div>
+                  <div className="bg-stone-50/50 p-8 rounded-[2.5rem] border border-stone-100/50">
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest block mb-4">Critical Rating</label>
+                    <div className="flex items-center justify-between">
+                       <Rating value={selectedCard.rating} />
+                       <span className="text-ink font-mono text-lg font-black">{selectedCard.rating}</span>
+                    </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    {selectedCard.tagIds.map(tid => <span key={tid} className="px-4 py-2 bg-white border border-stone-100 text-stone-400 text-[10px] font-black rounded-full uppercase tracking-widest hover:border-ink hover:text-ink transition-colors">{data.tags.find(t => t.id === tid)?.name}</span>)}
+                  <div className="flex flex-wrap gap-2">
+                    {selectedCard.tagIds.map(tid => (
+                      <span key={tid} className="px-5 py-2.5 bg-white border border-stone-100 text-stone-400 text-[10px] font-black rounded-full uppercase tracking-widest hover:border-ink hover:text-ink transition-all cursor-default">
+                        {data.tags.find(t => t.id === tid)?.name}
+                      </span>
+                    ))}
                   </div>
                </div>
             </div>
@@ -239,52 +278,52 @@ const AdminLayout: React.FC<{ initialData: PublicData; refreshData: () => Promis
     <div className="flex h-screen bg-stone-50 overflow-hidden font-sans">
       <aside className="w-64 bg-white border-r border-border flex flex-col hidden md:flex z-20 shadow-sm">
         <div className="h-16 border-b border-border flex items-center px-6 gap-3">
-          <div className="w-8 h-8 bg-ink rounded-lg flex items-center justify-center text-white"><Layout size={18} /></div>
-          <span className="font-bold text-ink tracking-tight">后台管理</span>
+          <div className="w-8 h-8 bg-ink rounded-lg flex items-center justify-center text-white shadow-lg"><Layout size={18} /></div>
+          <span className="font-bold text-ink tracking-tight uppercase">Admin Panel</span>
         </div>
-        <div className="p-4">
-           <div className="text-xs font-bold text-subtle uppercase tracking-wider px-3 mb-2">内容管理</div>
-           <nav className="space-y-1">
+        <div className="p-4 flex-1">
+           <div className="text-[10px] font-black text-stone-300 uppercase tracking-[0.2em] px-3 mb-4 mt-2">Archives</div>
+           <nav className="space-y-1.5">
              <NavButton to="/tat/cards" icon={<Grid size={18} />} label="所有卡片" count={localData.cards.length} />
              <NavButton to="/tat/tags" icon={<Tags size={18} />} label="标签分类" count={localData.tags.length} />
            </nav>
-           <div className="text-xs font-bold text-subtle uppercase tracking-wider px-3 mb-2 mt-6">系统</div>
-           <nav className="space-y-1">
+           <div className="text-[10px] font-black text-stone-300 uppercase tracking-[0.2em] px-3 mb-4 mt-8">System</div>
+           <nav className="space-y-1.5">
              <NavButton to="/tat/settings" icon={<Settings size={18} />} label="网站设置" />
-             <a href="/" target="_blank" className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-subtle hover:text-ink hover:bg-stone-50 rounded-lg transition-colors group">
-                <ExternalLink size={18} className="text-stone-400 group-hover:text-ink" />
+             <a href="/" target="_blank" className="flex items-center gap-3 px-3 py-2.5 text-sm font-bold text-subtle hover:text-ink hover:bg-stone-50 rounded-xl transition-all group">
+                <ExternalLink size={18} className="text-stone-300 group-hover:text-ink" />
                 <span>访问前台</span>
              </a>
            </nav>
         </div>
-        <div className="mt-auto p-4 border-t border-border">
-          <button onClick={() => { localStorage.removeItem('tat_expiry'); window.location.href = '/'; }} className="flex items-center gap-3 px-3 py-2 w-full text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"><LogOut size={18} /><span>退出登录</span></button>
+        <div className="p-4 border-t border-border">
+          <button onClick={() => { localStorage.removeItem('tat_expiry'); window.location.href = '/'; }} className="flex items-center gap-3 px-3 py-2.5 w-full text-sm font-bold text-red-500 hover:bg-red-50 rounded-xl transition-all"><LogOut size={18} /><span>退出系统</span></button>
         </div>
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="bg-white border-b border-border h-16 flex items-center justify-between px-6 z-10 sticky top-0">
-          <h2 className="text-lg font-bold text-ink hidden md:block capitalize">
-            {location.pathname.split('/').pop() === 'cards' ? '卡片管理' : 
-             location.pathname.split('/').pop() === 'tags' ? '分类管理' : '系统设置'}
+        <header className="bg-white/80 backdrop-blur-xl border-b border-border h-16 flex items-center justify-between px-6 z-10 sticky top-0">
+          <h2 className="text-sm font-black text-ink uppercase tracking-widest hidden md:block">
+            {location.pathname.split('/').pop() === 'cards' ? 'Archive Management' : 
+             location.pathname.split('/').pop() === 'tags' ? 'Categories' : 'System Configuration'}
           </h2>
-          <div className="md:hidden font-bold">后台管理</div>
+          <div className="md:hidden font-black uppercase text-xs tracking-widest">Niche Admin</div>
           
           <div className="flex items-center gap-4">
             {hasChanges && (
-              <div className="hidden sm:flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full text-xs font-medium border border-amber-100 animate-pulse">
-                <AlertCircle size={14} />
-                <span>有未保存的修改</span>
+              <div className="hidden sm:flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border border-amber-100 animate-pulse">
+                <AlertCircle size={12} />
+                <span>Unsaved Modifications</span>
               </div>
             )}
-            <Button onClick={handleSync} disabled={!hasChanges || syncing} variant="success" size="sm" className={syncing ? 'opacity-80' : ''}>
+            <Button onClick={handleSync} disabled={!hasChanges || syncing} variant="success" size="sm" className={`rounded-full px-5 ${syncing ? 'opacity-80' : ''}`}>
               {syncing ? <Loader2 size={16} className="animate-spin" /> : <CloudUpload size={16} />}
-              <span>{syncing ? '同步中...' : '同步到云端'}</span>
+              <span className="font-bold tracking-tight">{syncing ? '同步中...' : '同步云端'}</span>
             </Button>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-8">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-10 lg:p-12">
           <div className="max-w-7xl mx-auto w-full">
             <Routes>
               <Route path="cards" element={<AdminCards data={localData} onUpdate={(d) => handleDataChange(d)} />} />
@@ -296,7 +335,7 @@ const AdminLayout: React.FC<{ initialData: PublicData; refreshData: () => Promis
         </main>
       </div>
 
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border flex justify-around p-2 pb-safe z-40 shadow-[0_-1px_10px_rgba(0,0,0,0.05)]">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-border flex justify-around p-3 pb-safe z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]">
         <NavButtonMobile to="/tat/cards" icon={<Grid size={20} />} label="卡片" />
         <NavButtonMobile to="/tat/tags" icon={<Tags size={20} />} label="分类" />
         <NavButtonMobile to="/tat/settings" icon={<Settings size={20} />} label="设置" />
@@ -312,13 +351,13 @@ const NavButton: React.FC<{ to: string, icon: React.ReactNode, label: string, co
   return (
     <button 
       onClick={() => navigate(to)} 
-      className={`flex items-center justify-between px-3 py-2 w-full text-sm font-medium rounded-lg transition-all group ${isActive ? 'bg-ink text-white shadow-md' : 'text-subtle hover:bg-stone-100 hover:text-ink'}`}
+      className={`flex items-center justify-between px-3 py-2.5 w-full text-sm font-bold rounded-xl transition-all group ${isActive ? 'bg-ink text-white shadow-xl' : 'text-subtle hover:bg-stone-50 hover:text-ink'}`}
     >
       <div className="flex items-center gap-3">
-        {React.cloneElement(icon as React.ReactElement<{ className?: string }>, { className: isActive ? 'text-white' : 'text-stone-400 group-hover:text-ink' })}
+        {React.cloneElement(icon as React.ReactElement<{ className?: string }>, { className: isActive ? 'text-white' : 'text-stone-300 group-hover:text-ink' })}
         <span>{label}</span>
       </div>
-      {count !== undefined && <span className={`text-xs px-1.5 py-0.5 rounded-md ${isActive ? 'bg-white/20 text-white' : 'bg-stone-100 text-subtle'}`}>{count}</span>}
+      {count !== undefined && <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-lg ${isActive ? 'bg-white/20 text-white' : 'bg-stone-50 text-stone-300'}`}>{count}</span>}
     </button>
   );
 }
@@ -328,9 +367,9 @@ const NavButtonMobile: React.FC<{ to: string, icon: React.ReactNode, label: stri
   const navigate = useNavigate();
   const isActive = location.pathname.includes(to);
   return (
-    <button onClick={() => navigate(to)} className={`flex flex-col items-center gap-1 p-2 rounded-lg w-full ${isActive ? 'text-ink' : 'text-subtle'}`}>
-      <div className={`${isActive ? 'bg-stone-100' : ''} p-1.5 rounded-full transition-colors`}>{icon}</div>
-      <span className="text-[10px] font-medium">{label}</span>
+    <button onClick={() => navigate(to)} className={`flex flex-col items-center gap-1 p-2 rounded-xl w-full transition-colors ${isActive ? 'text-ink' : 'text-stone-300'}`}>
+      <div className={`${isActive ? 'bg-stone-100' : ''} p-2 rounded-full transition-colors`}>{icon}</div>
+      <span className="text-[10px] font-black uppercase tracking-widest">{label}</span>
     </button>
   )
 }
@@ -351,24 +390,29 @@ const AdminLogin: React.FC<{ onLogin: (keep: boolean) => void }> = ({ onLogin })
       else setError('账号或密码错误');
     } catch (err) {
       console.error(err);
-      setError('连接失败，请检查 WebDAV 配置或控制台日志');
+      setError('连接失败，请检查 WebDAV 配置');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="h-screen flex items-center justify-center bg-stone-50 p-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl border border-border p-8 animate-in fade-in zoom-in-95 duration-300">
-        <div className="flex justify-center mb-6"><div className="p-4 bg-stone-100 rounded-full shadow-inner"><Lock className="w-8 h-8 text-ink" /></div></div>
-        <h2 className="text-xl font-bold text-center text-ink mb-2">后台管理</h2>
-        <p className="text-center text-subtle text-sm mb-8">请验证您的管理员身份</p>
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <Input label="账号" value={username} onChange={e => setUsername(e.target.value)} className="bg-stone-50" />
-          <Input label="密码" type="password" value={password} onChange={e => setPassword(e.target.value)} className="bg-stone-50" />
-          <div className="flex items-center gap-2"><input type="checkbox" id="keep" checked={keep} onChange={e => setKeep(e.target.checked)} className="rounded border-border text-ink focus:ring-ink" /><label htmlFor="keep" className="text-sm text-subtle select-none cursor-pointer">30天免登录</label></div>
-          {error && <div className="p-3 bg-red-50 text-red-600 text-xs rounded-lg flex items-center gap-2"><AlertCircle size={14} />{error}</div>}
-          <Button type="submit" className="w-full h-11" disabled={loading}>{loading ? <Loader2 className="animate-spin" /> : '登 录'}</Button>
+    <div className="h-screen flex items-center justify-center bg-[#fafaf9] p-6">
+      <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-[0_40px_100px_-20px_rgba(0,0,0,0.1)] border border-stone-100 p-12 animate-in fade-in zoom-in-95 duration-500">
+        <div className="flex justify-center mb-10">
+          <div className="p-6 bg-stone-50 rounded-[2rem] shadow-inner relative group">
+             <Lock className="w-10 h-10 text-ink relative z-10" />
+             <div className="absolute inset-0 bg-ink rounded-[2rem] opacity-0 group-hover:opacity-5 transition-opacity" />
+          </div>
+        </div>
+        <h2 className="text-2xl font-black text-center text-ink mb-2 uppercase tracking-tight">System Access</h2>
+        <p className="text-center text-stone-400 text-sm mb-10 font-medium">Identity verification required.</p>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <Input label="Identity" value={username} onChange={e => setUsername(e.target.value)} className="bg-stone-50/50 h-12 rounded-2xl" placeholder="Username" />
+          <Input label="Credentials" type="password" value={password} onChange={e => setPassword(e.target.value)} className="bg-stone-50/50 h-12 rounded-2xl" placeholder="Password" />
+          <div className="flex items-center gap-3 px-1"><input type="checkbox" id="keep" checked={keep} onChange={e => setKeep(e.target.checked)} className="w-4 h-4 rounded border-stone-200 text-ink focus:ring-ink" /><label htmlFor="keep" className="text-xs text-stone-400 font-bold uppercase tracking-widest select-none cursor-pointer">Stay Authenticated</label></div>
+          {error && <div className="p-4 bg-red-50 text-red-600 text-xs font-bold rounded-2xl flex items-center gap-3 border border-red-100"><AlertCircle size={16} />{error}</div>}
+          <Button type="submit" className="w-full h-14 rounded-2xl text-lg shadow-xl" disabled={loading}>{loading ? <Loader2 className="animate-spin" /> : 'AUTHENTICATE'}</Button>
         </form>
       </div>
     </div>
@@ -383,17 +427,13 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
   const [search, setSearch] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 30;
+  const itemsPerPage = 20;
 
   const filtered = data.cards.filter(c => c.title.toLowerCase().includes(search.toLowerCase()));
-  
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginatedCards = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  // Reset to first page when searching
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search]);
+  useEffect(() => { setCurrentPage(1); }, [search]);
 
   const handleSave = () => {
     const newCards = [...data.cards];
@@ -415,131 +455,135 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="relative max-w-sm w-full">
-           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
+    <div className="space-y-10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+        <div className="relative max-w-sm w-full group">
+           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-300 group-focus-within:text-ink transition-colors" size={18} />
            <input 
-              placeholder="搜索卡片..." 
-              className="w-full pl-10 pr-10 py-2 bg-white border border-border rounded-lg text-sm focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink transition-all" 
+              placeholder="Filter archives..." 
+              className="w-full pl-12 pr-12 py-3 bg-white border border-stone-200 rounded-2xl text-sm font-bold focus:outline-none focus:border-ink focus:ring-4 focus:ring-stone-100 transition-all placeholder:text-stone-300" 
               value={search} 
               onChange={e => setSearch(e.target.value)} 
            />
            {search && (
              <button 
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-ink transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-300 hover:text-ink transition-colors p-1"
              >
-                <X size={16} />
+                <X size={18} />
              </button>
            )}
         </div>
-        <Button onClick={() => { setEditingCard({ tagIds: [], rating: 0, description: '' }); setIsModalOpen(true); }}><Plus size={16} /> 新建卡片</Button>
+        <Button onClick={() => { setEditingCard({ tagIds: [], rating: 0, description: '', startDate: '', endDate: '' }); setIsModalOpen(true); }} className="rounded-2xl px-6 h-12 shadow-lg"><Plus size={20} /> <span className="font-bold">NEW RECORD</span></Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
         {paginatedCards.map(card => (
-          <div key={card.id} className="bg-white rounded-xl border border-border overflow-hidden hover:shadow-lg hover:border-stone-300 transition-all group flex flex-col h-full">
-            <div className="h-40 bg-stone-100 overflow-hidden relative">
+          <div key={card.id} className="bg-white rounded-[2rem] border border-stone-200 overflow-hidden hover:shadow-2xl hover:-translate-y-1 transition-all group flex flex-col h-full">
+            <div className="aspect-video bg-stone-50 overflow-hidden relative border-b border-stone-100">
               <ImagePreview src={card.coverUrl} alt={card.title} />
-              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all translate-y-2 group-hover:translate-y-0">
-                <button onClick={() => { setEditingCard(card); setIsModalOpen(true); }} className="p-2 bg-white/90 backdrop-blur text-ink hover:text-blue-600 rounded-lg shadow-sm"><Edit2 size={14} /></button>
-                <button onClick={() => setDeleteId(card.id)} className="p-2 bg-white/90 backdrop-blur text-ink hover:text-red-600 rounded-lg shadow-sm"><Trash2 size={14} /></button>
+              <div className="absolute inset-0 bg-ink/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                <button onClick={() => { setEditingCard(card); setIsModalOpen(true); }} className="p-3 bg-white text-ink hover:bg-black hover:text-white rounded-2xl shadow-xl transition-all"><Edit2 size={16} /></button>
+                <button onClick={() => setDeleteId(card.id)} className="p-3 bg-white text-red-500 hover:bg-red-500 hover:text-white rounded-2xl shadow-xl transition-all"><Trash2 size={16} /></button>
               </div>
             </div>
-            <div className="p-4 flex-1 flex flex-col">
-              <h4 className="font-bold text-ink truncate mb-1">{card.title}</h4>
-              <div className="flex items-center gap-2 mb-3">
+            <div className="p-6 flex-1 flex flex-col">
+              <h4 className="font-black text-ink text-lg truncate mb-2 uppercase tracking-tight">{card.title}</h4>
+              <div className="flex items-center gap-3 mb-4">
                  <Rating value={card.rating} />
-                 <span className="text-xs text-stone-400">({card.rating})</span>
+                 <span className="text-[10px] font-bold text-stone-300 uppercase tracking-widest">{card.rating} / 5</span>
               </div>
-              <div className="mt-auto pt-3 border-t border-stone-100 flex items-center justify-between">
-                 <div className="flex gap-1 overflow-hidden">{card.tagIds.slice(0,2).map(tid => <span key={tid} className="text-[10px] bg-stone-100 text-subtle px-1.5 py-0.5 rounded">{data.tags.find(t=>t.id===tid)?.name}</span>)}</div>
-                 <span className="text-[10px] text-stone-400 font-mono">{card.startDate || '未开始'}</span>
+              <div className="mt-auto pt-5 border-t border-stone-50 flex items-center justify-between">
+                 <div className="flex gap-1.5 overflow-hidden">
+                    {card.tagIds.slice(0,1).map(tid => <span key={tid} className="text-[9px] font-black uppercase tracking-widest bg-stone-50 text-stone-400 px-2 py-1 rounded-lg border border-stone-100">{data.tags.find(t=>t.id===tid)?.name}</span>)}
+                    {card.tagIds.length > 1 && <span className="text-[9px] font-black text-stone-300 px-1 py-1">+{card.tagIds.length - 1}</span>}
+                 </div>
+                 <span className="text-[10px] text-stone-300 font-mono font-bold">{(card.startDate || 'TBA').split('-')[0]}</span>
               </div>
             </div>
           </div>
         ))}
         {paginatedCards.length === 0 && (
-          <div className="col-span-full py-20 text-center text-stone-400 border-2 border-dashed border-stone-200 rounded-xl">
-             <div className="flex flex-col items-center gap-3">
-               <Search size={48} className="opacity-20" />
-               <div>没有找到符合条件的卡片</div>
+          <div className="col-span-full py-32 text-center text-stone-300 border-4 border-dashed border-stone-100 rounded-[3rem]">
+             <div className="flex flex-col items-center gap-4">
+               <div className="p-8 bg-stone-50 rounded-full"><Search size={64} className="opacity-10" /></div>
+               <div className="text-xl font-black uppercase tracking-widest">No Matches Found</div>
+               <p className="text-sm font-medium">Try refining your search parameters.</p>
              </div>
           </div>
         )}
       </div>
 
-      {/* Pagination Controls */}
+      {/* Modern Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 py-8">
-          <Button 
-            variant="ghost" 
-            size="sm" 
+        <div className="flex items-center justify-center gap-3 py-12">
+          <button 
             disabled={currentPage === 1} 
             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            className="w-12 h-12 rounded-2xl border border-stone-200 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:bg-stone-50 transition-colors"
           >
-            <ChevronLeft size={16} />
-          </Button>
+            <ChevronLeft size={20} />
+          </button>
           
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
               <button
                 key={page}
                 onClick={() => setCurrentPage(page)}
-                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page ? 'bg-ink text-white' : 'text-subtle hover:bg-stone-100 hover:text-ink'}`}
+                className={`w-12 h-12 rounded-2xl text-xs font-black transition-all ${currentPage === page ? 'bg-ink text-white shadow-xl scale-110' : 'text-stone-400 hover:bg-stone-50'}`}
               >
                 {page}
               </button>
             ))}
           </div>
 
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <button 
             disabled={currentPage === totalPages} 
             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            className="w-12 h-12 rounded-2xl border border-stone-200 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:bg-stone-50 transition-colors"
           >
-            <ChevronRight size={16} />
-          </Button>
+            <ChevronRight size={20} />
+          </button>
         </div>
       )}
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCard.id ? "编辑卡片" : "新建卡片"}>
-        <div className="space-y-5">
-          <Input label="卡片名称" value={editingCard.title || ''} onChange={e => setEditingCard({...editingCard, title: e.target.value})} placeholder="例如：黑神话：悟空" />
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCard.id ? "Edit Record" : "New Archive Record"}>
+        <div className="space-y-6">
+          <Input label="Record Title" value={editingCard.title || ''} onChange={e => setEditingCard({...editingCard, title: e.target.value})} placeholder="Masterpiece title..." className="h-12 rounded-xl" />
           
           <MultiSelect 
-            label="所属分类"
+            label="Categorization"
             options={data.tags}
             value={editingCard.tagIds || []}
             onChange={ids => setEditingCard({...editingCard, tagIds: ids})}
-            placeholder="选择标签..."
+            placeholder="Assign tags..."
           />
 
-          <div className="flex gap-4">
-             <div className="w-24 h-24 bg-stone-100 rounded-lg overflow-hidden border border-border flex-shrink-0">
-               <ImagePreview src={editingCard.coverUrl || ''} alt="Preview" className="aspect-video" />
+          <div className="flex flex-col sm:flex-row gap-6">
+             <div className="w-32 h-32 bg-stone-50 rounded-2xl overflow-hidden border border-stone-100 flex-shrink-0 relative">
+               <ImagePreview src={editingCard.coverUrl || ''} alt="Preview" className="aspect-video h-full w-full" />
              </div>
              <div className="flex-1 space-y-4">
-               <Input label="封面链接 (URL)" value={editingCard.coverUrl || ''} onChange={e => setEditingCard({...editingCard, coverUrl: e.target.value})} placeholder="https://..." />
+               <Input label="Cover Asset (URL)" value={editingCard.coverUrl || ''} onChange={e => setEditingCard({...editingCard, coverUrl: e.target.value})} placeholder="https://..." className="h-10 rounded-xl" />
                <div>
-                  <label className="text-xs font-semibold text-subtle uppercase block mb-2">评分 ({editingCard.rating})</label>
-                  <input type="range" min="0" max="5" step="0.5" className="w-full accent-ink cursor-pointer" value={editingCard.rating || 0} onChange={e => setEditingCard({...editingCard, rating: parseFloat(e.target.value)})} />
-                  <div className="flex justify-between text-[10px] text-stone-400 px-1 mt-1"><span>0</span><span>2.5</span><span>5</span></div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Quality Assessment</label>
+                    <span className="text-xs font-black font-mono">{editingCard.rating || 0}</span>
+                  </div>
+                  <input type="range" min="0" max="5" step="0.5" className="w-full accent-ink cursor-pointer h-2 bg-stone-100 rounded-lg appearance-none" value={editingCard.rating || 0} onChange={e => setEditingCard({...editingCard, rating: parseFloat(e.target.value)})} />
                </div>
              </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="开始日期" type="date" value={editingCard.startDate || ''} onChange={e => setEditingCard({...editingCard, startDate: e.target.value})} />
-            <Input label="结束日期" type="date" value={editingCard.endDate || ''} onChange={e => setEditingCard({...editingCard, endDate: e.target.value})} />
+          <div className="grid grid-cols-2 gap-6">
+            <Input label="Timeline Start" type="date" value={editingCard.startDate || ''} onChange={e => setEditingCard({...editingCard, startDate: e.target.value})} className="h-10 rounded-xl" />
+            <Input label="Timeline End" type="date" value={editingCard.endDate || ''} onChange={e => setEditingCard({...editingCard, endDate: e.target.value})} className="h-10 rounded-xl" />
           </div>
 
-          <TextArea label="详细信息 / 简介" value={editingCard.description || ''} onChange={e => setEditingCard({...editingCard, description: e.target.value})} placeholder="输入关于此卡片的详细描述..." />
+          <TextArea label="The Narrative" value={editingCard.description || ''} onChange={e => setEditingCard({...editingCard, description: e.target.value})} placeholder="Detailed description of this entry..." className="rounded-2xl min-h-[140px]" />
           
-          <div className="pt-2">
-            <Button onClick={handleSave} className="w-full">保存卡片</Button>
+          <div className="pt-4">
+            <Button onClick={handleSave} className="w-full h-14 rounded-2xl text-lg font-black shadow-xl">COMMIT RECORD</Button>
           </div>
         </div>
       </Modal>
@@ -548,9 +592,9 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
         isOpen={!!deleteId}
         onClose={() => setDeleteId(null)}
         onConfirm={confirmDelete}
-        title="删除卡片"
-        message="确定要删除这张卡片吗？此操作无法撤销。"
-        confirmText="删除"
+        title="Delete Record"
+        message="Are you sure you want to purge this record from the archive? This action is permanent."
+        confirmText="PURGE"
         type="danger"
       />
     </div>
@@ -582,52 +626,54 @@ const AdminTags: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void 
   };
 
   return (
-    <div className="space-y-6 max-w-5xl">
-      <AdminCard title="添加新分类">
-         <div className="flex gap-3">
-           <Input placeholder="输入分类名称（如：电影、番剧...）" value={newTag} onChange={e => setNewTag(e.target.value)} className="flex-1" />
-           <Button onClick={handleAdd} disabled={!newTag.trim()} size="md" className="w-12 h-10 p-0">
-             <Plus size={20} />
+    <div className="space-y-10 max-w-4xl">
+      <AdminCard title="Define New Category" className="rounded-[2.5rem] border-stone-200">
+         <div className="flex gap-4">
+           <Input placeholder="Category nomenclature (e.g. Cinema, Lit...)" value={newTag} onChange={e => setNewTag(e.target.value)} className="flex-1 h-12 rounded-2xl" />
+           <Button onClick={handleAdd} disabled={!newTag.trim()} size="md" className="w-12 h-12 p-0 rounded-2xl">
+             <Plus size={24} />
            </Button>
          </div>
       </AdminCard>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {data.tags.map(tag => (
-          <div key={tag.id} className="bg-white p-4 rounded-xl border border-border shadow-sm flex items-center justify-between group hover:border-stone-300 transition-colors">
+          <div key={tag.id} className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm flex items-center justify-between group hover:border-ink/20 transition-all hover:shadow-xl">
             {editingId === tag.id ? (
-              <div className="flex items-center gap-2 w-full animate-in fade-in duration-200">
+              <div className="flex items-center gap-3 w-full animate-in fade-in duration-300">
                 <input 
-                  className="flex-1 min-w-0 bg-stone-50 border border-ink/20 rounded px-2 py-1 text-sm focus:outline-none focus:border-ink" 
+                  className="flex-1 min-w-0 bg-stone-50 border border-ink/10 rounded-xl px-4 py-2 text-sm font-bold focus:outline-none focus:border-ink" 
                   value={tempName} 
                   onChange={e => setTempName(e.target.value)} 
                   autoFocus 
                   onKeyDown={e => e.key === 'Enter' && saveEdit()}
                 />
-                <button onClick={saveEdit} className="p-1.5 bg-ink text-white rounded hover:bg-black"><Check size={14} /></button>
-                <button onClick={() => setEditingId(null)} className="p-1.5 text-stone-400 hover:text-ink"><X size={14} /></button>
+                <button onClick={saveEdit} className="p-2 bg-ink text-white rounded-xl hover:scale-110 transition-transform"><Check size={16} /></button>
+                <button onClick={() => setEditingId(null)} className="p-2 text-stone-300 hover:text-ink"><X size={16} /></button>
               </div>
             ) : (
               <>
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-500 font-bold text-xs border border-stone-200">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-2xl bg-stone-50 flex items-center justify-center text-stone-400 font-black text-xs border border-stone-100 uppercase">
                     {tag.name.substring(0,1)}
                   </div>
-                  <span className="font-medium text-ink">{tag.name}</span>
-                  <span className="text-xs text-stone-400 bg-stone-50 px-1.5 py-0.5 rounded border border-stone-100">
-                    {data.cards.filter(c => c.tagIds.includes(tag.id)).length}
-                  </span>
+                  <div>
+                    <span className="font-black text-ink uppercase tracking-tight block">{tag.name}</span>
+                    <span className="text-[10px] font-bold text-stone-300 uppercase tracking-widest">
+                      {data.cards.filter(c => c.tagIds.includes(tag.id)).length} Entries
+                    </span>
+                  </div>
                 </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => startEdit(tag)} className="p-2 text-stone-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={14} /></button>
-                  <button onClick={() => setDeleteId(tag.id)} className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => startEdit(tag)} className="p-2.5 text-stone-300 hover:text-ink hover:bg-stone-50 rounded-xl transition-all"><Edit2 size={16} /></button>
+                  <button onClick={() => setDeleteId(tag.id)} className="p-2.5 text-stone-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={16} /></button>
                 </div>
               </>
             )}
           </div>
         ))}
       </div>
-      {data.tags.length === 0 && <div className="text-center py-10 text-stone-400 italic">暂无分类数据</div>}
+      {data.tags.length === 0 && <div className="text-center py-20 text-stone-200 italic font-medium uppercase tracking-[0.2em] animate-pulse">Category Index Empty</div>}
 
       <ConfirmModal 
         isOpen={!!deleteId}
@@ -635,9 +681,9 @@ const AdminTags: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void 
         onConfirm={() => {
            if (deleteId) onUpdate({ ...data, tags: data.tags.filter(t => t.id !== deleteId) });
         }}
-        title="删除分类"
-        message="确定要删除这个分类吗？相关卡片的标签也会被移除。"
-        confirmText="删除"
+        title="Delete Category"
+        message="Purging this category will remove it from all associated archive entries. Proceed?"
+        confirmText="CONFIRM PURGE"
         type="danger"
       />
     </div>
@@ -663,65 +709,69 @@ const AdminSettings: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => v
 
   const saveCreds = async () => {
     const result = await webdav.savePrivateData(creds);
-    if (result.success) showToast('密码已即时更新', 'success');
-    else showToast(`更新失败: ${result.error}`, 'error');
+    if (result.success) showToast('Credentials updated successfully', 'success');
+    else showToast(`Update failed: ${result.error}`, 'error');
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-      <div className="lg:col-span-2 space-y-8">
-        <AdminCard title="基本设置">
-           <div className="space-y-4">
-             <Input label="网站名称" value={siteSettings.title} onChange={e => { const s = {...siteSettings, title: e.target.value}; setSiteSettings(s); onUpdate({...data, settings: s}); }} placeholder="例如：我的收藏集" />
-             <div className="flex gap-4 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start pb-20">
+      <div className="lg:col-span-2 space-y-10">
+        <AdminCard title="Brand Identity" className="rounded-[2.5rem]">
+           <div className="space-y-6">
+             <Input label="Archive Title" value={siteSettings.title} onChange={e => { const s = {...siteSettings, title: e.target.value}; setSiteSettings(s); onUpdate({...data, settings: s}); }} placeholder="e.g. My Infinite Archive" className="h-12 rounded-2xl" />
+             <div className="flex gap-6 items-start">
                 <div className="flex-1">
-                   <Input label="网站图标 URL (Favicon)" value={siteSettings.iconUrl} onChange={e => { const s = {...siteSettings, iconUrl: e.target.value}; setSiteSettings(s); onUpdate({...data, settings: s}); }} placeholder="https://..." />
-                   <p className="text-[10px] text-stone-400 mt-1">建议使用 32x32 或更大尺寸的 PNG/ICO 图片</p>
+                   <Input label="Archive Icon URL" value={siteSettings.iconUrl} onChange={e => { const s = {...siteSettings, iconUrl: e.target.value}; setSiteSettings(s); onUpdate({...data, settings: s}); }} placeholder="https://..." className="h-10 rounded-2xl" />
+                   <p className="text-[10px] text-stone-300 mt-3 font-bold uppercase tracking-widest">Recommended: High-res square PNG (min 128px)</p>
                 </div>
-                <div className="mt-6 w-10 h-10 rounded border border-border bg-stone-50 flex items-center justify-center overflow-hidden">
-                   <img src={siteSettings.iconUrl} alt="Icon" className="w-8 h-8 object-contain" onError={(e) => (e.currentTarget.style.display='none')} />
+                <div className="mt-8 w-16 h-16 rounded-[1.5rem] border border-stone-100 bg-stone-50 flex items-center justify-center overflow-hidden shadow-inner group relative">
+                   <img src={siteSettings.iconUrl} alt="Icon" className="w-10 h-10 object-contain relative z-10" onError={(e) => (e.currentTarget.style.display='none')} />
+                   <div className="absolute inset-0 bg-ink opacity-0 group-hover:opacity-5 transition-opacity" />
                 </div>
              </div>
            </div>
         </AdminCard>
         
-        <AdminCard title="连接诊断">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <div className="text-sm font-medium text-ink">WebDAV 连通性测试</div>
-              <div className="text-xs text-subtle">测试服务器连接及文件夹读写权限</div>
+        <AdminCard title="Connectivity Diagnostic" className="rounded-[2.5rem]">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="space-y-2">
+              <div className="text-sm font-black text-ink uppercase tracking-tight">WebDAV Protocol Validation</div>
+              <div className="text-xs text-stone-400 font-medium">Verify server accessibility and R/W permissions.</div>
             </div>
-            <Button onClick={runTest} variant="secondary" size="sm" disabled={testing}>
-              {testing ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
-              {testing ? '测试中' : '开始测试'}
+            <Button onClick={runTest} variant="secondary" size="md" disabled={testing} className="rounded-2xl px-6 h-12 min-w-[140px]">
+              {testing ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
+              <span className="font-bold">{testing ? 'Testing...' : 'Initialize Test'}</span>
             </Button>
           </div>
           {testStatus && (
-            <div className={`mt-4 p-3 rounded-lg text-sm border flex items-start gap-2 ${testStatus.success ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-red-50 border-red-100 text-red-700'}`}>
-              {testStatus.success ? <Check size={16} className="mt-0.5" /> : <AlertCircle size={16} className="mt-0.5" />}
-              <span>{testStatus.message}</span>
+            <div className={`mt-8 p-6 rounded-3xl text-sm font-bold border flex items-start gap-4 animate-in slide-in-from-top-4 duration-500 ${testStatus.success ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-red-50 border-red-100 text-red-800'}`}>
+              <div className={`p-2 rounded-xl ${testStatus.success ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+                {testStatus.success ? <Check size={18} /> : <AlertCircle size={18} />}
+              </div>
+              <div className="pt-1.5 leading-relaxed">{testStatus.message}</div>
             </div>
           )}
         </AdminCard>
       </div>
 
-      <div className="space-y-8">
-        <AdminCard title="管理员账号" className="border-orange-100 shadow-orange-50/50">
-          <div className="space-y-4">
-             <div className="p-3 bg-amber-50 text-amber-800 text-xs rounded-lg border border-amber-100 leading-relaxed">
-               <span className="font-bold block mb-1">安全提示</span>
-               WebDAV 仅存储数据文件。管理员账号用于保护后台管理界面，请务必设置强密码。
+      <div className="space-y-10">
+        <AdminCard title="Security Core" className="rounded-[2.5rem] border-amber-100 shadow-amber-900/5">
+          <div className="space-y-6">
+             <div className="p-5 bg-amber-50/50 text-amber-900 text-[11px] font-bold rounded-[1.5rem] border border-amber-100 leading-relaxed space-y-2">
+               <div className="flex items-center gap-2"><AlertCircle size={14} className="text-amber-500" /> <span className="uppercase tracking-widest">Security Protocol</span></div>
+               <p className="font-medium opacity-80 italic">Credentials here only protect this interface. Actual data security depends on your WebDAV provider.</p>
              </div>
-             <Input label="管理账号" value={creds.username} onChange={e => setCreds({...creds, username: e.target.value})} />
-             <Input label="新密码" type="password" value={creds.password} onChange={e => setCreds({...creds, password: e.target.value})} />
-             <Button variant="danger" className="w-full mt-2" onClick={saveCreds}>
-               <CloudUpload size={16} /> 保存账号变更
+             <Input label="Admin Identifier" value={creds.username} onChange={e => setCreds({...creds, username: e.target.value})} className="h-10 rounded-xl" />
+             <Input label="New Secret Key" type="password" value={creds.password} onChange={e => setCreds({...creds, password: e.target.value})} className="h-10 rounded-xl" />
+             <Button variant="danger" className="w-full h-12 rounded-2xl shadow-lg mt-4" onClick={saveCreds}>
+               <CloudUpload size={18} /> <span className="font-bold">COMMIT SECURITY UPDATES</span>
              </Button>
           </div>
         </AdminCard>
 
-        <div className="text-center">
-           <p className="text-xs text-stone-300">NicheCard v0.1.0</p>
+        <div className="text-center space-y-2">
+           <div className="font-black text-[10px] text-stone-200 uppercase tracking-[0.4em]">Engineered Excellence</div>
+           <p className="text-[10px] text-stone-300 font-mono font-bold italic">NicheCard v0.1.5-Release</p>
         </div>
       </div>
     </div>
