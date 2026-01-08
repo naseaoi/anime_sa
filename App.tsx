@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2, Save, CloudUpload, AlertCircle } from 'lucide-react';
-import { webdav, DEFAULT_PUBLIC_DATA } from './services/webdavService';
+import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2, Save, CloudUpload, AlertCircle, RefreshCw } from 'lucide-react';
+import { webdav, DEFAULT_PUBLIC_DATA, testConnection } from './services/webdavService';
 import { PublicData, CardData, Tag } from './types';
 import { Button, Input, Modal, PageLoader, ImagePreview, Rating, TextArea } from './components/Common';
 
@@ -147,8 +147,6 @@ const AdminLayout: React.FC<{ initialData: PublicData; refreshData: () => Promis
       await refreshData();
       setHasChanges(false);
       alert('已同步到云端');
-    } else {
-      alert('同步失败，请检查 WebDAV 连接或跨域设置。注意：坚果云不支持直接跨域访问，请更换支持 CORS 的 WebDAV 服务商。');
     }
     setSyncing(false);
   };
@@ -224,11 +222,16 @@ const AdminLogin: React.FC<{ onLogin: (keep: boolean) => void }> = ({ onLogin })
     e.preventDefault();
     setLoading(true); setError('');
     try {
+      // Try to fetch private data to verify, but don't crash if init fails
+      // We assume if fetch fails with network/proxy error, creds might be wrong or proxy down.
+      // But actually, we need to compare input with env vars? No, we use data from webdav.
+      // If webdav is empty, use default.
       const secrets = await webdav.getPrivateData();
       if (username === secrets.username && password === secrets.password) onLogin(keep);
       else setError('账号或密码错误');
     } catch (err) {
-      setError('连接失败，请检查 WebDAV 配置及网络');
+      console.error(err);
+      setError('连接失败，请检查 WebDAV 配置或控制台日志');
     } finally {
       setLoading(false);
     }
@@ -337,11 +340,29 @@ const AdminTags: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void 
 const AdminSettings: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void }> = ({ data, onUpdate }) => {
   const [siteSettings, setSiteSettings] = useState(data.settings);
   const [creds, setCreds] = useState({ username: '', password: '' });
+  const [testStatus, setTestStatus] = useState('');
 
   useEffect(() => { webdav.getPrivateData().then(setCreds); }, []);
 
+  const runTest = async () => {
+    setTestStatus('测试中...');
+    const result = await testConnection();
+    setTestStatus(result.message);
+    if (result.success) setTimeout(() => setTestStatus(''), 3000);
+  };
+
   return (
     <div className="max-w-xl space-y-8">
+      <div>
+        <h2 className="text-xl font-bold text-ink mb-4">连接测试</h2>
+        <div className="bg-white p-6 rounded-xl border border-border flex items-center justify-between">
+          <div className="text-sm text-subtle">点击测试 WebDAV 连通性及文件夹创建状态</div>
+          <div className="flex items-center gap-3">
+            {testStatus && <span className="text-xs font-medium text-ink">{testStatus}</span>}
+            <Button onClick={runTest} variant="secondary" className="h-8"><RefreshCw size={14} /> 测试</Button>
+          </div>
+        </div>
+      </div>
       <div><h2 className="text-xl font-bold text-ink mb-4">基本设置</h2><div className="bg-white p-6 rounded-xl border border-border space-y-4">
         <Input label="网站名称" value={siteSettings.title} onChange={e => { const s = {...siteSettings, title: e.target.value}; setSiteSettings(s); onUpdate({...data, settings: s}); }} />
         <Input label="网站图标 URL" value={siteSettings.iconUrl} onChange={e => { const s = {...siteSettings, iconUrl: e.target.value}; setSiteSettings(s); onUpdate({...data, settings: s}); }} />

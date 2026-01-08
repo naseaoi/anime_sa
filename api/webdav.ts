@@ -11,21 +11,19 @@ export default async function handler(request: VercelRequest, response: VercelRe
   const method = request.method;
 
   // URL Construction
-  // Remove trailing slashes from base URL to ensure clean join
   const cleanBaseUrl = VITE_WEBDAV_URL.replace(/\/+$/, '');
   const cleanPath = (VITE_WEBDAV_PATH || 'my-collection').replace(/^\/+|\/+$/g, '');
   
   // Handle filename
+  // If filename is empty, we target the directory itself.
   const safeFilename = Array.isArray(filename) ? filename[0] : (filename || '');
   
-  // Construct URL: Base + Path + Filename
-  // If safeFilename is empty, we are targeting the directory (cleanPath) itself.
-  // We add a trailing slash for directory operations (PROPFIND/MKCOL on the folder) 
-  // to be safe with strict WebDAV servers.
+  // Construct URL
   let targetUrl = `${cleanBaseUrl}/${cleanPath}`;
   if (safeFilename) {
     targetUrl += `/${safeFilename}`;
   } else {
+    // For directory operations (PROPFIND/MKCOL on the folder), trailing slash is usually good practice
     targetUrl += '/';
   }
 
@@ -33,10 +31,10 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
   const headers: Record<string, string> = {
     'Authorization': authHeader,
-    'User-Agent': 'NicheCard/1.0', // Important: Some servers block empty UA
+    'User-Agent': 'WebDAVClient/1.0', // Use a generic-looking UA
   };
 
-  // Forward WebDAV headers
+  // Forward specific headers
   if (request.headers['depth']) headers['Depth'] = request.headers['depth'] as string;
   if (request.headers['content-type']) headers['Content-Type'] = request.headers['content-type'] as string;
 
@@ -45,10 +43,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
     headers: headers,
   };
 
-  if (method === 'PUT') {
-    // Handling Body for PUT
-    // If Vercel parsed JSON, stringify it back.
-    // If it's a string/buffer, use it directly.
+  // Body Handling
+  // MKCOL/GET/HEAD/PROPFIND(usually) should not have body or strict handling
+  if (method === 'PUT' || method === 'PROPPATCH') {
     if (request.body && typeof request.body === 'object') {
        fetchOptions.body = JSON.stringify(request.body);
     } else {
@@ -59,37 +56,36 @@ export default async function handler(request: VercelRequest, response: VercelRe
   try {
     const davResponse = await fetch(targetUrl, fetchOptions);
 
-    // Pass the status code back
     response.status(davResponse.status);
-
-    // Handle 204 No Content (common for PUT success)
+    
+    // Handle 204 No Content
     if (davResponse.status === 204) {
         return response.end();
     }
 
     const text = await davResponse.text();
 
-    // If upstream error, pass the text for debugging
     if (!davResponse.ok) {
-        console.error(`WebDAV Error [${method} ${targetUrl}]: ${davResponse.status} - ${text}`);
+        console.error(`[WebDAV Proxy Error] ${method} ${targetUrl} -> ${davResponse.status}`);
+        console.error(`[Upstream Response] ${text}`);
+        // Return text so frontend can log it
         return response.send(text);
     }
 
-    // Try to return JSON if it looks like JSON
+    // Try parsing JSON
     try {
         const json = JSON.parse(text);
         return response.json(json);
     } catch {
-        // Otherwise return text (XML for PROPFIND, etc)
         return response.send(text);
     }
 
   } catch (error: any) {
-    console.error('Proxy Internal Error:', error);
+    console.error('[Proxy Internal Error]', error);
     return response.status(500).json({ 
       error: 'Proxy Internal Error', 
-      details: error.message,
-      target: targetUrl // debug info
+      message: error.message,
+      target: targetUrl 
     });
   }
 }
