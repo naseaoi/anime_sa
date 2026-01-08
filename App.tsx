@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2, CloudUpload, AlertCircle, RefreshCw, Check, Search, ExternalLink, X } from 'lucide-react';
+import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2, CloudUpload, AlertCircle, RefreshCw, Check, Search, ExternalLink, X, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { webdav, DEFAULT_PUBLIC_DATA, testConnection } from './services/webdavService';
 import { PublicData, CardData, Tag } from './types';
 import { Button, Input, Modal, PageLoader, ImagePreview, Rating, TextArea, AdminCard, ToastProvider, useToast, ConfirmModal, MultiSelect } from './components/Common';
@@ -46,71 +46,106 @@ const MainRouter: React.FC = () => {
   );
 }
 
-// --- Public View ---
+// --- Public View (Redesigned Gallery) ---
 
 const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
   const [activeTag, setActiveTag] = useState<string>('all');
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
 
-  const filteredCards = activeTag === 'all' 
+  const filteredCards = useMemo(() => activeTag === 'all' 
     ? data.cards 
-    : data.cards.filter(c => c.tagIds.includes(activeTag));
+    : data.cards.filter(c => c.tagIds.includes(activeTag)), [data.cards, activeTag]);
 
   return (
-    <div className="min-h-screen bg-stone-50 pb-20">
-      <header className="bg-white/80 backdrop-blur-md border-b border-border sticky top-0 z-30 supports-[backdrop-filter]:bg-white/60">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={data.settings.iconUrl} alt="Logo" className="w-8 h-8 rounded-full bg-stone-100 object-cover border border-stone-100" />
-            <h1 className="font-bold text-ink text-lg tracking-tight">{data.settings.title}</h1>
+    <div className="min-h-screen bg-[#fafaf9] flex flex-col md:flex-row">
+      {/* Vertical Sidebar Navigation */}
+      <aside className="md:w-72 md:h-screen md:sticky md:top-0 bg-white border-r border-stone-100 p-8 flex flex-col z-40">
+        <div className="flex items-center gap-4 mb-16">
+          <img src={data.settings.iconUrl} alt="Logo" className="w-10 h-10 rounded-2xl shadow-sm object-cover" />
+          <div>
+            <h1 className="font-black text-xl text-ink leading-tight tracking-tighter uppercase">{data.settings.title}</h1>
+            <span className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Collections</span>
           </div>
-          <div className="hidden sm:flex gap-2">
-            <button 
-              onClick={() => setActiveTag('all')}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${activeTag === 'all' ? 'bg-ink text-white shadow-sm' : 'text-subtle hover:bg-stone-100 hover:text-ink'}`}
-            >
-              全部
-            </button>
-            {data.tags.map(tag => (
+        </div>
+
+        <nav className="flex flex-col gap-2 overflow-y-auto no-scrollbar flex-1">
+          <button 
+            onClick={() => setActiveTag('all')}
+            className={`group flex items-center justify-between py-3 px-4 rounded-xl transition-all ${activeTag === 'all' ? 'bg-ink text-white shadow-xl translate-x-1' : 'text-subtle hover:text-ink hover:bg-stone-50'}`}
+          >
+            <span className="text-sm font-bold tracking-tight">EXPLORE ALL</span>
+            <span className={`text-[10px] font-mono opacity-50 ${activeTag === 'all' ? 'text-white' : ''}`}>{data.cards.length}</span>
+          </button>
+          
+          <div className="my-6 border-t border-stone-50" />
+          <span className="text-[10px] font-black text-stone-300 tracking-widest uppercase mb-4 px-4">Categories</span>
+          
+          {data.tags.map(tag => {
+            const count = data.cards.filter(c => c.tagIds.includes(tag.id)).length;
+            return (
               <button 
                 key={tag.id}
                 onClick={() => setActiveTag(tag.id)}
-                className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${activeTag === tag.id ? 'bg-ink text-white shadow-sm' : 'text-subtle hover:bg-stone-100 hover:text-ink'}`}
+                className={`group flex items-center justify-between py-3 px-4 rounded-xl transition-all ${activeTag === tag.id ? 'bg-ink text-white shadow-xl translate-x-1' : 'text-subtle hover:text-ink hover:bg-stone-50'}`}
               >
-                {tag.name}
+                <span className="text-sm font-bold tracking-tight uppercase">{tag.name}</span>
+                <span className={`text-[10px] font-mono opacity-50 ${activeTag === tag.id ? 'text-white' : ''}`}>{count}</span>
               </button>
-            ))}
-          </div>
-        </div>
-        <div className="sm:hidden overflow-x-auto px-4 py-2 flex gap-2 no-scrollbar border-t border-border bg-white">
-           <button onClick={() => setActiveTag('all')} className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-medium border transition-colors ${activeTag === 'all' ? 'bg-ink text-white border-ink' : 'text-subtle border-border'}`}>全部</button>
-           {data.tags.map(tag => (
-              <button key={tag.id} onClick={() => setActiveTag(tag.id)} className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-medium border transition-colors ${activeTag === tag.id ? 'bg-ink text-white border-ink' : 'text-subtle border-border'}`}>{tag.name}</button>
-            ))}
-        </div>
-      </header>
+            );
+          })}
+        </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        <div className="mt-8 pt-8 border-t border-stone-100">
+           <p className="text-[10px] text-stone-400 font-medium italic">Curating the fine details of life.</p>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 p-6 md:p-12 lg:p-16">
         {filteredCards.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-subtle opacity-50"><Grid className="w-16 h-16 mb-4 stroke-1" /><p>暂无卡片数据</p></div>
+          <div className="h-full flex flex-col items-center justify-center opacity-20 py-24">
+            <Grid className="w-24 h-24 mb-6 stroke-[0.5]" />
+            <p className="text-xl font-medium">No masterpieces found</p>
+          </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {filteredCards.map(card => (
-              <div key={card.id} onClick={() => setSelectedCard(card)} className="group bg-white rounded-2xl overflow-hidden border border-border/60 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-                <div className="aspect-[3/4] overflow-hidden bg-stone-100 relative">
-                  <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full group-hover:scale-105 transition-transform duration-500" />
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between">
-                    <span className="text-white text-xs font-medium">{card.endDate || '进行中'}</span>
-                  </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+            {filteredCards.map((card, idx) => (
+              <div 
+                key={card.id} 
+                onClick={() => setSelectedCard(card)} 
+                className={`group cursor-pointer relative ${idx === 0 ? 'md:col-span-2' : ''} animate-in fade-in slide-in-from-bottom-8 duration-700`}
+                style={{ animationDelay: `${idx * 100}ms` }}
+              >
+                <div className={`relative overflow-hidden rounded-[2.5rem] bg-stone-200 aspect-video shadow-2xl transition-all duration-700 group-hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.15)] group-hover:-translate-y-2`}>
+                   <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full scale-105 group-hover:scale-100 transition-transform duration-1000 ease-out" />
+                   
+                   {/* Glass Overlay on Hover */}
+                   <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                   
+                   {/* Content Label */}
+                   <div className="absolute bottom-6 left-6 right-6">
+                      <div className="bg-white/90 backdrop-blur-xl p-6 rounded-[2rem] shadow-xl translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-between">
+                         <div>
+                            <h3 className="font-black text-ink text-lg tracking-tighter uppercase mb-1">{card.title}</h3>
+                            <div className="flex items-center gap-3">
+                               <Rating value={card.rating} />
+                               <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">{card.endDate || 'Continuing'}</span>
+                            </div>
+                         </div>
+                         <div className="w-12 h-12 rounded-full bg-ink text-white flex items-center justify-center -rotate-45 group-hover:rotate-0 transition-transform duration-500">
+                            <ArrowRight size={20} />
+                         </div>
+                      </div>
+                   </div>
                 </div>
-                <div className="p-4">
-                  <div className="flex justify-between items-start mb-2 gap-2">
-                    <h3 className="font-bold text-ink truncate flex-1 text-sm">{card.title}</h3>
-                    <div className="flex-shrink-0"><Rating value={card.rating} /></div>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {card.tagIds.map(tid => <span key={tid} className="text-[10px] font-medium px-2 py-0.5 bg-stone-100 text-subtle rounded-md">{data.tags.find(t => t.id === tid)?.name}</span>)}
-                  </div>
+                {/* Visual Label for inactive state */}
+                <div className="mt-6 px-4 group-hover:opacity-0 transition-opacity duration-300">
+                   <h3 className="font-bold text-ink truncate mb-1">{card.title}</h3>
+                   <div className="flex gap-2 items-center">
+                     <span className="text-[10px] font-black text-stone-300 tracking-widest uppercase">{card.startDate.split('-')[0]}</span>
+                     <div className="w-1 h-1 rounded-full bg-stone-200" />
+                     <span className="text-[10px] font-black text-stone-300 tracking-widest uppercase">{data.tags.find(t => t.id === card.tagIds[0])?.name || 'Item'}</span>
+                   </div>
                 </div>
               </div>
             ))}
@@ -118,37 +153,40 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
         )}
       </main>
 
+      {/* Detail Modal Redesign */}
       <Modal isOpen={!!selectedCard} onClose={() => setSelectedCard(null)} title={selectedCard?.title || ''}>
         {selectedCard && (
-          <div className="space-y-6">
-            <div className="aspect-video rounded-xl overflow-hidden border border-border shadow-inner bg-stone-100"><ImagePreview src={selectedCard.coverUrl} alt={selectedCard.title} /></div>
+          <div className="space-y-8 py-2">
+            <div className="aspect-video rounded-[2rem] overflow-hidden border border-stone-100 shadow-2xl"><ImagePreview src={selectedCard.coverUrl} alt={selectedCard.title} /></div>
             
-            <div className="grid grid-cols-2 gap-4">
-               <div className="bg-stone-50 p-3 rounded-lg border border-border/50">
-                 <label className="text-[10px] font-bold text-subtle uppercase tracking-wider block mb-1">时间跨度</label>
-                 <div className="flex items-center gap-1.5 text-sm font-medium text-ink"><Calendar size={14} /> {selectedCard.startDate} <span className="text-stone-300">/</span> {selectedCard.endDate || '至今'}</div>
+            <div className="flex flex-col md:flex-row gap-8">
+               <div className="flex-1 space-y-6">
+                  <div>
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest block mb-4">The Narrative</label>
+                    <div className="text-lg text-ink leading-relaxed whitespace-pre-wrap font-medium">
+                      {selectedCard.description || <span className="text-stone-300 italic">No description provided for this collection.</span>}
+                    </div>
+                  </div>
                </div>
-               <div className="bg-stone-50 p-3 rounded-lg border border-border/50">
-                 <label className="text-[10px] font-bold text-subtle uppercase tracking-wider block mb-1">个人评分</label>
-                 <div className="flex items-center gap-2 text-sm font-medium text-ink"><Rating value={selectedCard.rating} /><span className="text-stone-400 font-mono text-xs">({selectedCard.rating})</span></div>
-               </div>
-            </div>
 
-            <div>
-              <label className="text-[10px] font-bold text-subtle uppercase tracking-wider block mb-2">简介 & 备注</label>
-              <div className="text-sm text-ink/80 whitespace-pre-wrap leading-relaxed bg-stone-50 p-4 rounded-xl border border-border/50">
-                {selectedCard.description || <span className="text-stone-400 italic">暂无描述信息...</span>}
-              </div>
+               <div className="md:w-56 space-y-6">
+                  <div className="bg-stone-50 p-6 rounded-[2rem] border border-stone-100">
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest block mb-3">Timeline</label>
+                    <div className="text-sm font-bold text-ink mb-1">{selectedCard.startDate}</div>
+                    <div className="text-[10px] font-bold text-stone-300 uppercase tracking-widest">to</div>
+                    <div className="text-sm font-bold text-ink mt-1">{selectedCard.endDate || 'Present'}</div>
+                  </div>
+
+                  <div className="bg-stone-50 p-6 rounded-[2rem] border border-stone-100">
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest block mb-3">Critique</label>
+                    <div className="flex items-center gap-2"><Rating value={selectedCard.rating} /><span className="text-ink font-mono text-sm font-black ml-2">{selectedCard.rating}</span></div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    {selectedCard.tagIds.map(tid => <span key={tid} className="px-4 py-2 bg-white border border-stone-100 text-stone-400 text-[10px] font-black rounded-full uppercase tracking-widest hover:border-ink hover:text-ink transition-colors">{data.tags.find(t => t.id === tid)?.name}</span>)}
+                  </div>
+               </div>
             </div>
-            
-            {selectedCard.tagIds.length > 0 && (
-              <div>
-                 <label className="text-[10px] font-bold text-subtle uppercase tracking-wider block mb-2">所属分类</label>
-                 <div className="flex flex-wrap gap-2">
-                   {selectedCard.tagIds.map(tid => <span key={tid} className="px-2.5 py-1 bg-ink text-white text-xs rounded-full font-medium shadow-sm">{data.tags.find(t => t.id === tid)?.name}</span>)}
-                 </div>
-              </div>
-            )}
           </div>
         )}
       </Modal>
@@ -344,8 +382,18 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
   const [editingCard, setEditingCard] = useState<Partial<CardData>>({});
   const [search, setSearch] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 30;
 
   const filtered = data.cards.filter(c => c.title.toLowerCase().includes(search.toLowerCase()));
+  
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginatedCards = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  // Reset to first page when searching
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
 
   const handleSave = () => {
     const newCards = [...data.cards];
@@ -371,13 +419,26 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="relative max-w-sm w-full">
            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
-           <input placeholder="搜索卡片..." className="w-full pl-10 pr-4 py-2 bg-white border border-border rounded-lg text-sm focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink transition-all" value={search} onChange={e => setSearch(e.target.value)} />
+           <input 
+              placeholder="搜索卡片..." 
+              className="w-full pl-10 pr-10 py-2 bg-white border border-border rounded-lg text-sm focus:outline-none focus:border-ink focus:ring-1 focus:ring-ink transition-all" 
+              value={search} 
+              onChange={e => setSearch(e.target.value)} 
+           />
+           {search && (
+             <button 
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-ink transition-colors"
+             >
+                <X size={16} />
+             </button>
+           )}
         </div>
         <Button onClick={() => { setEditingCard({ tagIds: [], rating: 0, description: '' }); setIsModalOpen(true); }}><Plus size={16} /> 新建卡片</Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-        {filtered.map(card => (
+        {paginatedCards.map(card => (
           <div key={card.id} className="bg-white rounded-xl border border-border overflow-hidden hover:shadow-lg hover:border-stone-300 transition-all group flex flex-col h-full">
             <div className="h-40 bg-stone-100 overflow-hidden relative">
               <ImagePreview src={card.coverUrl} alt={card.title} />
@@ -399,17 +460,55 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
             </div>
           </div>
         ))}
-        {filtered.length === 0 && (
-          <div className="col-span-full py-12 text-center text-stone-400 border-2 border-dashed border-stone-200 rounded-xl">
-             <div className="mb-2">没有找到相关卡片</div>
-             <Button variant="ghost" size="sm" onClick={() => setSearch('')}>清除搜索</Button>
+        {paginatedCards.length === 0 && (
+          <div className="col-span-full py-20 text-center text-stone-400 border-2 border-dashed border-stone-200 rounded-xl">
+             <div className="flex flex-col items-center gap-3">
+               <Search size={48} className="opacity-20" />
+               <div>没有找到符合条件的卡片</div>
+             </div>
           </div>
         )}
       </div>
 
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 py-8">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            disabled={currentPage === 1} 
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+          >
+            <ChevronLeft size={16} />
+          </Button>
+          
+          <div className="flex items-center gap-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+              <button
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === page ? 'bg-ink text-white' : 'text-subtle hover:bg-stone-100 hover:text-ink'}`}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            disabled={currentPage === totalPages} 
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+          >
+            <ChevronRight size={16} />
+          </Button>
+        </div>
+      )}
+
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCard.id ? "编辑卡片" : "新建卡片"}>
         <div className="space-y-5">
           <Input label="卡片名称" value={editingCard.title || ''} onChange={e => setEditingCard({...editingCard, title: e.target.value})} placeholder="例如：黑神话：悟空" />
+          
           <MultiSelect 
             label="所属分类"
             options={data.tags}
@@ -417,9 +516,10 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
             onChange={ids => setEditingCard({...editingCard, tagIds: ids})}
             placeholder="选择标签..."
           />
+
           <div className="flex gap-4">
-             <div className="w-24 h-32 bg-stone-100 rounded-lg overflow-hidden border border-border flex-shrink-0">
-               <ImagePreview src={editingCard.coverUrl || ''} alt="Preview" />
+             <div className="w-24 h-24 bg-stone-100 rounded-lg overflow-hidden border border-border flex-shrink-0">
+               <ImagePreview src={editingCard.coverUrl || ''} alt="Preview" className="aspect-video" />
              </div>
              <div className="flex-1 space-y-4">
                <Input label="封面链接 (URL)" value={editingCard.coverUrl || ''} onChange={e => setEditingCard({...editingCard, coverUrl: e.target.value})} placeholder="https://..." />
@@ -486,7 +586,9 @@ const AdminTags: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void 
       <AdminCard title="添加新分类">
          <div className="flex gap-3">
            <Input placeholder="输入分类名称（如：电影、番剧...）" value={newTag} onChange={e => setNewTag(e.target.value)} className="flex-1" />
-           <Button onClick={handleAdd} disabled={!newTag.trim()}>添加</Button>
+           <Button onClick={handleAdd} disabled={!newTag.trim()} size="md" className="w-12 h-10 p-0">
+             <Plus size={20} />
+           </Button>
          </div>
       </AdminCard>
 
