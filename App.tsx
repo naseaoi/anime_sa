@@ -1,12 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2 } from 'lucide-react';
 import { webdav, DEFAULT_PUBLIC_DATA } from './services/webdavService';
 import { PublicData, CardData, Tag, LoginStatus } from './types';
 import { Button, Input, Modal, PageLoader, ImagePreview, Rating } from './components/Common';
 
 // --- Context & State ---
-// To keep things simple in one file for logic flow, we'll manage global state here or lift it up.
 
 const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -30,13 +29,13 @@ const App: React.FC = () => {
   if (loading) return <PageLoader />;
 
   return (
-    <HashRouter>
+    <BrowserRouter>
       <Routes>
         <Route path="/" element={<PublicHome data={data} />} />
         <Route path="/tat/*" element={<AdminLayout data={data} refreshData={fetchData} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </HashRouter>
+    </BrowserRouter>
   );
 };
 
@@ -145,6 +144,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
 const AdminLayout: React.FC<{ data: PublicData; refreshData: () => Promise<void> }> = ({ data, refreshData }) => {
   const [isAuth, setIsAuth] = useState(false);
   const [checking, setChecking] = useState(true);
+  const location = useLocation();
 
   useEffect(() => {
     // Check local storage for session
@@ -186,9 +186,9 @@ const AdminLayout: React.FC<{ data: PublicData; refreshData: () => Promise<void>
           </div>
         </div>
         <nav className="flex-1 p-4 space-y-1">
-          <NavButton to="cards" icon={<Grid size={18} />} label="卡片管理" />
-          <NavButton to="tags" icon={<Tags size={18} />} label="标签分类" />
-          <NavButton to="settings" icon={<Settings size={18} />} label="网站设置" />
+          <NavButton to="/tat/cards" icon={<Grid size={18} />} label="卡片管理" />
+          <NavButton to="/tat/tags" icon={<Tags size={18} />} label="标签分类" />
+          <NavButton to="/tat/settings" icon={<Settings size={18} />} label="网站设置" />
         </nav>
         <div className="p-4 border-t border-border">
           <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-2 w-full text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors">
@@ -200,9 +200,9 @@ const AdminLayout: React.FC<{ data: PublicData; refreshData: () => Promise<void>
 
       {/* Mobile Nav (Bottom) - simplified for demo */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border flex justify-around p-3 z-40">
-        <NavButton to="cards" icon={<Grid size={20} />} label="" />
-        <NavButton to="tags" icon={<Tags size={20} />} label="" />
-        <NavButton to="settings" icon={<Settings size={20} />} label="" />
+        <NavButton to="/tat/cards" icon={<Grid size={20} />} label="" />
+        <NavButton to="/tat/tags" icon={<Tags size={20} />} label="" />
+        <NavButton to="/tat/settings" icon={<Settings size={20} />} label="" />
         <button onClick={handleLogout} className="p-2 text-red-600"><LogOut size={20} /></button>
       </div>
 
@@ -222,14 +222,24 @@ const AdminLayout: React.FC<{ data: PublicData; refreshData: () => Promise<void>
 const NavButton: React.FC<{ to: string, icon: React.ReactNode, label: string }> = ({ to, icon, label }) => {
   const location = useLocation();
   const isActive = location.pathname.includes(to);
+  const handleClick = () => {
+     // Use window.history.pushState for client side navigation without reload in BrowserRouter
+     window.history.pushState({}, '', to);
+     // Trigger a re-render/navigation event manually or let the Router handle it via Link component
+     // Here we just use window location for simplicity in this generated code, but optimally we should use Link or useNavigate
+     // However, since NavButton is outside the nested Routes, we need useNavigate from react-router-dom
+  };
+  
+  // Refactor to use proper navigation
   return (
-    <button 
-      onClick={() => window.location.hash = `/tat/${to}`}
-      className={`flex items-center gap-3 px-4 py-2.5 w-full text-sm font-medium rounded-lg transition-colors ${isActive ? 'bg-ink text-white' : 'text-subtle hover:bg-stone-100 hover:text-ink'}`}
-    >
-      {icon}
-      {label && <span>{label}</span>}
-    </button>
+      <a 
+        href={to}
+        onClick={(e) => { e.preventDefault(); window.history.pushState(null, '', to); window.dispatchEvent(new PopStateEvent('popstate')); }}
+        className={`flex items-center gap-3 px-4 py-2.5 w-full text-sm font-medium rounded-lg transition-colors ${isActive ? 'bg-ink text-white' : 'text-subtle hover:bg-stone-100 hover:text-ink'}`}
+      >
+        {icon}
+        {label && <span>{label}</span>}
+      </a>
   );
 }
 

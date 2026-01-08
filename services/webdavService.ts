@@ -1,13 +1,15 @@
 import { PublicData, PrivateData, WebDavConfig } from '../types';
 
-// In a real Vercel app, these would be process.env.
-// For this React environment, we assume they are injected or mocked.
+// Use import.meta.env for Vite environment, checking for VITE_ prefix required in production
 const getEnvConfig = (): WebDavConfig => {
+  // Safe access check
+  const env = (import.meta as any).env || {};
+  
   return {
-    url: process.env.WEBDAV_URL || '',
-    username: process.env.WEBDAV_USERNAME || '',
-    password: process.env.WEBDAV_PASSWORD || '',
-    path: process.env.WEBDAV_PATH || 'my-collection/',
+    url: env.VITE_WEBDAV_URL || '',
+    username: env.VITE_WEBDAV_USERNAME || '',
+    password: env.VITE_WEBDAV_PASSWORD || '',
+    path: env.VITE_WEBDAV_PATH || 'my-collection/',
   };
 };
 
@@ -34,8 +36,9 @@ export const DEFAULT_PRIVATE_DATA: PrivateData = {
 };
 
 const ensureDirectory = async () => {
+  if (!config.url) return;
+  
   // Check if directory exists, if not create (MKCOL)
-  // This is a simplified check. Real WebDAV might require recursive creation.
   try {
     const res = await fetch(FULL_PATH, {
       method: 'PROPFIND',
