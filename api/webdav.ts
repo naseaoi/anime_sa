@@ -10,65 +10,86 @@ export default async function handler(request: VercelRequest, response: VercelRe
   const { filename } = request.query;
   const method = request.method;
 
-  // Construct target URL
-  const baseUrl = VITE_WEBDAV_URL.endsWith('/') ? VITE_WEBDAV_URL : `${VITE_WEBDAV_URL}/`;
-  const basePath = (VITE_WEBDAV_PATH || 'my-collection/').replace(/^\/|\/$/g, '');
+  // URL Construction
+  // Remove trailing slashes from base URL to ensure clean join
+  const cleanBaseUrl = VITE_WEBDAV_URL.replace(/\/+$/, '');
+  const cleanPath = (VITE_WEBDAV_PATH || 'my-collection').replace(/^\/+|\/+$/g, '');
   
-  // Handle filename: if empty, we target the directory itself
+  // Handle filename
   const safeFilename = Array.isArray(filename) ? filename[0] : (filename || '');
   
-  const targetUrl = safeFilename 
-    ? `${baseUrl}${basePath}/${safeFilename}`
-    : `${baseUrl}${basePath}/`;
+  // Construct URL: Base + Path + Filename
+  // If safeFilename is empty, we are targeting the directory (cleanPath) itself.
+  // We add a trailing slash for directory operations (PROPFIND/MKCOL on the folder) 
+  // to be safe with strict WebDAV servers.
+  let targetUrl = `${cleanBaseUrl}/${cleanPath}`;
+  if (safeFilename) {
+    targetUrl += `/${safeFilename}`;
+  } else {
+    targetUrl += '/';
+  }
 
   const authHeader = 'Basic ' + Buffer.from(`${VITE_WEBDAV_USERNAME}:${VITE_WEBDAV_PASSWORD}`).toString('base64');
 
   const headers: Record<string, string> = {
     'Authorization': authHeader,
+    'User-Agent': 'NicheCard/1.0', // Important: Some servers block empty UA
   };
 
-  // Forward specific headers
-  if (request.headers['depth']) {
-    headers['Depth'] = request.headers['depth'] as string;
-  }
-  
+  // Forward WebDAV headers
+  if (request.headers['depth']) headers['Depth'] = request.headers['depth'] as string;
+  if (request.headers['content-type']) headers['Content-Type'] = request.headers['content-type'] as string;
+
+  const fetchOptions: RequestInit = {
+    method: method,
+    headers: headers,
+  };
+
   if (method === 'PUT') {
-      headers['Content-Type'] = 'application/json';
+    // Handling Body for PUT
+    // If Vercel parsed JSON, stringify it back.
+    // If it's a string/buffer, use it directly.
+    if (request.body && typeof request.body === 'object') {
+       fetchOptions.body = JSON.stringify(request.body);
+    } else {
+       fetchOptions.body = request.body;
+    }
   }
 
   try {
-    const fetchOptions: RequestInit = {
-      method: method,
-      headers: headers,
-    };
-
-    if (method === 'PUT') {
-       // request.body is automatically parsed by Vercel if content-type is json
-       // We need to stringify it back to send to WebDAV
-       fetchOptions.body = JSON.stringify(request.body);
-    }
-
     const davResponse = await fetch(targetUrl, fetchOptions);
 
+    // Pass the status code back
     response.status(davResponse.status);
-    
-    // Handle 204 No Content
+
+    // Handle 204 No Content (common for PUT success)
     if (davResponse.status === 204) {
         return response.end();
     }
 
     const text = await davResponse.text();
-    
-    // Try to return JSON if possible, otherwise text (e.g. for PROPFIND XML response)
+
+    // If upstream error, pass the text for debugging
+    if (!davResponse.ok) {
+        console.error(`WebDAV Error [${method} ${targetUrl}]: ${davResponse.status} - ${text}`);
+        return response.send(text);
+    }
+
+    // Try to return JSON if it looks like JSON
     try {
         const json = JSON.parse(text);
         return response.json(json);
     } catch {
+        // Otherwise return text (XML for PROPFIND, etc)
         return response.send(text);
     }
 
   } catch (error: any) {
-    console.error('Proxy Error:', error);
-    return response.status(500).json({ error: 'Proxy Error', details: error.message });
+    console.error('Proxy Internal Error:', error);
+    return response.status(500).json({ 
+      error: 'Proxy Internal Error', 
+      details: error.message,
+      target: targetUrl // debug info
+    });
   }
 }
