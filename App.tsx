@@ -410,6 +410,13 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCard.id ? "编辑卡片" : "新建卡片"}>
         <div className="space-y-5">
           <Input label="卡片名称" value={editingCard.title || ''} onChange={e => setEditingCard({...editingCard, title: e.target.value})} placeholder="例如：黑神话：悟空" />
+          <MultiSelect 
+            label="所属分类"
+            options={data.tags}
+            value={editingCard.tagIds || []}
+            onChange={ids => setEditingCard({...editingCard, tagIds: ids})}
+            placeholder="选择标签..."
+          />
           <div className="flex gap-4">
              <div className="w-24 h-32 bg-stone-100 rounded-lg overflow-hidden border border-border flex-shrink-0">
                <ImagePreview src={editingCard.coverUrl || ''} alt="Preview" />
@@ -431,14 +438,6 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
 
           <TextArea label="详细信息 / 简介" value={editingCard.description || ''} onChange={e => setEditingCard({...editingCard, description: e.target.value})} placeholder="输入关于此卡片的详细描述..." />
           
-          <MultiSelect 
-            label="所属分类"
-            options={data.tags}
-            value={editingCard.tagIds || []}
-            onChange={ids => setEditingCard({...editingCard, tagIds: ids})}
-            placeholder="选择标签..."
-          />
-
           <div className="pt-2">
             <Button onClick={handleSave} className="w-full">保存卡片</Button>
           </div>

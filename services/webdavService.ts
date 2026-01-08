@@ -19,12 +19,24 @@ export const DEFAULT_PRIVATE_DATA: PrivateData = {
   password: 'password'
 };
 
-// Helper to strip XML tags from error messages
-const stripXml = (text: string): string => {
+// Helper to clean up error messages which may contain HTML/XML
+const cleanErrorText = (text: string): string => {
   if (!text) return '';
-  // Simple regex to remove tags
-  const stripped = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-  return stripped.substring(0, 150) + (stripped.length > 150 ? '...' : '');
+
+  // If the error seems to be a Vercel security page, return a specific message.
+  if (text.includes('Vercel Security Checkpoint')) {
+    return "请求被安全系统拦截。这可能是由于网络环境或浏览器限制。请更换网络或稍后再试。";
+  }
+
+  // First, remove style and script blocks entirely to get rid of CSS rules
+  let cleaned = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+                    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+  // Then, remove all remaining HTML/XML tags
+  cleaned = cleaned.replace(/<[^>]*>/g, ' ');
+  // Finally, normalize whitespace and trim
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  
+  return cleaned.substring(0, 150) + (cleaned.length > 150 ? '...' : '');
 };
 
 const fetchProxy = async (filename: string, options: RequestInit = {}) => {
@@ -56,7 +68,7 @@ export const testConnection = async (): Promise<{ success: boolean; message: str
   } catch (e: any) {
     // Return cleaned error message
     const msg = e.message || String(e);
-    return { success: false, message: `连接错误: ${stripXml(msg)}` };
+    return { success: false, message: `连接错误: ${cleanErrorText(msg)}` };
   }
 };
 
@@ -149,13 +161,13 @@ const saveJson = async <T>(filename: string, data: T): Promise<{ success: boolea
     if (!response.ok) {
       const errText = await response.text();
       console.error(`Save failed ${response.status}:`, errText);
-      return { success: false, error: `${response.status} ${stripXml(errText)}` };
+      return { success: false, error: `${response.status} ${cleanErrorText(errText)}` };
     }
     
     return { success: true };
   } catch (error: any) {
     console.error(`Failed to save ${filename}`, error);
-    return { success: false, error: stripXml(error.message || String(error)) };
+    return { success: false, error: cleanErrorText(error.message || String(error)) };
   }
 };
 
