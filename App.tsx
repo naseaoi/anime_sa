@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2 } from 'lucide-react';
 import { webdav, DEFAULT_PUBLIC_DATA } from './services/webdavService';
 import { PublicData, CardData, Tag, LoginStatus } from './types';
@@ -221,25 +221,17 @@ const AdminLayout: React.FC<{ data: PublicData; refreshData: () => Promise<void>
 
 const NavButton: React.FC<{ to: string, icon: React.ReactNode, label: string }> = ({ to, icon, label }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const isActive = location.pathname.includes(to);
-  const handleClick = () => {
-     // Use window.history.pushState for client side navigation without reload in BrowserRouter
-     window.history.pushState({}, '', to);
-     // Trigger a re-render/navigation event manually or let the Router handle it via Link component
-     // Here we just use window location for simplicity in this generated code, but optimally we should use Link or useNavigate
-     // However, since NavButton is outside the nested Routes, we need useNavigate from react-router-dom
-  };
   
-  // Refactor to use proper navigation
   return (
-      <a 
-        href={to}
-        onClick={(e) => { e.preventDefault(); window.history.pushState(null, '', to); window.dispatchEvent(new PopStateEvent('popstate')); }}
+      <button 
+        onClick={() => navigate(to)}
         className={`flex items-center gap-3 px-4 py-2.5 w-full text-sm font-medium rounded-lg transition-colors ${isActive ? 'bg-ink text-white' : 'text-subtle hover:bg-stone-100 hover:text-ink'}`}
       >
         {icon}
         {label && <span>{label}</span>}
-      </a>
+      </button>
   );
 }
 
