@@ -33,9 +33,13 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
   const authHeader = 'Basic ' + Buffer.from(`${VITE_WEBDAV_USERNAME}:${VITE_WEBDAV_PASSWORD}`).toString('base64');
 
+  // Vercel WAF can block non-standard User-Agents, especially on mobile networks.
+  // Forwarding the original User-Agent from the client makes the request look legitimate.
+  const userAgent = request.headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
   const headers: Record<string, string> = {
     'Authorization': authHeader,
-    'User-Agent': 'WebDAVClient/1.0', 
+    'User-Agent': userAgent,
   };
 
   if (request.headers['depth']) headers['Depth'] = request.headers['depth'] as string;
