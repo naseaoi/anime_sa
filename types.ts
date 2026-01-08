@@ -7,6 +7,7 @@ export interface CardData {
   id: string;
   title: string;
   coverUrl: string;
+  description: string; // 新增：详细信息
   startDate: string;
   endDate: string;
   rating: number; // 0-5
@@ -18,17 +19,15 @@ export interface SiteSettings {
   iconUrl: string;
 }
 
-// Data stored in 'public_data.json'
 export interface PublicData {
   settings: SiteSettings;
   tags: Tag[];
   cards: CardData[];
 }
 
-// Data stored in 'private_data.json'
 export interface PrivateData {
   username: string;
-  password: string; // Plaintext for this demo, strictly implies HTTPS/WebDAV security
+  password: string;
 }
 
 export interface WebDavConfig {

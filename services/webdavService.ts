@@ -1,8 +1,6 @@
 import { PublicData, PrivateData, WebDavConfig } from '../types';
 
-// Use import.meta.env for Vite environment, checking for VITE_ prefix required in production
 const getEnvConfig = (): WebDavConfig => {
-  // Safe access check
   const env = (import.meta as any).env || {};
   
   return {
@@ -14,9 +12,17 @@ const getEnvConfig = (): WebDavConfig => {
 };
 
 const config = getEnvConfig();
+
+// 格式化 Base URL
+const getBaseUrl = () => {
+  if (!config.url) return '';
+  let url = config.url.endsWith('/') ? config.url : `${config.url}/`;
+  let path = config.path.replace(/^\/|\/$/g, '');
+  return `${url}${path}/`;
+};
+
+const FULL_PATH = getBaseUrl();
 const AUTH_HEADER = 'Basic ' + btoa(`${config.username}:${config.password}`);
-const BASE_URL = config.url.endsWith('/') ? config.url : `${config.url}/`;
-const FULL_PATH = `${BASE_URL}${config.path}`;
 
 export const DEFAULT_PUBLIC_DATA: PublicData = {
   settings: {
@@ -37,8 +43,6 @@ export const DEFAULT_PRIVATE_DATA: PrivateData = {
 
 const ensureDirectory = async () => {
   if (!config.url) return;
-  
-  // Check if directory exists, if not create (MKCOL)
   try {
     const res = await fetch(FULL_PATH, {
       method: 'PROPFIND',
@@ -59,13 +63,8 @@ const ensureDirectory = async () => {
 };
 
 const fetchJson = async <T>(filename: string, defaultValue: T): Promise<T> => {
-  if (!config.url) {
-    console.warn("WebDAV URL not configured");
-    return defaultValue;
-  }
-  
+  if (!config.url) return defaultValue;
   await ensureDirectory();
-
   try {
     const response = await fetch(`${FULL_PATH}${filename}`, {
       method: 'GET',
@@ -74,13 +73,10 @@ const fetchJson = async <T>(filename: string, defaultValue: T): Promise<T> => {
         'Cache-Control': 'no-cache'
       }
     });
-
     if (response.status === 404) {
-      // File doesn't exist, create it with default
       await saveJson(filename, defaultValue);
       return defaultValue;
     }
-
     if (!response.ok) throw new Error(`WebDAV Error: ${response.status}`);
     return await response.json();
   } catch (error) {
@@ -110,7 +106,6 @@ const saveJson = async <T>(filename: string, data: T): Promise<boolean> => {
 export const webdav = {
   getPublicData: () => fetchJson<PublicData>('public_data.json', DEFAULT_PUBLIC_DATA),
   savePublicData: (data: PublicData) => saveJson('public_data.json', data),
-  
   getPrivateData: () => fetchJson<PrivateData>('private_data.json', DEFAULT_PRIVATE_DATA),
   savePrivateData: (data: PrivateData) => saveJson('private_data.json', data),
 };
