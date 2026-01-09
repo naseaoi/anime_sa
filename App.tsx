@@ -277,8 +277,8 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                 <div className={`relative overflow-hidden rounded-2xl aspect-video transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 border border-stone-100 ${card.isRecommended ? 'shadow-[0_0_25px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
                   <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full transition-transform duration-1000 group-hover:scale-110" />
                   
-                  {/* 黑色渐变：仅在底部，变小，变深 */}
-                  <div className="absolute bottom-0 left-0 right-0 h-2/3 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none" />
+                  {/* 黑色渐变：仅在底部1/4，颜色变浅 */}
+                  <div className="absolute bottom-0 left-0 right-0 h-1/4 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
                   
                   {card.isRecommended && (
                     <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
@@ -293,10 +293,15 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                       </div>
                   </div>
                   
-                  {/* 标题：贴底，贴左 */}
-                  <div className="absolute bottom-0 left-0 right-0 p-4 text-white drop-shadow-lg">
-                    <h3 className="text-lg font-black leading-tight line-clamp-2">{card.title}</h3>
-                    <p className="text-[10px] text-white/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300 line-clamp-1 mt-1 font-bold">{card.description}</p>
+                  {/* 标题与描述：底部对齐，描述默认不占位 */}
+                  <div className="absolute bottom-0 left-0 right-0 p-4 text-white drop-shadow-md flex flex-col justify-end">
+                    <h3 className="text-lg font-black leading-tight line-clamp-2 origin-bottom-left transition-transform duration-300">{card.title}</h3>
+                    {/* 使用 grid 动画实现描述文字的无缝展开 */}
+                    <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-500 ease-out">
+                       <div className="overflow-hidden">
+                          <p className="text-[10px] text-white/90 pt-2 line-clamp-2 font-medium">{card.description}</p>
+                       </div>
+                    </div>
                   </div>
                 </div>
               </Link>
@@ -351,38 +356,39 @@ const AdminLayout: React.FC<{ initialData: PublicData; refreshData: () => Promis
 
   return (
     <div className="flex h-screen bg-stone-50 overflow-hidden font-sans">
-      <aside className="w-56 bg-white border-r border-stone-200 flex flex-col hidden md:flex z-20">
-        <div className="h-16 border-b border-stone-100 flex items-center px-6 gap-3">
-          <div className="w-6 h-6 bg-ink rounded flex items-center justify-center text-white"><Layout size={14} /></div>
-          <span className="font-bold text-ink text-sm">后台管理</span>
+      {/* 调整侧边栏宽度为 w-64 */}
+      <aside className="w-64 bg-white border-r border-stone-200 flex flex-col hidden md:flex z-20">
+        <div className="h-20 border-b border-stone-100 flex items-center px-8 gap-4">
+          <div className="w-8 h-8 bg-ink rounded-lg flex items-center justify-center text-white"><Layout size={18} /></div>
+          <span className="font-bold text-ink text-lg">后台管理</span>
         </div>
-        <div className="p-4 flex-1">
-           <nav className="space-y-1">
-             <NavButton to="/tat/cards" icon={<Grid size={16} />} label="卡片管理" count={localData.cards.length} />
-             <NavButton to="/tat/tags" icon={<Tags size={16} />} label="分类管理" count={localData.tags.length} />
-             <NavButton to="/tat/settings" icon={<Settings size={16} />} label="网站设置" />
+        <div className="p-6 flex-1">
+           <nav className="space-y-2">
+             <NavButton to="/tat/cards" icon={<Grid size={18} />} label="卡片管理" count={localData.cards.length} />
+             <NavButton to="/tat/tags" icon={<Tags size={18} />} label="分类管理" count={localData.tags.length} />
+             <NavButton to="/tat/settings" icon={<Settings size={18} />} label="网站设置" />
            </nav>
         </div>
-        <div className="p-4 border-t border-stone-100">
-          <button onClick={() => { localStorage.removeItem('tat_expiry'); window.location.href = '/'; }} className="flex items-center gap-3 px-3 py-2 w-full text-xs font-bold text-red-500 hover:bg-red-50 rounded-lg transition-all"><LogOut size={14} /><span>退出登录</span></button>
+        <div className="p-6 border-t border-stone-100">
+          <button onClick={() => { localStorage.removeItem('tat_expiry'); window.location.href = '/'; }} className="flex items-center gap-3 px-4 py-3 w-full text-sm font-bold text-red-500 hover:bg-red-50 rounded-xl transition-all"><LogOut size={16} /><span>退出登录</span></button>
         </div>
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="bg-white border-b border-stone-100 h-16 flex items-center justify-between px-6 z-10 sticky top-0">
-          <h2 className="text-sm font-bold text-ink">
+        <header className="bg-white border-b border-stone-100 h-20 flex items-center justify-between px-8 z-10 sticky top-0">
+          <h2 className="text-lg font-bold text-ink">
             {location.pathname.includes('cards') ? '卡片档案' : 
              location.pathname.includes('tags') ? '分类配置' : '系统参数'}
           </h2>
           <div className="flex items-center gap-4">
-            {hasChanges && <div className="hidden sm:flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg text-[10px] font-bold border border-amber-100"><AlertCircle size={12} /><span>有待同步的修改</span></div>}
-            <Button onClick={handleSync} disabled={!hasChanges || syncing} variant="success" size="sm" className="rounded-lg h-9">
-              {syncing ? <Loader2 size={14} className="animate-spin" /> : <CloudUpload size={14} />}
+            {hasChanges && <div className="hidden sm:flex items-center gap-2 text-amber-600 bg-amber-50 px-4 py-2 rounded-lg text-xs font-bold border border-amber-100"><AlertCircle size={14} /><span>有待同步的修改</span></div>}
+            <Button onClick={handleSync} disabled={!hasChanges || syncing} variant="success" size="md" className="rounded-xl h-10 px-5">
+              {syncing ? <Loader2 size={16} className="animate-spin" /> : <CloudUpload size={16} />}
               <span>{syncing ? '同步中' : '同步云端'}</span>
             </Button>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-8"><div className="max-w-6xl mx-auto w-full">
+        <main className="flex-1 overflow-y-auto p-6 sm:p-10"><div className="max-w-7xl mx-auto w-full">
             <Routes>
               <Route path="cards" element={<AdminCards data={localData} onUpdate={(d) => handleDataChange(d)} />} />
               <Route path="tags" element={<AdminTags data={localData} onUpdate={(d) => handleDataChange(d)} />} />
@@ -399,10 +405,11 @@ const NavButton: React.FC<{ to: string, icon: React.ReactNode, label: string, co
   const location = useLocation();
   const navigate = useNavigate();
   const isActive = location.pathname.includes(to);
+  // 增大字体到 text-base (默认)
   return (
-    <button onClick={() => navigate(to)} className={`flex items-center justify-between px-3 py-2 w-full text-xs font-bold rounded-lg transition-all ${isActive ? 'bg-ink text-white shadow-sm' : 'text-stone-500 hover:bg-stone-50 hover:text-ink'}`}>
+    <button onClick={() => navigate(to)} className={`flex items-center justify-between px-4 py-3 w-full text-sm font-bold rounded-xl transition-all ${isActive ? 'bg-ink text-white shadow-md' : 'text-stone-500 hover:bg-stone-50 hover:text-ink'}`}>
       <div className="flex items-center gap-3">{icon}<span>{label}</span></div>
-      {count !== undefined && <span className={`text-[10px] px-1.5 py-0.5 rounded ${isActive ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-400'}`}>{count}</span>}
+      {count !== undefined && <span className={`text-xs px-2 py-0.5 rounded ${isActive ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-400'}`}>{count}</span>}
     </button>
   );
 }
@@ -426,14 +433,14 @@ const AdminLogin: React.FC<{ onLogin: (keep: boolean) => void }> = ({ onLogin })
 
   return (
     <div className="h-screen flex items-center justify-center bg-stone-50 p-6">
-      <div className="w-full max-w-sm bg-white rounded-3xl shadow-xl border border-stone-100 p-12">
-        <h2 className="text-xl font-bold text-center text-ink mb-10">后台管理登录</h2>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <Input label="账号" value={username} onChange={e => setUsername(e.target.value)} />
-          <Input label="密码" type="password" value={password} onChange={e => setPassword(e.target.value)} />
-          <div className="flex items-center gap-2 px-1"><input type="checkbox" id="keep" checked={keep} onChange={e => setKeep(e.target.checked)} className="rounded border-stone-300 text-ink focus:ring-ink" /><label htmlFor="keep" className="text-xs font-bold text-stone-400 cursor-pointer">保持登录</label></div>
-          {error && <div className="p-3 bg-red-50 text-red-600 text-[10px] font-bold rounded-lg border border-red-100">{error}</div>}
-          <Button type="submit" className="w-full h-12 rounded-2xl" disabled={loading}>{loading ? <Loader2 className="animate-spin" /> : '登录系统'}</Button>
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl border border-stone-100 p-12">
+        <h2 className="text-2xl font-bold text-center text-ink mb-10">后台管理登录</h2>
+        <form onSubmit={handleSubmit} className="space-y-8">
+          <Input label="账号" value={username} onChange={e => setUsername(e.target.value)} className="h-12 text-base" />
+          <Input label="密码" type="password" value={password} onChange={e => setPassword(e.target.value)} className="h-12 text-base" />
+          <div className="flex items-center gap-2 px-1"><input type="checkbox" id="keep" checked={keep} onChange={e => setKeep(e.target.checked)} className="w-5 h-5 rounded border-stone-300 text-ink focus:ring-ink" /><label htmlFor="keep" className="text-sm font-bold text-stone-500 cursor-pointer">保持登录</label></div>
+          {error && <div className="p-4 bg-red-50 text-red-600 text-sm font-bold rounded-xl border border-red-100">{error}</div>}
+          <Button type="submit" className="w-full h-14 rounded-2xl text-lg" disabled={loading}>{loading ? <Loader2 className="animate-spin" /> : '登录系统'}</Button>
         </form>
       </div>
     </div>
@@ -467,26 +474,27 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="relative max-w-xs w-full"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-300" size={14} /><input placeholder="搜索记录..." className="w-full pl-9 pr-9 py-2 bg-white border border-stone-200 rounded-lg text-xs font-bold focus:outline-none focus:border-ink transition-all" value={search} onChange={e => setSearch(e.target.value)} />{search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-300 hover:text-ink"><X size={14} /></button>}</div>
-        <Button onClick={() => { setEditingCard({ tagIds: [], rating: 0, description: '', startDate: '', endDate: '', isRecommended: false }); setIsModalOpen(true); }} size="sm" className="rounded-lg h-9"><Plus size={16} /> 新建记录</Button>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+        <div className="relative max-w-sm w-full"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} /><input placeholder="搜索记录..." className="w-full pl-11 pr-10 py-3 bg-white border border-stone-200 rounded-xl text-sm font-bold focus:outline-none focus:border-ink transition-all" value={search} onChange={e => setSearch(e.target.value)} />{search && <button onClick={() => setSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-300 hover:text-ink"><X size={16} /></button>}</div>
+        <Button onClick={() => { setEditingCard({ tagIds: [], rating: 0, description: '', startDate: '', endDate: '', isRecommended: false }); setIsModalOpen(true); }} size="md" className="rounded-xl h-11 px-6"><Plus size={18} /> 新建记录</Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+      {/* 调整网格为 1列 -> 2列 -> 3列，使卡片更大 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
         {paginatedCards.map(card => (
-          <div key={card.id} className={`bg-white rounded-xl border overflow-hidden group flex flex-col h-full hover:border-stone-400 transition-colors ${card.isRecommended ? 'border-amber-200 ring-2 ring-amber-100' : 'border-stone-200'}`}>
+          <div key={card.id} className={`bg-white rounded-2xl border overflow-hidden group flex flex-col h-full hover:border-stone-400 transition-colors shadow-sm ${card.isRecommended ? 'border-amber-200 ring-4 ring-amber-50' : 'border-stone-200'}`}>
             <div className="aspect-[21/9] bg-stone-50 overflow-hidden relative">
               <ImagePreview src={card.coverUrl} alt={card.title} />
-              <div className="absolute inset-0 bg-ink/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                <button onClick={() => { setEditingCard(card); setIsModalOpen(true); }} className="p-2.5 bg-white text-ink rounded-lg shadow-lg hover:bg-ink hover:text-white transition-all"><Edit2 size={14} /></button>
-                <button onClick={() => setDeleteId(card.id)} className="p-2.5 bg-white text-red-500 rounded-lg shadow-lg hover:bg-red-500 hover:text-white transition-all"><Trash2 size={14} /></button>
+              <div className="absolute inset-0 bg-ink/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                <button onClick={() => { setEditingCard(card); setIsModalOpen(true); }} className="p-3 bg-white text-ink rounded-xl shadow-lg hover:bg-ink hover:text-white transition-all"><Edit2 size={18} /></button>
+                <button onClick={() => setDeleteId(card.id)} className="p-3 bg-white text-red-500 rounded-xl shadow-lg hover:bg-red-500 hover:text-white transition-all"><Trash2 size={18} /></button>
               </div>
-              {card.isRecommended && <div className="absolute top-2 left-2 bg-amber-400 text-white p-1 rounded shadow"><ThumbsUp size={10} /></div>}
+              {card.isRecommended && <div className="absolute top-3 left-3 bg-amber-400 text-white p-1.5 rounded-lg shadow-md"><ThumbsUp size={14} /></div>}
             </div>
-            <div className="p-4 flex-1 flex flex-col">
-              <h4 className="font-bold text-ink text-sm truncate mb-2">{card.title}</h4>
-              <div className="mt-auto flex items-center gap-3 text-[10px] text-stone-400">
-                 <span className="bg-stone-50 px-1.5 py-0.5 rounded font-bold uppercase">{data.tags.find(t=>t.id===card.tagIds[0])?.name || '未分类'}</span>
+            <div className="p-6 flex-1 flex flex-col">
+              <h4 className="font-bold text-ink text-lg truncate mb-3">{card.title}</h4>
+              <div className="mt-auto flex items-center gap-4 text-xs text-stone-400">
+                 <span className="bg-stone-100 text-stone-500 px-2.5 py-1 rounded-lg font-bold uppercase tracking-wide">{data.tags.find(t=>t.id===card.tagIds[0])?.name || '未分类'}</span>
                  <Rating value={card.rating} />
               </div>
             </div>
@@ -495,32 +503,32 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
       </div>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCard.id ? "编辑记录" : "新建记录"}>
-        <div className="space-y-6">
-          <Input label="标题" value={editingCard.title || ''} onChange={e => setEditingCard({...editingCard, title: e.target.value})} />
+        <div className="space-y-8">
+          <Input label="标题" value={editingCard.title || ''} onChange={e => setEditingCard({...editingCard, title: e.target.value})} className="h-11 text-base" />
           
           <div className="flex items-end gap-6">
             <div className="flex-1"><MultiSelect label="分类" options={data.tags} value={editingCard.tagIds || []} onChange={ids => setEditingCard({...editingCard, tagIds: ids})} /></div>
-            <div className="flex flex-col items-center gap-1.5 pb-0.5">
-              <label className="text-[10px] font-bold text-stone-400 uppercase">推荐</label>
+            <div className="flex flex-col items-center gap-2 pb-1">
+              <label className="text-xs font-bold text-stone-400 uppercase">推荐</label>
               <input type="checkbox" checked={!!editingCard.isRecommended} onChange={e => setEditingCard({...editingCard, isRecommended: e.target.checked})} className="w-6 h-6 rounded border-stone-300 text-amber-500 focus:ring-amber-400" />
             </div>
           </div>
 
           <div className="flex gap-6">
-             <div className="w-24 h-24 bg-stone-50 rounded-2xl overflow-hidden border border-stone-100 flex-shrink-0"><ImagePreview src={editingCard.coverUrl || ''} alt="Preview" className="h-full w-full" /></div>
-             <div className="flex-1 space-y-4">
-               <Input label="封面链接 (URL)" value={editingCard.coverUrl || ''} onChange={e => setEditingCard({...editingCard, coverUrl: e.target.value})} />
-               <div className="flex items-center justify-between gap-4"><label className="text-[10px] font-bold text-stone-400 uppercase">评分</label><input type="range" min="0" max="5" step="0.5" className="flex-1 accent-ink h-1 bg-stone-100 rounded appearance-none" value={editingCard.rating || 0} onChange={e => setEditingCard({...editingCard, rating: parseFloat(e.target.value)})} /><span className="text-xs font-bold text-ink w-6">{editingCard.rating}</span></div>
+             <div className="w-28 h-28 bg-stone-50 rounded-2xl overflow-hidden border border-stone-100 flex-shrink-0"><ImagePreview src={editingCard.coverUrl || ''} alt="Preview" className="h-full w-full" /></div>
+             <div className="flex-1 space-y-5">
+               <Input label="封面链接 (URL)" value={editingCard.coverUrl || ''} onChange={e => setEditingCard({...editingCard, coverUrl: e.target.value})} className="h-11" />
+               <div className="flex items-center justify-between gap-4"><label className="text-xs font-bold text-stone-400 uppercase">评分</label><input type="range" min="0" max="5" step="0.5" className="flex-1 accent-ink h-2 bg-stone-100 rounded-lg appearance-none" value={editingCard.rating || 0} onChange={e => setEditingCard({...editingCard, rating: parseFloat(e.target.value)})} /><span className="text-sm font-bold text-ink w-8">{editingCard.rating}</span></div>
              </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="开始日期" type="date" max="9999-12-31" value={editingCard.startDate || ''} onChange={e => { const val = e.target.value; if (val.split('-')[0].length <= 4) setEditingCard({...editingCard, startDate: val}); }} />
-            <Input label="结束日期" type="date" max="9999-12-31" value={editingCard.endDate || ''} onChange={e => { const val = e.target.value; if (val.split('-')[0].length <= 4) setEditingCard({...editingCard, endDate: val}); }} />
+          <div className="grid grid-cols-2 gap-6">
+            <Input label="开始日期" type="date" max="9999-12-31" value={editingCard.startDate || ''} onChange={e => { const val = e.target.value; if (val.split('-')[0].length <= 4) setEditingCard({...editingCard, startDate: val}); }} className="h-11" />
+            <Input label="结束日期" type="date" max="9999-12-31" value={editingCard.endDate || ''} onChange={e => { const val = e.target.value; if (val.split('-')[0].length <= 4) setEditingCard({...editingCard, endDate: val}); }} className="h-11" />
           </div>
 
-          <TextArea label="详细描述" value={editingCard.description || ''} onChange={e => setEditingCard({...editingCard, description: e.target.value})} />
-          <Button onClick={handleSave} className="w-full h-12 rounded-2xl">确认保存</Button>
+          <TextArea label="详细描述" value={editingCard.description || ''} onChange={e => setEditingCard({...editingCard, description: e.target.value})} className="min-h-[120px] text-base" />
+          <Button onClick={handleSave} className="w-full h-14 rounded-2xl text-base">确认保存</Button>
         </div>
       </Modal>
 
@@ -535,13 +543,13 @@ const AdminTags: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void 
   const [newTag, setNewTag] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   return (
-    <div className="space-y-8 max-w-3xl">
-      <AdminCard title="新建分类"><div className="flex gap-3"><Input placeholder="输入名称..." value={newTag} onChange={e => setNewTag(e.target.value)} className="flex-1" /><Button onClick={() => { onUpdate({...data, tags: [...data.tags, {id: Date.now().toString(), name: newTag}]}); setNewTag(''); }} disabled={!newTag.trim()} className="w-10 h-10 p-0 rounded-lg"><Plus size={20} /></Button></div></AdminCard>
-      <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-10 max-w-4xl">
+      <AdminCard title="新建分类"><div className="flex gap-4"><Input placeholder="输入名称..." value={newTag} onChange={e => setNewTag(e.target.value)} className="flex-1 h-12 text-base" /><Button onClick={() => { onUpdate({...data, tags: [...data.tags, {id: Date.now().toString(), name: newTag}]}); setNewTag(''); }} disabled={!newTag.trim()} className="w-12 h-12 p-0 rounded-xl"><Plus size={24} /></Button></div></AdminCard>
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
         {data.tags.map(tag => (
-          <div key={tag.id} className="bg-white p-4 rounded-xl border border-stone-200 flex items-center justify-between group">
-            <div className="flex items-center gap-3"><div className="w-8 h-8 rounded bg-stone-50 flex items-center justify-center text-stone-400 font-bold text-[10px] uppercase border border-stone-100">{tag.name.substring(0,1)}</div><span className="font-bold text-ink text-sm">{tag.name}</span></div>
-            <button onClick={() => setDeleteId(tag.id)} className="p-2 text-stone-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={14} /></button>
+          <div key={tag.id} className="bg-white p-5 rounded-2xl border border-stone-200 flex items-center justify-between group shadow-sm hover:border-stone-400 transition-colors">
+            <div className="flex items-center gap-4"><div className="w-10 h-10 rounded-lg bg-stone-50 flex items-center justify-center text-stone-400 font-bold text-xs uppercase border border-stone-100">{tag.name.substring(0,1)}</div><span className="font-bold text-ink text-base">{tag.name}</span></div>
+            <button onClick={() => setDeleteId(tag.id)} className="p-3 text-stone-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button>
           </div>
         ))}
       </div>
@@ -558,12 +566,12 @@ const AdminSettings: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => v
   useEffect(() => { webdav.getPrivateData().then(setCreds); }, []);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-      <div className="lg:col-span-2 space-y-8">
-        <AdminCard title="网站设置"><div className="space-y-6"><Input label="网站标题" value={siteSettings.title} onChange={e => { const s = {...siteSettings, title: e.target.value}; setSiteSettings(s); onUpdate({...data, settings: s}); }} /><Input label="图标 (URL)" value={siteSettings.iconUrl} onChange={e => { const s = {...siteSettings, iconUrl: e.target.value}; setSiteSettings(s); onUpdate({...data, settings: s}); }} /></div></AdminCard>
-        <AdminCard title="服务诊断"><Button onClick={async () => { setTesting(true); const res = await testConnection(); showToast(res.message, res.success ? 'success' : 'error'); setTesting(false); }} disabled={testing} variant="secondary" size="sm" className="rounded-lg h-9">{testing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} 开始自检</Button></AdminCard>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
+      <div className="lg:col-span-2 space-y-10">
+        <AdminCard title="网站设置"><div className="space-y-8"><Input label="网站标题" value={siteSettings.title} onChange={e => { const s = {...siteSettings, title: e.target.value}; setSiteSettings(s); onUpdate({...data, settings: s}); }} className="h-12 text-base" /><Input label="图标 (URL)" value={siteSettings.iconUrl} onChange={e => { const s = {...siteSettings, iconUrl: e.target.value}; setSiteSettings(s); onUpdate({...data, settings: s}); }} className="h-12 text-base" /></div></AdminCard>
+        <AdminCard title="服务诊断"><Button onClick={async () => { setTesting(true); const res = await testConnection(); showToast(res.message, res.success ? 'success' : 'error'); setTesting(false); }} disabled={testing} variant="secondary" size="md" className="rounded-xl h-11">{testing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} 开始自检</Button></AdminCard>
       </div>
-      <AdminCard title="安全选项"><div className="space-y-5"><Input label="账号" value={creds.username} onChange={e => setCreds({...creds, username: e.target.value})} /><Input label="密码" type="password" value={creds.password} onChange={e => setCreds({...creds, password: e.target.value})} /><Button className="w-full h-11 rounded-xl" onClick={async () => { const res = await webdav.savePrivateData(creds); if(res.success) showToast('已保存'); else showToast('失败','error'); }}>保存安全配置</Button></div></AdminCard>
+      <AdminCard title="安全选项"><div className="space-y-6"><Input label="账号" value={creds.username} onChange={e => setCreds({...creds, username: e.target.value})} className="h-12 text-base" /><Input label="密码" type="password" value={creds.password} onChange={e => setCreds({...creds, password: e.target.value})} className="h-12 text-base" /><Button className="w-full h-12 rounded-xl text-base" onClick={async () => { const res = await webdav.savePrivateData(creds); if(res.success) showToast('已保存'); else showToast('失败','error'); }}>保存安全配置</Button></div></AdminCard>
     </div>
   );
 };
