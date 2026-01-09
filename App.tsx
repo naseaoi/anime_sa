@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
-import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2, CloudUpload, AlertCircle, RefreshCw, Check, Search, ExternalLink, X, ChevronLeft, ChevronRight, ArrowRight, ThumbsUp, ArrowUpDown, ArrowLeft, Clock, Star, LayoutGrid, Menu, Home } from 'lucide-react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Loader2, CloudUpload, AlertCircle, RefreshCw, Search, X, ChevronLeft, ChevronRight, ChevronDown, ThumbsUp, ArrowUpDown, ArrowLeft, Clock, Star, LayoutGrid, Menu, Home, Play, Pause } from 'lucide-react';
 import { webdav, DEFAULT_PUBLIC_DATA } from './services/webdavService';
-import { PublicData, CardData, Tag } from './types';
+import { PublicData, CardData } from './types';
 import { Button, Input, Modal, PageLoader, ImagePreview, Rating, TextArea, AdminCard, ToastProvider, useToast, ConfirmModal, MultiSelect } from './components/Common';
 import { PublicDetail } from './components/PublicDetail';
 
@@ -54,59 +54,55 @@ type SortOrder = 'desc' | 'asc';
 
 // --- 前台首页 ---
 
-const BASE_PAGE_SIZE = 22;
+const INITIAL_LOAD_COUNT = 24; // 初始加载数量
+const LOAD_MORE_COUNT = 12;    // 每次加载更多数量
 
 const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [sortConfig, setSortConfig] = useState<{ key: SortKey, order: SortOrder }>({ key: 'createdAt', order: 'desc' });
   const [searchTerm, setSearchTerm] = useState('');
   
-  // 从 URL 获取状态，默认为 page=1, tag=all
+  // 状态：当前可见的卡片数量（替代分页）
+  const [visibleCount, setVisibleCount] = useState(INITIAL_LOAD_COUNT);
+
+  // 状态：标签
   const activeTag = searchParams.get('tag') || 'all';
-  const page = parseInt(searchParams.get('page') || '1', 10);
 
-  // 随机 Hero Card ID
-  const [heroCardId, setHeroCardId] = useState<string | null>(null);
+  // --- Hero 轮播逻辑 ---
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [isHeroPaused, setIsHeroPaused] = useState(false); // 鼠标悬停时暂停
 
+  // 获取所有推荐卡片用于轮播
+  const recommendedCards = useMemo(() => data.cards.filter(c => c.isRecommended), [data.cards]);
+  
+  // 是否显示 Hero 区域：仅在“全部展示”且无搜索词且有推荐卡片时显示
+  const showHero = activeTag === 'all' && !searchTerm && recommendedCards.length > 0;
+
+  // 轮播定时器
   useEffect(() => {
-    // 每次数据加载时刷新 Hero Card
-    const recommended = data.cards.filter(c => c.isRecommended);
-    if (recommended.length > 0) {
-      const random = recommended[Math.floor(Math.random() * recommended.length)];
-      setHeroCardId(random.id);
-    } else {
-      setHeroCardId(null);
-    }
-  }, [data.cards]);
+    if (!showHero || isHeroPaused || recommendedCards.length <= 1) return;
+    
+    const timer = setInterval(() => {
+      setHeroIndex(prev => (prev + 1) % recommendedCards.length);
+    }, 4000); // 4秒切换
 
-  // 处理标签切换：重置页码到 1
+    return () => clearInterval(timer);
+  }, [showHero, isHeroPaused, recommendedCards.length]);
+
+  // 处理标签切换
   const handleTagChange = (tagId: string) => {
-    setSearchParams(params => {
-      params.set('tag', tagId);
-      params.set('page', '1');
-      return params;
-    });
-  };
-
-  // 处理翻页
-  const handlePageChange = (newPage: number) => {
-    setSearchParams(params => {
-      params.set('page', newPage.toString());
-      return params;
-    });
+    setSearchParams({ tag: tagId });
+    setVisibleCount(INITIAL_LOAD_COUNT); // 重置可见数量
+    setHeroIndex(0); // 重置轮播
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // 检查是否有 Hero Card 处于激活状态
-  const hasHero = activeTag === 'all' && !searchTerm && heroCardId;
-  // Hero Card 占用 4 个格子，相当于占用了 1 个卡片数据位置但消耗了 4 个视觉位置。
-  // 为了让网格对齐，如果有 Hero，第一页的数据量应该是 BASE_PAGE_SIZE - 3。
-  // 比如：标准是22个。
-  // 第一页：1个Hero(占4格) + 18个普通(占18格) = 22个视觉格子。数据量 = 19。
-  // 第二页：22个普通 = 22个视觉格子。数据量 = 22。
-  const firstPageSize = hasHero ? BASE_PAGE_SIZE - 3 : BASE_PAGE_SIZE;
+  // 处理加载更多
+  const handleLoadMore = () => {
+    setVisibleCount(prev => prev + LOAD_MORE_COUNT);
+  };
 
-  const { paginatedCards, totalPages } = useMemo(() => {
+  const filteredCards = useMemo(() => {
     let list = [...data.cards];
     
     // 1. 搜索过滤
@@ -129,40 +125,11 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
       return sortConfig.order === 'desc' ? Number(valB) - Number(valA) : Number(valA) - Number(valB);
     });
 
-    // 4. Hero Card 处理逻辑 (仅在首页第一页且无搜索时)
-    let heroItem = null;
-    if (hasHero && page === 1) {
-       const heroIndex = list.findIndex(c => c.id === heroCardId);
-       if (heroIndex > -1) {
-         heroItem = list.splice(heroIndex, 1)[0];
-         // 将 Hero Card 插回最前面
-         list.unshift(heroItem);
-       }
-    }
+    return list;
+  }, [data.cards, activeTag, sortConfig, searchTerm]);
 
-    // 5. 智能分页计算
-    let sliced: CardData[] = [];
-    let total = 0;
-
-    if (hasHero) {
-      // 动态计算总页数
-      // 剩余数据 = 总数 - 第一页容量
-      const remaining = Math.max(0, list.length - firstPageSize);
-      total = 1 + Math.ceil(remaining / BASE_PAGE_SIZE);
-
-      if (page === 1) {
-        sliced = list.slice(0, firstPageSize);
-      } else {
-        const start = firstPageSize + (page - 2) * BASE_PAGE_SIZE;
-        sliced = list.slice(start, start + BASE_PAGE_SIZE);
-      }
-    } else {
-      total = Math.ceil(list.length / BASE_PAGE_SIZE);
-      sliced = list.slice((page - 1) * BASE_PAGE_SIZE, page * BASE_PAGE_SIZE);
-    }
-
-    return { paginatedCards: sliced, totalPages: total };
-  }, [data.cards, activeTag, sortConfig, searchTerm, heroCardId, page, hasHero, firstPageSize]);
+  // 当前轮播显示的卡片
+  const currentHeroCard = recommendedCards[heroIndex];
 
   return (
     <div className="min-h-screen bg-[#f8f8f7] flex flex-col lg:flex-row font-sans selection:bg-ink selection:text-white">
@@ -193,7 +160,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
               <ThumbsUp size={14} />
               <span className="text-sm font-semibold">精选推荐</span>
             </div>
-            <span className="text-[10px] font-mono opacity-60">{data.cards.filter(c => c.isRecommended).length}</span>
+            <span className="text-[10px] font-mono opacity-60">{recommendedCards.length}</span>
           </button>
           
           <div className="h-px bg-stone-100 my-4 mx-4" />
@@ -246,36 +213,94 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
            </div>
         </div>
 
-        {paginatedCards.length === 0 ? (
+        {filteredCards.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center py-32 opacity-20"><Grid size={64} className="mb-4 stroke-[1]" /><p className="font-bold uppercase tracking-widest">NO DATA</p></div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8 auto-rows-min">
-            {paginatedCards.map((card, idx) => {
-              const isHero = card.id === heroCardId && activeTag === 'all' && !searchTerm && page === 1;
-              return (
+            
+            {/* --- Hero Carousel (占用前 2x2 格子) --- */}
+            {showHero && currentHeroCard && (
+              <div 
+                className="group relative sm:col-span-2 sm:row-span-2 aspect-video sm:aspect-auto rounded-2xl shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400 h-full w-full overflow-hidden isolate"
+                onMouseEnter={() => setIsHeroPaused(true)}
+                onMouseLeave={() => setIsHeroPaused(false)}
+                style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
+              >
+                <Link to={`/card/${currentHeroCard.id}`} className="block w-full h-full">
+                   {/* 背景图，添加淡入淡出动画 key 以触发重绘 */}
+                   <div key={currentHeroCard.id} className="w-full h-full animate-in fade-in duration-700">
+                     <ImagePreview src={currentHeroCard.coverUrl} alt={currentHeroCard.title} className="w-full h-full transition-transform duration-[4000ms] ease-linear scale-100 group-hover:scale-105" />
+                   </div>
+                   
+                   {/* 渐变遮罩 */}
+                   <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
+                   
+                   {/* 推荐标签 */}
+                   <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
+                     <ThumbsUp size={24} />
+                   </div>
+
+                   {/* 评分 */}
+                   <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5">
+                     <Star size={12} className="text-amber-400 fill-amber-400" />
+                     <span className="text-xs font-black text-ink">{currentHeroCard.rating.toFixed(1)}</span>
+                   </div>
+
+                   {/* 内容信息 */}
+                   <div className="absolute bottom-0 left-0 right-0 p-6 text-white drop-shadow-md z-20">
+                     <h3 className="text-2xl sm:text-3xl font-black leading-tight line-clamp-2 mb-2">{currentHeroCard.title}</h3>
+                     <p className="text-white/90 text-sm line-clamp-2 font-medium">{currentHeroCard.description}</p>
+                   </div>
+                </Link>
+
+                {/* 轮播控制 (仅当有多于一张推荐卡片时显示) */}
+                {recommendedCards.length > 1 && (
+                  <>
+                    <button 
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev - 1 + recommendedCards.length) % recommendedCards.length); }}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"
+                    >
+                      <ChevronLeft size={24} />
+                    </button>
+                    <button 
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev + 1) % recommendedCards.length); }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"
+                    >
+                      <ChevronRight size={24} />
+                    </button>
+                    {/* 进度指示点 */}
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-30">
+                       {recommendedCards.map((_, idx) => (
+                         <div 
+                           key={idx} 
+                           className={`h-1 rounded-full transition-all duration-300 ${idx === heroIndex ? 'w-6 bg-white' : 'w-1.5 bg-white/40'}`} 
+                         />
+                       ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* --- 普通卡片网格 (显示所有筛选后的卡片，确保排序稳定) --- */}
+            {filteredCards.slice(0, visibleCount).map((card, idx) => (
               <Link 
                 to={`/card/${card.id}`}
                 key={card.id} 
-                className={`group cursor-pointer animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both ${isHero ? 'sm:col-span-2 sm:row-span-2' : ''}`}
-                style={{ animationDelay: `${idx * 40}ms` }}
+                className="group cursor-pointer animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
+                style={{ animationDelay: `${(idx % 10) * 40}ms` }}
               >
-                {/* 
-                   Fix: 分离外部容器（Shadow/Ring）和内部遮罩容器（Mask/Overflow）。
-                   外部 div 负责阴影、边框、尺寸和布局。
-                   内部 div 负责圆角遮罩和内容裁剪，解决 hover 时圆角变直角的问题。
-                */}
-                <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full ${isHero ? 'aspect-auto' : 'aspect-video'} ${card.isRecommended ? 'shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
+                <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full aspect-video ${card.isRecommended ? 'shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
                   
                   {/* 内部容器：应用遮罩 */}
                   <div className="w-full h-full rounded-2xl overflow-hidden relative isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
                     <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full transition-transform duration-1000 group-hover:scale-110" />
                     
-                    {/* 黑色渐变 */}
                     <div className="absolute bottom-0 left-0 right-0 h-1/4 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
                     
                     {card.isRecommended && (
                       <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
-                        <ThumbsUp size={isHero ? 24 : 16} />
+                        <ThumbsUp size={16} />
                       </div>
                     )}
 
@@ -286,27 +311,35 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                         </div>
                     </div>
                     
-                    <div className={`absolute bottom-0 left-0 right-0 text-white drop-shadow-md flex flex-col justify-end ${isHero ? 'p-6' : 'p-4'}`}>
-                      <h3 className={`${isHero ? 'text-3xl' : 'text-lg'} font-black leading-tight line-clamp-2 origin-bottom-left transition-transform duration-300`}>{card.title}</h3>
+                    <div className="absolute bottom-0 left-0 right-0 text-white drop-shadow-md flex flex-col justify-end p-4">
+                      <h3 className="text-lg font-black leading-tight line-clamp-2 origin-bottom-left transition-transform duration-300">{card.title}</h3>
                       <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-500 ease-out">
                          <div className="overflow-hidden">
-                            <p className={`text-white/90 pt-2 line-clamp-2 font-medium ${isHero ? 'text-sm' : 'text-[10px]'}`}>{card.description}</p>
+                            <p className="text-white/90 pt-2 line-clamp-2 font-medium text-[10px]">{card.description}</p>
                          </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </Link>
-            )})}
+            ))}
           </div>
         )}
 
-        {/* 首页分页控制器 */}
-        {totalPages > 1 && (
-          <div className="flex justify-center items-center gap-6 mt-16 pb-8">
-            <Button onClick={() => handlePageChange(Math.max(1, page - 1))} disabled={page === 1} variant="secondary" className="w-12 h-12 rounded-full p-0"><ChevronLeft size={20} /></Button>
-            <span className="text-sm font-bold text-stone-400 tracking-widest">PAGE {page} / {totalPages}</span>
-            <Button onClick={() => handlePageChange(Math.min(totalPages, page + 1))} disabled={page === totalPages} variant="secondary" className="w-12 h-12 rounded-full p-0"><ChevronRight size={20} /></Button>
+        {/* 加载更多按钮 (代替分页) */}
+        {visibleCount < filteredCards.length && (
+          <div className="flex justify-center mt-16 pb-8">
+            <Button onClick={handleLoadMore} variant="outline" className="rounded-full px-8 h-12 text-stone-500 border-stone-300 hover:border-ink hover:text-ink shadow-sm group">
+              <span>加载更多内容</span>
+              <ChevronDown size={16} className="group-hover:translate-y-0.5 transition-transform" />
+            </Button>
+          </div>
+        )}
+        
+        {/* 到底提示 */}
+        {visibleCount >= filteredCards.length && filteredCards.length > 0 && (
+          <div className="text-center mt-16 pb-8 text-xs font-bold text-stone-300 uppercase tracking-widest">
+            — End of Collection —
           </div>
         )}
       </main>
