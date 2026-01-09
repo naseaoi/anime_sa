@@ -91,11 +91,25 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
             <div className="space-y-6">
                <div className={`aspect-video rounded-3xl overflow-hidden transition-all duration-300 relative ${card.isRecommended ? 'border-2 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)]' : 'border border-stone-100 shadow-2xl'}`}>
                  <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full" />
+                 
                  {card.isRecommended && (
-                   <div className="absolute top-6 left-6 bg-amber-400 text-white p-3 rounded-2xl shadow-xl flex items-center justify-center animate-in zoom-in duration-500">
-                      <ThumbsUp size={24} />
+                   <div className="absolute top-6 left-6 z-10 animate-in zoom-in duration-500">
+                      <style>{`
+                        @keyframes thumb-pump {
+                          0%, 100% { transform: scale(1) rotate(-12deg); }
+                          50% { transform: scale(1.15) rotate(-12deg); }
+                        }
+                      `}</style>
+                      <ThumbsUp 
+                        size={48} 
+                        className="text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" 
+                        strokeWidth={2}
+                        stroke="white"
+                        style={{ animation: 'thumb-pump 2s ease-in-out infinite' }}
+                      />
                    </div>
                  )}
+                 
                  {isAdmin && (
                    <button 
                     onClick={handleEditClick}
