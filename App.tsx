@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useParams, Link } from 'react-router-dom';
 import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2, CloudUpload, AlertCircle, RefreshCw, Check, Search, ExternalLink, X, ChevronLeft, ChevronRight, ArrowRight, ThumbsUp, ArrowUpDown, ArrowLeft, Clock, Star, LayoutGrid } from 'lucide-react';
@@ -277,7 +276,9 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
               >
                 <div className={`relative overflow-hidden rounded-2xl aspect-video transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 border border-stone-100 ${card.isRecommended ? 'shadow-[0_0_25px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
                   <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full transition-transform duration-1000 group-hover:scale-110" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                  
+                  {/* 黑色渐变：仅在底部，变小，变深 */}
+                  <div className="absolute bottom-0 left-0 right-0 h-2/3 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none" />
                   
                   {card.isRecommended && (
                     <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
@@ -285,16 +286,17 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                     </div>
                   )}
 
-                  <div className="absolute top-4 right-4 flex gap-2">
-                      <div className="bg-white/90 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5">
+                  <div className="absolute top-3 right-3 flex gap-2">
+                      <div className="bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5">
                         <Star size={12} className="text-amber-400 fill-amber-400" />
                         <span className="text-xs font-black text-ink">{card.rating.toFixed(1)}</span>
                       </div>
                   </div>
                   
-                  <div className="absolute bottom-6 left-6 right-6 text-white drop-shadow-lg">
-                    <h3 className="text-xl font-black mb-1 line-clamp-2">{card.title}</h3>
-                    <p className="text-xs text-white/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300 line-clamp-2 leading-relaxed">{card.description}</p>
+                  {/* 标题：贴底，贴左 */}
+                  <div className="absolute bottom-0 left-0 right-0 p-4 text-white drop-shadow-lg">
+                    <h3 className="text-lg font-black leading-tight line-clamp-2">{card.title}</h3>
+                    <p className="text-[10px] text-white/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300 line-clamp-1 mt-1 font-bold">{card.description}</p>
                   </div>
                 </div>
               </Link>
@@ -473,7 +475,7 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
         {paginatedCards.map(card => (
           <div key={card.id} className={`bg-white rounded-xl border overflow-hidden group flex flex-col h-full hover:border-stone-400 transition-colors ${card.isRecommended ? 'border-amber-200 ring-2 ring-amber-100' : 'border-stone-200'}`}>
-            <div className="aspect-video bg-stone-50 overflow-hidden relative">
+            <div className="aspect-[21/9] bg-stone-50 overflow-hidden relative">
               <ImagePreview src={card.coverUrl} alt={card.title} />
               <div className="absolute inset-0 bg-ink/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                 <button onClick={() => { setEditingCard(card); setIsModalOpen(true); }} className="p-2.5 bg-white text-ink rounded-lg shadow-lg hover:bg-ink hover:text-white transition-all"><Edit2 size={14} /></button>
@@ -482,11 +484,10 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
               {card.isRecommended && <div className="absolute top-2 left-2 bg-amber-400 text-white p-1 rounded shadow"><ThumbsUp size={10} /></div>}
             </div>
             <div className="p-4 flex-1 flex flex-col">
-              <h4 className="font-bold text-ink text-sm truncate mb-1">{card.title}</h4>
-              <Rating value={card.rating} />
-              <div className="mt-auto pt-3 flex items-center justify-between text-[10px] text-stone-400">
+              <h4 className="font-bold text-ink text-sm truncate mb-2">{card.title}</h4>
+              <div className="mt-auto flex items-center gap-3 text-[10px] text-stone-400">
                  <span className="bg-stone-50 px-1.5 py-0.5 rounded font-bold uppercase">{data.tags.find(t=>t.id===card.tagIds[0])?.name || '未分类'}</span>
-                 <span className="font-mono">{card.startDate?.split('-')[0] || '-'}</span>
+                 <Rating value={card.rating} />
               </div>
             </div>
           </div>
