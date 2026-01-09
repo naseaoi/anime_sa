@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useParams, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2, CloudUpload, AlertCircle, RefreshCw, Check, Search, ExternalLink, X, ChevronLeft, ChevronRight, ArrowRight, ThumbsUp, ArrowUpDown, ArrowLeft, Clock, Star, LayoutGrid, Menu } from 'lucide-react';
-import { webdav, DEFAULT_PUBLIC_DATA, testConnection } from './services/webdavService';
+import { webdav, DEFAULT_PUBLIC_DATA } from './services/webdavService';
 import { PublicData, CardData, Tag } from './types';
 import { Button, Input, Modal, PageLoader, ImagePreview, Rating, TextArea, AdminCard, ToastProvider, useToast, ConfirmModal, MultiSelect } from './components/Common';
 import { PublicDetail } from './components/PublicDetail';
@@ -54,17 +54,22 @@ type SortOrder = 'desc' | 'asc';
 
 // --- 前台首页 ---
 
+const ITEMS_PER_PAGE = 22;
+
 const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
-  const navigate = useNavigate();
-  const [activeTag, setActiveTag] = useState<string>('all');
+  const [searchParams, setSearchParams] = useSearchParams();
   const [sortConfig, setSortConfig] = useState<{ key: SortKey, order: SortOrder }>({ key: 'createdAt', order: 'desc' });
   const [searchTerm, setSearchTerm] = useState('');
   
+  // 从 URL 获取状态，默认为 page=1, tag=all
+  const activeTag = searchParams.get('tag') || 'all';
+  const page = parseInt(searchParams.get('page') || '1', 10);
+
   // 随机 Hero Card ID
   const [heroCardId, setHeroCardId] = useState<string | null>(null);
 
   useEffect(() => {
-    // 每次组件挂载（回到首页）时，从推荐列表中随机选择一个
+    // 每次数据加载时刷新 Hero Card
     const recommended = data.cards.filter(c => c.isRecommended);
     if (recommended.length > 0) {
       const random = recommended[Math.floor(Math.random() * recommended.length)];
@@ -72,38 +77,66 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
     } else {
       setHeroCardId(null);
     }
-  }, [data.cards]); // 仅在数据加载或更新时刷新
+  }, [data.cards]);
 
-  const filteredCards = useMemo(() => {
+  // 处理标签切换：重置页码到 1
+  const handleTagChange = (tagId: string) => {
+    setSearchParams(params => {
+      params.set('tag', tagId);
+      params.set('page', '1');
+      return params;
+    });
+  };
+
+  // 处理翻页
+  const handlePageChange = (newPage: number) => {
+    setSearchParams(params => {
+      params.set('page', newPage.toString());
+      return params;
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const { paginatedCards, totalPages } = useMemo(() => {
     let list = [...data.cards];
+    
+    // 1. 搜索过滤
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       list = list.filter(c => c.title.toLowerCase().includes(term) || c.description.toLowerCase().includes(term));
     }
+    
+    // 2. 标签过滤
     if (activeTag === 'recommended') {
       list = list.filter(c => c.isRecommended);
     } else if (activeTag !== 'all') {
       list = list.filter(c => c.tagIds.includes(activeTag));
     }
     
-    // 排序
+    // 3. 排序
     list.sort((a, b) => {
       const valA = a[sortConfig.key] || 0;
       const valB = b[sortConfig.key] || 0;
       return sortConfig.order === 'desc' ? Number(valB) - Number(valA) : Number(valA) - Number(valB);
     });
 
-    // 如果在“全部展示”且没有搜索词，且有Hero Card，将Hero Card移动到第一位
-    if (activeTag === 'all' && !searchTerm && heroCardId) {
+    // 4. Hero Card 处理逻辑 (仅在首页第一页且无搜索时)
+    let heroItem = null;
+    if (activeTag === 'all' && !searchTerm && heroCardId && page === 1) {
        const heroIndex = list.findIndex(c => c.id === heroCardId);
        if (heroIndex > -1) {
-         const heroCard = list.splice(heroIndex, 1)[0];
-         list.unshift(heroCard);
+         heroItem = list.splice(heroIndex, 1)[0];
+         // 将 Hero Card 插回最前面
+         list.unshift(heroItem);
        }
     }
 
-    return list;
-  }, [data.cards, activeTag, sortConfig, searchTerm, heroCardId]);
+    // 5. 分页计算
+    const total = Math.ceil(list.length / ITEMS_PER_PAGE);
+    const sliced = list.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+
+    return { paginatedCards: sliced, totalPages: total };
+  }, [data.cards, activeTag, sortConfig, searchTerm, heroCardId, page]);
 
   return (
     <div className="min-h-screen bg-[#f8f8f7] flex flex-col lg:flex-row font-sans selection:bg-ink selection:text-white">
@@ -116,7 +149,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
 
         <nav className="flex flex-col gap-1 overflow-y-auto no-scrollbar flex-1">
           <button 
-            onClick={() => setActiveTag('all')}
+            onClick={() => handleTagChange('all')}
             className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all ${activeTag === 'all' ? 'bg-ink text-white shadow-md' : 'text-subtle hover:bg-stone-100 hover:text-ink'}`}
           >
             <div className="flex items-center gap-2">
@@ -127,7 +160,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
           </button>
 
           <button 
-            onClick={() => setActiveTag('recommended')}
+            onClick={() => handleTagChange('recommended')}
             className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all mt-1 ${activeTag === 'recommended' ? 'bg-amber-500 text-white shadow-md' : 'text-amber-600 hover:bg-amber-50'}`}
           >
             <div className="flex items-center gap-2">
@@ -144,7 +177,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
             return (
               <button 
                 key={tag.id}
-                onClick={() => setActiveTag(tag.id)}
+                onClick={() => handleTagChange(tag.id)}
                 className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all ${activeTag === tag.id ? 'bg-ink text-white shadow-md' : 'text-subtle hover:bg-stone-100 hover:text-ink'}`}
               >
                 <span className="text-sm font-semibold">{tag.name}</span>
@@ -156,7 +189,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
       </aside>
 
       {/* 主内容区 */}
-      <main className="flex-1 p-6 md:p-10 lg:p-12 overflow-x-hidden">
+      <main className="flex-1 p-6 md:p-10 lg:p-12 overflow-x-hidden flex flex-col">
         {/* 顶部工具栏 */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
            <div className="relative w-full sm:max-w-xs group">
@@ -187,12 +220,12 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
            </div>
         </div>
 
-        {filteredCards.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center py-32 opacity-20"><Grid size={64} className="mb-4 stroke-[1]" /><p className="font-bold uppercase tracking-widest">NO DATA</p></div>
+        {paginatedCards.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center py-32 opacity-20"><Grid size={64} className="mb-4 stroke-[1]" /><p className="font-bold uppercase tracking-widest">NO DATA</p></div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8 auto-rows-min">
-            {filteredCards.map((card, idx) => {
-              const isHero = card.id === heroCardId && activeTag === 'all' && !searchTerm;
+            {paginatedCards.map((card, idx) => {
+              const isHero = card.id === heroCardId && activeTag === 'all' && !searchTerm && page === 1;
               return (
               <Link 
                 to={`/card/${card.id}`}
@@ -200,41 +233,54 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                 className={`group cursor-pointer animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both ${isHero ? 'sm:col-span-2 sm:row-span-2' : ''}`}
                 style={{ animationDelay: `${idx * 40}ms` }}
               >
-                <div 
-                   className={`relative overflow-hidden rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 border border-stone-100 h-full w-full ${isHero ? 'aspect-auto' : 'aspect-video'} ${card.isRecommended ? 'shadow-[0_0_25px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}
-                   style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
-                >
-                  <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full transition-transform duration-1000 group-hover:scale-110" />
+                {/* 
+                   Fix: 分离外部容器（Shadow/Ring）和内部遮罩容器（Mask/Overflow）。
+                   外部 div 负责阴影、边框、尺寸和布局。
+                   内部 div 负责圆角遮罩和内容裁剪，解决 hover 时圆角变直角的问题。
+                */}
+                <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full ${isHero ? 'aspect-auto' : 'aspect-video'} ${card.isRecommended ? 'shadow-[0_0_25px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
                   
-                  {/* 黑色渐变：仅在底部1/4，颜色变浅 */}
-                  <div className="absolute bottom-0 left-0 right-0 h-1/4 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-                  
-                  {card.isRecommended && (
-                    <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
-                      <ThumbsUp size={isHero ? 24 : 16} />
-                    </div>
-                  )}
-
-                  <div className="absolute top-3 right-3 flex gap-2">
-                      <div className="bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5">
-                        <Star size={12} className="text-amber-400 fill-amber-400" />
-                        <span className="text-xs font-black text-ink">{card.rating.toFixed(1)}</span>
+                  {/* 内部容器：应用遮罩 */}
+                  <div className="w-full h-full rounded-2xl overflow-hidden relative isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
+                    <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full transition-transform duration-1000 group-hover:scale-110" />
+                    
+                    {/* 黑色渐变 */}
+                    <div className="absolute bottom-0 left-0 right-0 h-1/4 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                    
+                    {card.isRecommended && (
+                      <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
+                        <ThumbsUp size={isHero ? 24 : 16} />
                       </div>
-                  </div>
-                  
-                  {/* 标题与描述：底部对齐，描述默认不占位 */}
-                  <div className={`absolute bottom-0 left-0 right-0 text-white drop-shadow-md flex flex-col justify-end ${isHero ? 'p-6' : 'p-4'}`}>
-                    <h3 className={`${isHero ? 'text-3xl' : 'text-lg'} font-black leading-tight line-clamp-2 origin-bottom-left transition-transform duration-300`}>{card.title}</h3>
-                    {/* 使用 grid 动画实现描述文字的无缝展开 */}
-                    <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-500 ease-out">
-                       <div className="overflow-hidden">
-                          <p className={`text-white/90 pt-2 line-clamp-2 font-medium ${isHero ? 'text-sm' : 'text-[10px]'}`}>{card.description}</p>
-                       </div>
+                    )}
+
+                    <div className="absolute top-3 right-3 flex gap-2">
+                        <div className="bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5">
+                          <Star size={12} className="text-amber-400 fill-amber-400" />
+                          <span className="text-xs font-black text-ink">{card.rating.toFixed(1)}</span>
+                        </div>
+                    </div>
+                    
+                    <div className={`absolute bottom-0 left-0 right-0 text-white drop-shadow-md flex flex-col justify-end ${isHero ? 'p-6' : 'p-4'}`}>
+                      <h3 className={`${isHero ? 'text-3xl' : 'text-lg'} font-black leading-tight line-clamp-2 origin-bottom-left transition-transform duration-300`}>{card.title}</h3>
+                      <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-500 ease-out">
+                         <div className="overflow-hidden">
+                            <p className={`text-white/90 pt-2 line-clamp-2 font-medium ${isHero ? 'text-sm' : 'text-[10px]'}`}>{card.description}</p>
+                         </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </Link>
             )})}
+          </div>
+        )}
+
+        {/* 首页分页控制器 */}
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center gap-6 mt-16 pb-8">
+            <Button onClick={() => handlePageChange(Math.max(1, page - 1))} disabled={page === 1} variant="secondary" className="w-12 h-12 rounded-full p-0"><ChevronLeft size={20} /></Button>
+            <span className="text-sm font-bold text-stone-400 tracking-widest">PAGE {page} / {totalPages}</span>
+            <Button onClick={() => handlePageChange(Math.min(totalPages, page + 1))} disabled={page === totalPages} variant="secondary" className="w-12 h-12 rounded-full p-0"><ChevronRight size={20} /></Button>
           </div>
         )}
       </main>
@@ -393,7 +439,7 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
   const [search, setSearch] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const itemsPerPage = 22;
 
   const filtered = useMemo(() => data.cards.filter(c => c.title.toLowerCase().includes(search.toLowerCase())).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)), [data.cards, search]);
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
@@ -441,6 +487,15 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
           </div>
         ))}
       </div>
+
+      {/* 后台分页控制器 */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-4 mt-8">
+          <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} variant="secondary" size="sm" className="px-3"><ChevronLeft size={16} /></Button>
+          <span className="text-sm font-bold text-stone-400">Page {currentPage} of {totalPages}</span>
+          <Button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} variant="secondary" size="sm" className="px-3"><ChevronRight size={16} /></Button>
+        </div>
+      )}
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCard.id ? "编辑记录" : "新建记录"}>
         <div className="space-y-8">
@@ -501,7 +556,6 @@ const AdminTags: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void 
 const AdminSettings: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void }> = ({ data, onUpdate }) => {
   const [siteSettings, setSiteSettings] = useState(data.settings);
   const [creds, setCreds] = useState({ username: '', password: '' });
-  const [testing, setTesting] = useState(false);
   const { showToast } = useToast();
   useEffect(() => { webdav.getPrivateData().then(setCreds); }, []);
 
@@ -509,7 +563,6 @@ const AdminSettings: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => v
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
       <div className="lg:col-span-2 space-y-10">
         <AdminCard title="网站设置"><div className="space-y-8"><Input label="网站标题" value={siteSettings.title} onChange={e => { const s = {...siteSettings, title: e.target.value}; setSiteSettings(s); onUpdate({...data, settings: s}); }} className="h-12 text-base" /><Input label="图标 (URL)" value={siteSettings.iconUrl} onChange={e => { const s = {...siteSettings, iconUrl: e.target.value}; setSiteSettings(s); onUpdate({...data, settings: s}); }} className="h-12 text-base" /></div></AdminCard>
-        <AdminCard title="服务诊断"><Button onClick={async () => { setTesting(true); const res = await testConnection(); showToast(res.message, res.success ? 'success' : 'error'); setTesting(false); }} disabled={testing} variant="secondary" size="md" className="rounded-xl h-11">{testing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} 开始自检</Button></AdminCard>
       </div>
       <AdminCard title="安全选项"><div className="space-y-6"><Input label="账号" value={creds.username} onChange={e => setCreds({...creds, username: e.target.value})} className="h-12 text-base" /><Input label="密码" type="password" value={creds.password} onChange={e => setCreds({...creds, password: e.target.value})} className="h-12 text-base" /><Button className="w-full h-12 rounded-xl text-base" onClick={async () => { const res = await webdav.savePrivateData(creds); if(res.success) showToast('已保存'); else showToast('失败','error'); }}>保存安全配置</Button></div></AdminCard>
     </div>
