@@ -275,9 +275,9 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                 className="group cursor-pointer animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
                 style={{ animationDelay: `${idx * 40}ms` }}
               >
-                <div className={`relative overflow-hidden rounded-3xl aspect-video transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 border border-stone-100 ${card.isRecommended ? 'ring-2 ring-amber-400 shadow-2xl shadow-amber-400/50' : 'bg-stone-200 shadow-sm'}`}>
+                <div className={`relative overflow-hidden rounded-2xl aspect-video transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 border border-stone-100 ${card.isRecommended ? 'shadow-[0_0_25px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
                   <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full transition-transform duration-1000 group-hover:scale-110" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                   
                   {card.isRecommended && (
                     <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
@@ -291,11 +291,11 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                         <span className="text-xs font-black text-ink">{card.rating.toFixed(1)}</span>
                       </div>
                   </div>
-
-                   <div className="absolute bottom-6 left-6 right-6 text-white drop-shadow-lg opacity-0 group-hover:opacity-100 transition-all transform translate-y-4 group-hover:translate-y-0 duration-300">
-                      <h3 className="text-xl font-black mb-1 line-clamp-2">{card.title}</h3>
-                      <p className="text-xs opacity-80 line-clamp-2 leading-relaxed">{card.description}</p>
-                   </div>
+                  
+                  <div className="absolute bottom-6 left-6 right-6 text-white drop-shadow-lg">
+                    <h3 className="text-xl font-black mb-1 line-clamp-2">{card.title}</h3>
+                    <p className="text-xs text-white/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300 line-clamp-2 leading-relaxed">{card.description}</p>
+                  </div>
                 </div>
               </Link>
             ))}
@@ -473,7 +473,7 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
         {paginatedCards.map(card => (
           <div key={card.id} className={`bg-white rounded-xl border overflow-hidden group flex flex-col h-full hover:border-stone-400 transition-colors ${card.isRecommended ? 'border-amber-200 ring-2 ring-amber-100' : 'border-stone-200'}`}>
-            <div className="aspect-[4/3] bg-stone-50 overflow-hidden relative">
+            <div className="aspect-video bg-stone-50 overflow-hidden relative">
               <ImagePreview src={card.coverUrl} alt={card.title} />
               <div className="absolute inset-0 bg-ink/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                 <button onClick={() => { setEditingCard(card); setIsModalOpen(true); }} className="p-2.5 bg-white text-ink rounded-lg shadow-lg hover:bg-ink hover:text-white transition-all"><Edit2 size={14} /></button>
