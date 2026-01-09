@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useSearchParams, Link } from 'react-router-dom';
-import { LayoutGrid, Search, X, ChevronLeft, ChevronRight, ChevronDown, ThumbsUp, ArrowUpDown, Star, Grid } from 'lucide-react';
+import { LayoutGrid, Search, X, ChevronLeft, ChevronRight, ChevronDown, ThumbsUp, ArrowUpDown, Star, Grid, Loader2 } from 'lucide-react';
 import { webdav, DEFAULT_PUBLIC_DATA } from './services/webdavService';
 import { PublicData } from './types';
 import { Button, PageLoader, ImagePreview, Rating, ToastProvider } from './components/Common';
@@ -61,15 +61,13 @@ const LOAD_MORE_COUNT = 20;    // 每次加载更多数量
 const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [sortConfig, setSortConfig] = useState<{ key: SortKey, order: SortOrder }>({ key: 'createdAt', order: 'desc' });
-  const [searchTerm, setSearchTerm] = useState('');
+  
+  // 状态：搜索词 (从 URL 初始化，以支持返回保留结果)
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   
   // 状态：当前可见的卡片数量
   const [visibleCount, setVisibleCount] = useState(INITIAL_LOAD_COUNT);
-  // 状态：是否已经暂停过一次自动加载
-  const [firstScrollPaused, setFirstScrollPaused] = useState(false);
   
-  // 使用 Ref 来跟踪是否需要暂停
-  const shouldPauseRef = useRef(true);
   const observerTarget = useRef<HTMLDivElement>(null);
 
   // 状态：标签
@@ -121,27 +119,19 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
     return () => clearInterval(timer);
   }, [showHero, isHeroPaused, heroCards.length]);
 
-  // 当筛选条件改变时，重置状态
+  // 当筛选条件改变时，重置显示数量，但如果是初始化加载（比如返回时），不需要重置过度
   useEffect(() => {
-    setFirstScrollPaused(false);
-    shouldPauseRef.current = true;
     setVisibleCount(INITIAL_LOAD_COUNT);
     setHeroIndex(0);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [activeTag, searchTerm, sortConfig]);
+  }, [activeTag, sortConfig]); // 移除 searchTerm 依赖，防止输入时频繁跳动
 
-  // Intersection Observer 监听底部 (触底暂停逻辑)
+  // Intersection Observer 监听底部 (触底自动加载)
   useEffect(() => {
     const observer = new IntersectionObserver(
       entries => {
         if (entries[0].isIntersecting) {
-          if (shouldPauseRef.current) {
-            shouldPauseRef.current = false;
-            setFirstScrollPaused(true);
-          } else {
-            // 后续触底直接加载
-            setVisibleCount(prev => prev + LOAD_MORE_COUNT);
-          }
+          setVisibleCount(prev => prev + LOAD_MORE_COUNT);
         }
       },
       { threshold: 0.1 }
@@ -155,35 +145,34 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
     };
   }, []);
 
-  // 监听滚动事件以支持“再次滑动加载”
-  // 关键优化：延时绑定，防止惯性滚动立即触发
-  useEffect(() => {
-    if (!firstScrollPaused) return;
-
-    let timeoutId: ReturnType<typeof setTimeout>;
-
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
-      // 容差设为 50px，提升移动端触底灵敏度
-      if (scrollTop + clientHeight >= scrollHeight - 50) {
-        setVisibleCount(prev => prev + LOAD_MORE_COUNT);
-      }
-    };
-
-    // 延迟 500ms 后再开始监听滚动，给用户一个“暂停”的体感，并消化掉惯性
-    timeoutId = setTimeout(() => {
-      window.addEventListener('scroll', handleScroll);
-    }, 500);
-
-    return () => {
-      clearTimeout(timeoutId);
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, [firstScrollPaused]);
-
-  // 处理标签切换
+  // 处理标签切换 (同时保留搜索参数)
   const handleTagChange = (tagId: string) => {
-    setSearchParams({ tag: tagId });
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev);
+      newParams.set('tag', tagId);
+      return newParams;
+    });
+  };
+
+  // 处理搜索 (同步到 URL)
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchTerm(val);
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev);
+      if (val) newParams.set('q', val);
+      else newParams.delete('q');
+      return newParams;
+    }, { replace: true }); // 使用 replace 避免输入时产生大量历史记录
+  };
+
+  const clearSearch = () => {
+    setSearchTerm('');
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev);
+      newParams.delete('q');
+      return newParams;
+    });
   };
 
   const filteredCards = useMemo(() => {
@@ -296,10 +285,10 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                type="text"
                placeholder="搜你想看..."
                value={searchTerm}
-               onChange={e => setSearchTerm(e.target.value)}
+               onChange={handleSearchChange}
                className="w-full bg-white border border-stone-200 rounded-2xl py-3 pl-12 pr-10 text-sm font-bold focus:outline-none focus:border-ink focus:ring-8 focus:ring-stone-200/50 transition-all"
              />
-             {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-300 hover:text-ink"><X size={16} /></button>}
+             {searchTerm && <button onClick={clearSearch} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-300 hover:text-ink"><X size={16} /></button>}
            </div>
            
            <div className="flex items-center gap-2 self-end">
@@ -361,18 +350,18 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                   </Link>
                 ))}
 
-                {/* 轮播控制 (移动端默认不透明，桌面端 Hover 显示) */}
+                {/* 轮播控制 (移动端纯箭头，桌面端带背景) */}
                 {heroCards.length > 1 && (
                   <>
                     <button 
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev - 1 + heroCards.length) % heroCards.length); }}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all backdrop-blur-sm z-30"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 p-2 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:bg-black/20 lg:hover:bg-black/40 lg:backdrop-blur-sm lg:rounded-full drop-shadow-md"
                     >
                       <ChevronLeft size={24} />
                     </button>
                     <button 
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev + 1) % heroCards.length); }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all backdrop-blur-sm z-30"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:bg-black/20 lg:hover:bg-black/40 lg:backdrop-blur-sm lg:rounded-full drop-shadow-md"
                     >
                       <ChevronRight size={24} />
                     </button>
@@ -432,18 +421,15 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
           </div>
         )}
 
-        {/* 底部自动加载触发器 */}
+        {/* 底部自动加载触发器 (纯自动) */}
         {visibleCount < filteredCards.length ? (
           <div 
             ref={observerTarget} 
-            className="flex justify-center mt-16 pb-8 min-h-[50px] cursor-pointer" 
-            onClick={() => setVisibleCount(prev => prev + LOAD_MORE_COUNT)}
+            className="flex justify-center mt-16 pb-8 min-h-[50px]" 
           >
-            <div className={`flex items-center gap-2 text-stone-400 text-sm font-bold ${!firstScrollPaused ? 'animate-pulse' : ''}`}>
-               <ChevronDown size={16} />
-               <span className="uppercase tracking-widest">
-                 {firstScrollPaused ? '再次滑动或点击加载更多' : '下拉加载更多'}
-               </span>
+            <div className="animate-pulse flex items-center gap-2 text-stone-300 text-xs font-bold uppercase tracking-widest">
+               <Loader2 className="animate-spin" size={14} />
+               <span>Loading more</span>
             </div>
           </div>
         ) : (
