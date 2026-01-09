@@ -1,18 +1,68 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ThumbsUp, Calendar, Clock, RefreshCw, AlertCircle } from 'lucide-react';
-import { PublicData } from '../types';
-import { Button, ImagePreview, Rating } from './Common';
+import { ArrowLeft, ThumbsUp, Calendar, Clock, RefreshCw, AlertCircle, Edit2, Loader2 } from 'lucide-react';
+import { PublicData, CardData } from '../types';
+import { Button, ImagePreview, Rating, Modal, Input, MultiSelect, TextArea, useToast } from './Common';
+import { webdav } from '../services/webdavService';
 
-export const PublicDetail: React.FC<{ data: PublicData }> = ({ data }) => {
+interface PublicDetailProps {
+  data: PublicData;
+  refreshData?: () => Promise<void>;
+}
+
+export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const card = data.cards.find(c => c.id === id);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingCard, setEditingCard] = useState<Partial<CardData>>({});
+  const [saving, setSaving] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (card) document.title = `${card.title} - ${data.settings.title}`;
     window.scrollTo(0, 0);
+
+    // Check for admin auth
+    const expiry = localStorage.getItem('tat_expiry');
+    if (expiry && new Date().getTime() < parseInt(expiry)) {
+      setIsAdmin(true);
+    }
   }, [card, data.settings.title]);
+
+  const handleEditClick = () => {
+    if (card) {
+      setEditingCard({ ...card });
+      setIsEditing(true);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!editingCard.id) return;
+    setSaving(true);
+    
+    const newCards = [...data.cards];
+    const idx = newCards.findIndex(c => c.id === editingCard.id);
+    if (idx !== -1) {
+      newCards[idx] = { 
+        ...editingCard, 
+        updatedAt: Date.now() 
+      } as CardData;
+    }
+
+    const newData = { ...data, cards: newCards };
+    const result = await webdav.savePublicData(newData);
+    
+    if (result.success) {
+      if (refreshData) await refreshData();
+      showToast('更新成功', 'success');
+      setIsEditing(false);
+    } else {
+      showToast(`保存失败: ${result.error}`, 'error');
+    }
+    setSaving(false);
+  };
 
   if (!card) return <div className="h-screen flex flex-col items-center justify-center gap-4 text-subtle">
     <AlertCircle size={48} className="opacity-20" />
@@ -45,6 +95,14 @@ export const PublicDetail: React.FC<{ data: PublicData }> = ({ data }) => {
                    <div className="absolute top-6 left-6 bg-amber-400 text-white p-3 rounded-2xl shadow-xl flex items-center justify-center animate-in zoom-in duration-500">
                       <ThumbsUp size={24} />
                    </div>
+                 )}
+                 {isAdmin && (
+                   <button 
+                    onClick={handleEditClick}
+                    className="absolute top-6 right-6 bg-white/90 hover:bg-white text-ink p-3 rounded-2xl shadow-xl backdrop-blur transition-all hover:scale-110 z-20 group"
+                   >
+                     <Edit2 size={20} className="group-hover:text-blue-600 transition-colors" />
+                   </button>
                  )}
                </div>
             </div>
@@ -103,6 +161,39 @@ export const PublicDetail: React.FC<{ data: PublicData }> = ({ data }) => {
              )}
           </div>
         </div>
+
+        {/* 编辑模态框 (仅管理员) */}
+        <Modal isOpen={isEditing} onClose={() => setIsEditing(false)} title="快速编辑记录">
+          <div className="space-y-8">
+            <Input label="标题" value={editingCard.title || ''} onChange={e => setEditingCard({...editingCard, title: e.target.value})} className="h-11 text-base" />
+            
+            <div className="flex items-end gap-6">
+              <div className="flex-1"><MultiSelect label="分类" options={data.tags} value={editingCard.tagIds || []} onChange={ids => setEditingCard({...editingCard, tagIds: ids})} /></div>
+              <div className="flex flex-col items-center gap-2 pb-1">
+                <label className="text-xs font-bold text-stone-400 uppercase">推荐</label>
+                <input type="checkbox" checked={!!editingCard.isRecommended} onChange={e => setEditingCard({...editingCard, isRecommended: e.target.checked})} className="w-6 h-6 rounded border-stone-300 text-amber-500 focus:ring-amber-400" />
+              </div>
+            </div>
+
+            <div className="flex gap-6">
+               <div className="w-28 h-28 bg-stone-50 rounded-2xl overflow-hidden border border-stone-100 flex-shrink-0"><ImagePreview src={editingCard.coverUrl || ''} alt="Preview" className="h-full w-full" /></div>
+               <div className="flex-1 space-y-5">
+                 <Input label="封面链接 (URL)" value={editingCard.coverUrl || ''} onChange={e => setEditingCard({...editingCard, coverUrl: e.target.value})} className="h-11" />
+                 <div className="flex items-center justify-between gap-4"><label className="text-xs font-bold text-stone-400 uppercase">评分</label><input type="range" min="0" max="5" step="0.5" className="flex-1 accent-ink h-2 bg-stone-100 rounded-lg appearance-none" value={editingCard.rating || 0} onChange={e => setEditingCard({...editingCard, rating: parseFloat(e.target.value)})} /><span className="text-sm font-bold text-ink w-8">{editingCard.rating}</span></div>
+               </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-6">
+              <Input label="开始日期" type="date" max="9999-12-31" value={editingCard.startDate || ''} onChange={e => { const val = e.target.value; if (val.split('-')[0].length <= 4) setEditingCard({...editingCard, startDate: val}); }} className="h-11" />
+              <Input label="结束日期" type="date" max="9999-12-31" value={editingCard.endDate || ''} onChange={e => { const val = e.target.value; if (val.split('-')[0].length <= 4) setEditingCard({...editingCard, endDate: val}); }} className="h-11" />
+            </div>
+
+            <TextArea label="详细描述" value={editingCard.description || ''} onChange={e => setEditingCard({...editingCard, description: e.target.value})} className="min-h-[120px] text-base" />
+            <Button onClick={handleSave} className="w-full h-14 rounded-2xl text-base" disabled={saving}>
+              {saving ? <Loader2 className="animate-spin" /> : '保存修改'}
+            </Button>
+          </div>
+        </Modal>
       </main>
     </div>
   );

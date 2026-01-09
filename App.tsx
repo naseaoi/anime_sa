@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Loader2, CloudUpload, AlertCircle, RefreshCw, Search, X, ChevronLeft, ChevronRight, ChevronDown, ThumbsUp, ArrowUpDown, ArrowLeft, Clock, Star, LayoutGrid, Menu, Home, Play, Pause } from 'lucide-react';
 import { webdav, DEFAULT_PUBLIC_DATA } from './services/webdavService';
@@ -40,7 +40,7 @@ const MainRouter: React.FC = () => {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<PublicHome data={data} />} />
-        <Route path="/card/:id" element={<PublicDetail data={data} />} />
+        <Route path="/card/:id" element={<PublicDetail data={data} refreshData={fetchData} />} />
         <Route path="/tat/*" element={<AdminLayout initialData={data} refreshData={fetchData} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
@@ -54,8 +54,8 @@ type SortOrder = 'desc' | 'asc';
 
 // --- 前台首页 ---
 
-const INITIAL_LOAD_COUNT = 24; // 初始加载数量
-const LOAD_MORE_COUNT = 12;    // 每次加载更多数量
+const INITIAL_LOAD_COUNT = 32; // 初始加载数量
+const LOAD_MORE_COUNT = 20;    // 每次加载更多数量
 
 const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -64,6 +64,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
   
   // 状态：当前可见的卡片数量（替代分页）
   const [visibleCount, setVisibleCount] = useState(INITIAL_LOAD_COUNT);
+  const observerTarget = useRef<HTMLDivElement>(null);
 
   // 状态：标签
   const activeTag = searchParams.get('tag') || 'all';
@@ -72,22 +73,49 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
   const [heroIndex, setHeroIndex] = useState(0);
   const [isHeroPaused, setIsHeroPaused] = useState(false); // 鼠标悬停时暂停
 
-  // 获取所有推荐卡片用于轮播
-  const recommendedCards = useMemo(() => data.cards.filter(c => c.isRecommended), [data.cards]);
+  // 获取推荐卡片用于轮播：随机打乱并取前10个
+  const heroCards = useMemo(() => {
+    const recommended = data.cards.filter(c => c.isRecommended);
+    // Fisher-Yates shuffle algorithm equivalent for concise randomness
+    const shuffled = [...recommended].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, 10);
+  }, [data.cards]);
   
   // 是否显示 Hero 区域：仅在“全部展示”且无搜索词且有推荐卡片时显示
-  const showHero = activeTag === 'all' && !searchTerm && recommendedCards.length > 0;
+  const showHero = activeTag === 'all' && !searchTerm && heroCards.length > 0;
 
   // 轮播定时器
   useEffect(() => {
-    if (!showHero || isHeroPaused || recommendedCards.length <= 1) return;
+    if (!showHero || isHeroPaused || heroCards.length <= 1) return;
     
     const timer = setInterval(() => {
-      setHeroIndex(prev => (prev + 1) % recommendedCards.length);
+      setHeroIndex(prev => (prev + 1) % heroCards.length);
     }, 4000); // 4秒切换
 
     return () => clearInterval(timer);
-  }, [showHero, isHeroPaused, recommendedCards.length]);
+  }, [showHero, isHeroPaused, heroCards.length]);
+
+  // 监听底部实现自动加载
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount(prev => prev + LOAD_MORE_COUNT);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current);
+      }
+    };
+  }, [observerTarget]);
 
   // 处理标签切换
   const handleTagChange = (tagId: string) => {
@@ -95,11 +123,6 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
     setVisibleCount(INITIAL_LOAD_COUNT); // 重置可见数量
     setHeroIndex(0); // 重置轮播
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // 处理加载更多
-  const handleLoadMore = () => {
-    setVisibleCount(prev => prev + LOAD_MORE_COUNT);
   };
 
   const filteredCards = useMemo(() => {
@@ -129,7 +152,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
   }, [data.cards, activeTag, sortConfig, searchTerm]);
 
   // 当前轮播显示的卡片
-  const currentHeroCard = recommendedCards[heroIndex];
+  const currentHeroCard = heroCards[heroIndex];
 
   return (
     <div className="min-h-screen bg-[#f8f8f7] flex flex-col lg:flex-row font-sans selection:bg-ink selection:text-white">
@@ -160,7 +183,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
               <ThumbsUp size={14} />
               <span className="text-sm font-semibold">精选推荐</span>
             </div>
-            <span className="text-[10px] font-mono opacity-60">{recommendedCards.length}</span>
+            <span className="text-[10px] font-mono opacity-60">{data.cards.filter(c => c.isRecommended).length}</span>
           </button>
           
           <div className="h-px bg-stone-100 my-4 mx-4" />
@@ -221,7 +244,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
             {/* --- Hero Carousel (占用前 2x2 格子) --- */}
             {showHero && currentHeroCard && (
               <div 
-                className="group relative sm:col-span-2 sm:row-span-2 aspect-video sm:aspect-auto rounded-2xl shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400 h-full w-full overflow-hidden isolate"
+                className="group relative sm:col-span-2 sm:row-span-2 aspect-video rounded-2xl shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400 w-full overflow-hidden isolate"
                 onMouseEnter={() => setIsHeroPaused(true)}
                 onMouseLeave={() => setIsHeroPaused(false)}
                 style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
@@ -229,7 +252,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                 <Link to={`/card/${currentHeroCard.id}`} className="block w-full h-full">
                    {/* 背景图，添加淡入淡出动画 key 以触发重绘 */}
                    <div key={currentHeroCard.id} className="w-full h-full animate-in fade-in duration-700">
-                     <ImagePreview src={currentHeroCard.coverUrl} alt={currentHeroCard.title} className="w-full h-full transition-transform duration-[4000ms] ease-linear scale-100 group-hover:scale-105" />
+                     <ImagePreview src={currentHeroCard.coverUrl} alt={currentHeroCard.title} className="w-full h-full object-cover transition-transform duration-[4000ms] ease-linear scale-100 group-hover:scale-105" />
                    </div>
                    
                    {/* 渐变遮罩 */}
@@ -254,23 +277,23 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                 </Link>
 
                 {/* 轮播控制 (仅当有多于一张推荐卡片时显示) */}
-                {recommendedCards.length > 1 && (
+                {heroCards.length > 1 && (
                   <>
                     <button 
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev - 1 + recommendedCards.length) % recommendedCards.length); }}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev - 1 + heroCards.length) % heroCards.length); }}
                       className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"
                     >
                       <ChevronLeft size={24} />
                     </button>
                     <button 
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev + 1) % recommendedCards.length); }}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev + 1) % heroCards.length); }}
                       className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"
                     >
                       <ChevronRight size={24} />
                     </button>
                     {/* 进度指示点 */}
                     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-30">
-                       {recommendedCards.map((_, idx) => (
+                       {heroCards.map((_, idx) => (
                          <div 
                            key={idx} 
                            className={`h-1 rounded-full transition-all duration-300 ${idx === heroIndex ? 'w-6 bg-white' : 'w-1.5 bg-white/40'}`} 
@@ -326,28 +349,28 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
           </div>
         )}
 
-        {/* 加载更多按钮 (代替分页) */}
-        {visibleCount < filteredCards.length && (
-          <div className="flex justify-center mt-16 pb-8">
-            <Button onClick={handleLoadMore} variant="outline" className="rounded-full px-8 h-12 text-stone-500 border-stone-300 hover:border-ink hover:text-ink shadow-sm group">
-              <span>加载更多内容</span>
-              <ChevronDown size={16} className="group-hover:translate-y-0.5 transition-transform" />
-            </Button>
+        {/* 底部自动加载触发器 */}
+        {visibleCount < filteredCards.length ? (
+          <div ref={observerTarget} className="flex justify-center mt-16 pb-8">
+            <div className="flex items-center gap-2 text-stone-400 text-sm font-bold animate-pulse">
+               <ChevronDown size={16} />
+               <span className="uppercase tracking-widest">下拉加载更多</span>
+            </div>
           </div>
-        )}
-        
-        {/* 到底提示 */}
-        {visibleCount >= filteredCards.length && filteredCards.length > 0 && (
-          <div className="text-center mt-16 pb-8 text-xs font-bold text-stone-300 uppercase tracking-widest">
-            — End of Collection —
-          </div>
+        ) : (
+          filteredCards.length > 0 && (
+            <div className="text-center mt-16 pb-8 text-xs font-bold text-stone-300 uppercase tracking-widest">
+              — End of Collection —
+            </div>
+          )
         )}
       </main>
     </div>
   );
 };
 
-// --- 管理后台 ---
+// --- 管理后台 (App.tsx 的其余部分保持不变) ---
+// AdminLayout, AdminLogin, AdminCards, AdminTags, AdminSettings 组件保持不变
 
 const AdminLayout: React.FC<{ initialData: PublicData; refreshData: () => Promise<void> }> = ({ initialData, refreshData }) => {
   const [localData, setLocalData] = useState<PublicData>(initialData);
@@ -447,13 +470,13 @@ const AdminLayout: React.FC<{ initialData: PublicData; refreshData: () => Promis
   );
 };
 
+// ... NavButton, AdminLogin, AdminCards, AdminTags, AdminSettings components remain the same ...
 const NavButton: React.FC<{ to: string, icon: React.ReactNode, label: string, count?: number }> = ({ to, icon, label, count }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const isActive = location.pathname.includes(to) && to !== '/'; // Home link shouldn't be active in admin
-  // 增大字体到 text-base (默认)
   return (
-    <button onClick={() => navigate(to)} className={`flex items-center justify-between px-4 py-3 w-full text-sm font-bold rounded-xl transition-all ${isActive ? 'bg-ink text-white shadow-md' : 'text-stone-500 hover:bg-stone-50 hover:text-ink'}`}>
+    <button onClick={() => navigate(to)} className={`flex items-center justify-between px-4 py-3 w-full text-base font-bold rounded-xl transition-all ${isActive ? 'bg-ink text-white shadow-md' : 'text-stone-500 hover:bg-stone-50 hover:text-ink'}`}>
       <div className="flex items-center gap-3">{icon}<span>{label}</span></div>
       {count !== undefined && <span className={`text-xs px-2 py-0.5 rounded ${isActive ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-400'}`}>{count}</span>}
     </button>
@@ -525,7 +548,6 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
         <Button onClick={() => { setEditingCard({ tagIds: [], rating: 0, description: '', startDate: '', endDate: '', isRecommended: false }); setIsModalOpen(true); }} size="md" className="rounded-xl h-11 px-6"><Plus size={18} /> 新建记录</Button>
       </div>
 
-      {/* 调整网格为 1列 -> 2列 -> 3列 -> 4列 -> 5列，使卡片更小更紧凑 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
         {paginatedCards.map(card => (
           <div key={card.id} className={`bg-white rounded-2xl border overflow-hidden group flex flex-col h-full hover:border-stone-400 transition-colors shadow-sm ${card.isRecommended ? 'border-amber-200 ring-4 ring-amber-50' : 'border-stone-200'}`}>
@@ -548,7 +570,6 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
         ))}
       </div>
 
-      {/* 后台分页控制器 */}
       {totalPages > 1 && (
         <div className="flex justify-center items-center gap-4 mt-8">
           <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} variant="secondary" size="sm" className="px-3"><ChevronLeft size={16} /></Button>
