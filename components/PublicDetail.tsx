@@ -96,11 +96,11 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                    <div className="absolute top-6 left-6 z-10 animate-in zoom-in duration-500">
                       <style>{`
                         @keyframes thumb-up-bounce {
-                          0% { transform: scale(1) rotate(-12deg); }
-                          25% { transform: scale(1.1) rotate(-35deg); }
-                          45% { transform: scale(0.95) rotate(-10deg); }
-                          60% { transform: scale(1.05) rotate(-15deg); }
-                          100% { transform: scale(1) rotate(-12deg); }
+                          0% { transform: scale(1) rotate(-10deg); }
+                          25% { transform: scale(1.1) rotate(-15deg); }
+                          45% { transform: scale(0.95) rotate(-8deg); }
+                          60% { transform: scale(1.05) rotate(-18deg); }
+                          100% { transform: scale(1) rotate(-10deg); }
                         }
                       `}</style>
                       <ThumbsUp 
@@ -136,7 +136,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                  <h1 className="text-4xl lg:text-5xl font-black text-ink leading-tight tracking-tight">{card.title}</h1>
               </div>
 
-              <div className="flex items-center gap-10">
+              <div className="flex items-center gap-5">
                  <div className="space-y-1">
                     <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest block">个人评分</span>
                     <div className="flex items-center gap-3">

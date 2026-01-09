@@ -79,6 +79,30 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
   const [heroIndex, setHeroIndex] = useState(0);
   const [isHeroPaused, setIsHeroPaused] = useState(false);
 
+  // 触摸滑动逻辑
+  const touchStart = useRef<number | null>(null);
+  const touchEnd = useRef<number | null>(null);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchEnd.current = null;
+    touchStart.current = e.targetTouches[0].clientX;
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    touchEnd.current = e.targetTouches[0].clientX;
+  };
+  const onTouchEnd = () => {
+    if (!touchStart.current || !touchEnd.current) return;
+    const distance = touchStart.current - touchEnd.current;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+    if (isLeftSwipe) {
+       setHeroIndex(prev => (prev + 1) % heroCards.length);
+    }
+    if (isRightSwipe) {
+       setHeroIndex(prev => (prev - 1 + heroCards.length) % heroCards.length);
+    }
+  };
+
   // 获取推荐卡片用于轮播
   const heroCards = useMemo(() => {
     const recommended = data.cards.filter(c => c.isRecommended);
@@ -106,7 +130,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [activeTag, searchTerm, sortConfig]);
 
-  // Intersection Observer 监听底部
+  // Intersection Observer 监听底部 (触底暂停逻辑)
   useEffect(() => {
     const observer = new IntersectionObserver(
       entries => {
@@ -115,6 +139,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
             shouldPauseRef.current = false;
             setFirstScrollPaused(true);
           } else {
+            // 后续触底直接加载
             setVisibleCount(prev => prev + LOAD_MORE_COUNT);
           }
         }
@@ -130,21 +155,30 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
     };
   }, []);
 
-  // 补充：监听滚动事件以支持“再次滑动加载”
-  // 当 IntersectionObserver 已经触发过暂停，且用户继续尝试滚动到底部时，手动触发加载
+  // 监听滚动事件以支持“再次滑动加载”
+  // 关键优化：延时绑定，防止惯性滚动立即触发
   useEffect(() => {
     if (!firstScrollPaused) return;
 
+    let timeoutId: ReturnType<typeof setTimeout>;
+
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
-      // 如果接近底部 (容差 20px)，且状态为“已暂停等待再次滑动”，则触发加载
-      if (scrollTop + clientHeight >= scrollHeight - 20) {
+      // 容差设为 50px，提升移动端触底灵敏度
+      if (scrollTop + clientHeight >= scrollHeight - 50) {
         setVisibleCount(prev => prev + LOAD_MORE_COUNT);
       }
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    // 延迟 500ms 后再开始监听滚动，给用户一个“暂停”的体感，并消化掉惯性
+    timeoutId = setTimeout(() => {
+      window.addEventListener('scroll', handleScroll);
+    }, 500);
+
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('scroll', handleScroll);
+    };
   }, [firstScrollPaused]);
 
   // 处理标签切换
@@ -173,8 +207,8 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
 
   return (
     <div className="min-h-screen bg-[#f8f8f7] flex flex-col lg:flex-row font-sans selection:bg-ink selection:text-white">
-      {/* 侧边导航 */}
-      <aside className="lg:w-64 lg:h-screen lg:sticky lg:top-0 bg-white border-r border-stone-200 p-8 flex flex-col z-40">
+      {/* 桌面端侧边导航 (移动端隐藏) */}
+      <aside className="hidden lg:flex lg:w-64 lg:h-screen lg:sticky lg:top-0 bg-white border-r border-stone-200 p-8 flex-col z-40">
         <div className="flex items-center gap-3 mb-12 cursor-pointer" onClick={() => window.location.href = '/'}>
           <img src={data.settings.iconUrl} alt="Logo" className="w-8 h-8 rounded-lg shadow-sm object-cover" />
           <h1 className="font-bold text-lg text-ink tracking-tight">{data.settings.title}</h1>
@@ -223,6 +257,37 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
 
       {/* 主内容区 */}
       <main className="flex-1 p-6 md:p-10 lg:p-12 overflow-x-hidden flex flex-col">
+        {/* 移动端专属头部 (Logo + 横向滚动标签) */}
+        <div className="lg:hidden flex flex-col gap-4 mb-6">
+          <div className="flex items-center gap-3" onClick={() => window.location.href = '/'}>
+            <img src={data.settings.iconUrl} alt="Logo" className="w-8 h-8 rounded-lg shadow-sm object-cover" />
+            <h1 className="font-bold text-lg text-ink tracking-tight">{data.settings.title}</h1>
+          </div>
+          <div className="flex overflow-x-auto gap-2 no-scrollbar pb-2 mask-linear-fade">
+             <button 
+                onClick={() => handleTagChange('all')}
+                className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'all' ? 'bg-ink text-white shadow-md' : 'bg-white border border-stone-200 text-subtle'}`}
+              >
+                <LayoutGrid size={12} /> 全部
+             </button>
+             <button 
+                onClick={() => handleTagChange('recommended')}
+                className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'recommended' ? 'bg-amber-500 text-white shadow-md' : 'bg-white border border-stone-200 text-amber-600'}`}
+              >
+                <ThumbsUp size={12} /> 推荐
+             </button>
+             {data.tags.map(tag => (
+                <button 
+                  key={tag.id}
+                  onClick={() => handleTagChange(tag.id)}
+                  className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 ${activeTag === tag.id ? 'bg-ink text-white shadow-md' : 'bg-white border border-stone-200 text-subtle'}`}
+                >
+                  {tag.name}
+                </button>
+             ))}
+          </div>
+        </div>
+
         {/* 顶部工具栏 */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
            <div className="relative w-full sm:max-w-xs group">
@@ -258,12 +323,15 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8 auto-rows-min">
             
-            {/* --- Hero Carousel (优化版：淡入淡出堆叠) --- */}
+            {/* --- Hero Carousel (优化版：淡入淡出堆叠 + 触摸滑动) --- */}
             {showHero && heroCards.length > 0 && (
               <div 
-                className="group relative sm:col-span-2 sm:row-span-2 aspect-video rounded-2xl shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400 w-full overflow-hidden isolate"
+                className="group relative sm:col-span-2 sm:row-span-2 aspect-video rounded-2xl shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400 w-full overflow-hidden isolate touch-pan-y"
                 onMouseEnter={() => setIsHeroPaused(true)}
                 onMouseLeave={() => setIsHeroPaused(false)}
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
                 style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
               >
                 {/* 渲染所有幻灯片，通过透明度切换 */}
@@ -272,8 +340,9 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                     key={card.id} 
                     to={`/card/${card.id}`} 
                     className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out ${idx === heroIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                    draggable={false}
                   >
-                    <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full object-cover" />
+                    <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full object-cover select-none" />
                     <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
                     
                     <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
@@ -292,18 +361,18 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                   </Link>
                 ))}
 
-                {/* 轮播控制 */}
+                {/* 轮播控制 (移动端默认不透明，桌面端 Hover 显示) */}
                 {heroCards.length > 1 && (
                   <>
                     <button 
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev - 1 + heroCards.length) % heroCards.length); }}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm z-30"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all backdrop-blur-sm z-30"
                     >
                       <ChevronLeft size={24} />
                     </button>
                     <button 
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev + 1) % heroCards.length); }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm z-30"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all backdrop-blur-sm z-30"
                     >
                       <ChevronRight size={24} />
                     </button>
