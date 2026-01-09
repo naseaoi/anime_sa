@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Loader2, X, Check, ChevronDown, AlertTriangle, Info, Star, StarHalf, Menu } from 'lucide-react';
+import { Loader2, X, Check, ChevronDown, AlertTriangle, Info, Star, StarHalf, Menu, Camera } from 'lucide-react';
 
 // --- Toast System ---
 
@@ -271,9 +271,11 @@ export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: stri
 };
 
 export const PageLoader: React.FC = () => (
-  <div className="flex h-screen w-full items-center justify-center bg-stone-50 text-subtle gap-3">
-    <Loader2 className="w-6 h-6 animate-spin text-ink" />
-    <span className="text-sm font-medium tracking-wide">加载数据中...</span>
+  <div className="flex h-screen w-full flex-col items-center justify-center bg-stone-50 text-subtle gap-4">
+    <div className="animate-bounce">
+      <Camera className="w-12 h-12 text-ink" />
+    </div>
+    <span className="text-sm font-bold tracking-widest uppercase text-stone-400">全力加载中</span>
   </div>
 );
 
