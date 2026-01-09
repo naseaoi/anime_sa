@@ -97,7 +97,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                       <style>{`
                         @keyframes thumb-up-bounce {
                           0% { transform: scale(1) rotate(-12deg); }
-                          25% { transform: scale(1.25) rotate(-35deg); }
+                          25% { transform: scale(1.1) rotate(-35deg); }
                           45% { transform: scale(0.95) rotate(-10deg); }
                           60% { transform: scale(1.05) rotate(-15deg); }
                           100% { transform: scale(1) rotate(-12deg); }

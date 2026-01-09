@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Loader2, CloudUpload, AlertCircle, Search, X, ChevronLeft, ChevronRight, ThumbsUp, Home, Menu } from 'lucide-react';
+import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Loader2, CloudUpload, AlertCircle, Search, X, ChevronLeft, ChevronRight, ThumbsUp, Home, Menu, Check } from 'lucide-react';
 import { PublicData, CardData } from '../types';
 import { webdav } from '../services/webdavService';
 import { Button, Input, Modal, PageLoader, ImagePreview, Rating, TextArea, AdminCard, useToast, ConfirmModal, MultiSelect } from './Common';
@@ -250,20 +250,87 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
 };
 
 const AdminTags: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void }> = ({ data, onUpdate }) => {
-  const [newTag, setNewTag] = useState('');
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [newTagName, setNewTagName] = useState('');
+  const { showToast } = useToast();
+
+  const handleAdd = () => {
+    if (!newTagName.trim()) return;
+    const newId = Date.now().toString();
+    const newTags = [...data.tags, { id: newId, name: newTagName.trim() }];
+    onUpdate({ ...data, tags: newTags });
+    setNewTagName('');
+    showToast('分类添加成功', 'success');
+  };
+
+  const handleUpdate = (id: string) => {
+    if (!editName.trim()) return;
+    const newTags = data.tags.map(t => t.id === id ? { ...t, name: editName.trim() } : t);
+    onUpdate({ ...data, tags: newTags });
+    setEditingId(null);
+    showToast('分类更新成功', 'success');
+  };
+
+  const handleDelete = (id: string) => {
+    const isUsed = data.cards.some(c => c.tagIds.includes(id));
+    if (isUsed) {
+      showToast('无法删除：该分类下还有关联的记录', 'error');
+      return;
+    }
+    const newTags = data.tags.filter(t => t.id !== id);
+    onUpdate({ ...data, tags: newTags });
+    showToast('分类已移除', 'success');
+  };
+
   return (
-    <div className="space-y-10 max-w-4xl">
-      <AdminCard title="新建分类"><div className="flex gap-4"><Input placeholder="输入名称..." value={newTag} onChange={e => setNewTag(e.target.value)} className="flex-1 h-12 text-base" /><Button onClick={() => { onUpdate({...data, tags: [...data.tags, {id: Date.now().toString(), name: newTag}]}); setNewTag(''); }} disabled={!newTag.trim()} className="w-12 h-12 p-0 rounded-xl"><Plus size={24} /></Button></div></AdminCard>
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="max-w-4xl space-y-8">
+      <AdminCard title="添加新分类">
+        <div className="flex gap-4">
+          <Input 
+            placeholder="输入分类名称..." 
+            value={newTagName} 
+            onChange={e => setNewTagName(e.target.value)} 
+            className="h-12 text-base"
+          />
+          <Button onClick={handleAdd} disabled={!newTagName.trim()} className="h-12 px-8 rounded-xl shrink-0">
+            <Plus size={18} /> 添加
+          </Button>
+        </div>
+      </AdminCard>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {data.tags.map(tag => (
-          <div key={tag.id} className="bg-white p-5 rounded-2xl border border-stone-200 flex items-center justify-between group shadow-sm hover:border-stone-400 transition-colors">
-            <div className="flex items-center gap-4"><div className="w-10 h-10 rounded-lg bg-stone-50 flex items-center justify-center text-stone-400 font-bold text-xs uppercase border border-stone-100">{tag.name.substring(0,1)}</div><span className="font-bold text-ink text-base">{tag.name}</span></div>
-            <button onClick={() => setDeleteId(tag.id)} className="p-3 text-stone-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button>
+          <div key={tag.id} className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex items-center justify-between group">
+            {editingId === tag.id ? (
+              <div className="flex items-center gap-2 w-full">
+                <input 
+                  autoFocus
+                  className="w-full px-2 py-1 bg-stone-50 border border-stone-300 rounded text-sm focus:outline-none focus:border-ink"
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  onKeyDown={e => { if(e.key === 'Enter') handleUpdate(tag.id); }}
+                />
+                <button onClick={() => handleUpdate(tag.id)} className="p-1.5 bg-emerald-100 text-emerald-600 rounded hover:bg-emerald-200"><Check size={14} /></button>
+                <button onClick={() => setEditingId(null)} className="p-1.5 bg-stone-100 text-stone-500 rounded hover:bg-stone-200"><X size={14} /></button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-stone-100 rounded-lg flex items-center justify-center text-stone-400 font-mono text-xs font-bold">
+                    {data.cards.filter(c => c.tagIds.includes(tag.id)).length}
+                  </div>
+                  <span className="font-bold text-ink">{tag.name}</span>
+                </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => { setEditingId(tag.id); setEditName(tag.name); }} className="p-2 text-stone-400 hover:text-ink hover:bg-stone-100 rounded-lg transition-colors"><Edit2 size={16} /></button>
+                  <button onClick={() => handleDelete(tag.id)} className="p-2 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                </div>
+              </>
+            )}
           </div>
         ))}
       </div>
-      <ConfirmModal isOpen={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={() => onUpdate({...data, tags: data.tags.filter(t=>t.id!==deleteId)})} title="删除分类" message="此操作不可撤销。" confirmText="删除" type="danger" />
     </div>
   );
 };
@@ -275,11 +342,13 @@ const AdminSettings: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => v
   useEffect(() => { webdav.getPrivateData().then(setCreds); }, []);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
-      <div className="lg:col-span-2 space-y-10">
+    <div className="flex flex-col gap-10 max-w-4xl">
+      <div className="w-full">
         <AdminCard title="网站设置"><div className="space-y-8"><Input label="网站标题" value={siteSettings.title} onChange={e => { const s = {...siteSettings, title: e.target.value}; setSiteSettings(s); onUpdate({...data, settings: s}); }} className="h-12 text-base" /><Input label="图标 (URL)" value={siteSettings.iconUrl} onChange={e => { const s = {...siteSettings, iconUrl: e.target.value}; setSiteSettings(s); onUpdate({...data, settings: s}); }} className="h-12 text-base" /></div></AdminCard>
       </div>
-      <AdminCard title="安全选项"><div className="space-y-6"><Input label="账号" value={creds.username} onChange={e => setCreds({...creds, username: e.target.value})} className="h-12 text-base" /><Input label="密码" type="password" value={creds.password} onChange={e => setCreds({...creds, password: e.target.value})} className="h-12 text-base" /><Button className="w-full h-12 rounded-xl text-base" onClick={async () => { const res = await webdav.savePrivateData(creds); if(res.success) showToast('已保存'); else showToast('失败','error'); }}>保存安全配置</Button></div></AdminCard>
+      <div className="w-full">
+        <AdminCard title="安全选项"><div className="space-y-6"><Input label="账号" value={creds.username} onChange={e => setCreds({...creds, username: e.target.value})} className="h-12 text-base" /><Input label="密码" type="password" value={creds.password} onChange={e => setCreds({...creds, password: e.target.value})} className="h-12 text-base" /><Button className="w-full h-12 rounded-xl text-base" onClick={async () => { const res = await webdav.savePrivateData(creds); if(res.success) showToast('已保存'); else showToast('失败','error'); }}>保存安全配置</Button></div></AdminCard>
+      </div>
     </div>
   );
 };

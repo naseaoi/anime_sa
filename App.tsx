@@ -68,9 +68,8 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
   // 状态：是否已经暂停过一次自动加载
   const [firstScrollPaused, setFirstScrollPaused] = useState(false);
   
-  // 使用 Ref 来跟踪是否需要暂停，避免 Effect 重新绑定导致的无限加载
+  // 使用 Ref 来跟踪是否需要暂停
   const shouldPauseRef = useRef(true);
-  
   const observerTarget = useRef<HTMLDivElement>(null);
 
   // 状态：标签
@@ -78,30 +77,27 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
 
   // --- Hero 轮播逻辑 ---
   const [heroIndex, setHeroIndex] = useState(0);
-  const [isHeroPaused, setIsHeroPaused] = useState(false); // 鼠标悬停时暂停
+  const [isHeroPaused, setIsHeroPaused] = useState(false);
 
-  // 获取推荐卡片用于轮播：随机打乱并取前10个
+  // 获取推荐卡片用于轮播
   const heroCards = useMemo(() => {
     const recommended = data.cards.filter(c => c.isRecommended);
     const shuffled = [...recommended].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, 10);
   }, [data.cards]);
   
-  // 是否显示 Hero 区域：仅在“全部展示”且无搜索词且有推荐卡片时显示
   const showHero = activeTag === 'all' && !searchTerm && heroCards.length > 0;
 
   // 轮播定时器
   useEffect(() => {
     if (!showHero || isHeroPaused || heroCards.length <= 1) return;
-    
     const timer = setInterval(() => {
       setHeroIndex(prev => (prev + 1) % heroCards.length);
-    }, 4000); // 4秒切换
-
+    }, 4000); 
     return () => clearInterval(timer);
   }, [showHero, isHeroPaused, heroCards.length]);
 
-  // 当筛选条件改变时，重置滚动暂停状态和可见数量
+  // 当筛选条件改变时，重置状态
   useEffect(() => {
     setFirstScrollPaused(false);
     shouldPauseRef.current = true;
@@ -110,17 +106,15 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [activeTag, searchTerm, sortConfig]);
 
-  // 监听底部实现加载逻辑
+  // Intersection Observer 监听底部
   useEffect(() => {
     const observer = new IntersectionObserver(
       entries => {
         if (entries[0].isIntersecting) {
-          // 使用 Ref 进行判断，不依赖 state，防止 Observer 重建
           if (shouldPauseRef.current) {
             shouldPauseRef.current = false;
-            setFirstScrollPaused(true); // 触发 UI 更新显示文本
+            setFirstScrollPaused(true);
           } else {
-            // 第二次进入（或状态已变更），执行加载
             setVisibleCount(prev => prev + LOAD_MORE_COUNT);
           }
         }
@@ -131,48 +125,51 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
     if (observerTarget.current) {
       observer.observe(observerTarget.current);
     }
-
     return () => {
-      if (observerTarget.current) {
-        observer.unobserve(observerTarget.current);
+      if (observerTarget.current) observer.unobserve(observerTarget.current);
+    };
+  }, []);
+
+  // 补充：监听滚动事件以支持“再次滑动加载”
+  // 当 IntersectionObserver 已经触发过暂停，且用户继续尝试滚动到底部时，手动触发加载
+  useEffect(() => {
+    if (!firstScrollPaused) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+      // 如果接近底部 (容差 20px)，且状态为“已暂停等待再次滑动”，则触发加载
+      if (scrollTop + clientHeight >= scrollHeight - 20) {
+        setVisibleCount(prev => prev + LOAD_MORE_COUNT);
       }
     };
-  }, []); // 依赖项为空，确保 Observer 实例稳定
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [firstScrollPaused]);
 
   // 处理标签切换
   const handleTagChange = (tagId: string) => {
     setSearchParams({ tag: tagId });
-    // 其他重置逻辑已由上面的 useEffect 处理
   };
 
   const filteredCards = useMemo(() => {
     let list = [...data.cards];
-    
-    // 1. 搜索过滤
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       list = list.filter(c => c.title.toLowerCase().includes(term) || c.description.toLowerCase().includes(term));
     }
-    
-    // 2. 标签过滤
     if (activeTag === 'recommended') {
       list = list.filter(c => c.isRecommended);
     } else if (activeTag !== 'all') {
       list = list.filter(c => c.tagIds.includes(activeTag));
     }
-    
-    // 3. 排序
     list.sort((a, b) => {
       const valA = a[sortConfig.key] || 0;
       const valB = b[sortConfig.key] || 0;
       return sortConfig.order === 'desc' ? Number(valB) - Number(valA) : Number(valA) - Number(valB);
     });
-
     return list;
   }, [data.cards, activeTag, sortConfig, searchTerm]);
-
-  // 当前轮播显示的卡片
-  const currentHeroCard = heroCards[heroIndex];
 
   return (
     <div className="min-h-screen bg-[#f8f8f7] flex flex-col lg:flex-row font-sans selection:bg-ink selection:text-white">
@@ -261,47 +258,52 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8 auto-rows-min">
             
-            {/* --- Hero Carousel --- */}
-            {showHero && currentHeroCard && (
+            {/* --- Hero Carousel (优化版：淡入淡出堆叠) --- */}
+            {showHero && heroCards.length > 0 && (
               <div 
                 className="group relative sm:col-span-2 sm:row-span-2 aspect-video rounded-2xl shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400 w-full overflow-hidden isolate"
                 onMouseEnter={() => setIsHeroPaused(true)}
                 onMouseLeave={() => setIsHeroPaused(false)}
                 style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
               >
-                <Link to={`/card/${currentHeroCard.id}`} className="block w-full h-full">
-                   <div key={currentHeroCard.id} className="w-full h-full animate-in fade-in duration-700">
-                     <ImagePreview src={currentHeroCard.coverUrl} alt={currentHeroCard.title} className="w-full h-full object-cover transition-transform duration-[4000ms] ease-linear scale-100 group-hover:scale-105" />
-                   </div>
-                   
-                   <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
-                   
-                   <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
-                     <ThumbsUp size={24} />
-                   </div>
+                {/* 渲染所有幻灯片，通过透明度切换 */}
+                {heroCards.map((card, idx) => (
+                  <Link 
+                    key={card.id} 
+                    to={`/card/${card.id}`} 
+                    className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out ${idx === heroIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                  >
+                    <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full object-cover" />
+                    <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
+                    
+                    <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
+                      <ThumbsUp size={24} />
+                    </div>
 
-                   <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5">
-                     <Star size={12} className="text-amber-400 fill-amber-400" />
-                     <span className="text-xs font-black text-ink">{currentHeroCard.rating.toFixed(1)}</span>
-                   </div>
+                    <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5">
+                      <Star size={12} className="text-amber-400 fill-amber-400" />
+                      <span className="text-xs font-black text-ink">{card.rating.toFixed(1)}</span>
+                    </div>
 
-                   <div className="absolute bottom-0 left-0 right-0 p-6 text-white drop-shadow-md z-20">
-                     <h3 className="text-2xl sm:text-3xl font-black leading-tight line-clamp-2 mb-2">{currentHeroCard.title}</h3>
-                     <p className="text-white/90 text-sm line-clamp-2 font-medium">{currentHeroCard.description}</p>
-                   </div>
-                </Link>
+                    <div className="absolute bottom-0 left-0 right-0 p-6 text-white drop-shadow-md z-20">
+                      <h3 className="text-2xl sm:text-3xl font-black leading-tight line-clamp-2 mb-2">{card.title}</h3>
+                      <p className="text-white/90 text-sm line-clamp-2 font-medium">{card.description}</p>
+                    </div>
+                  </Link>
+                ))}
 
+                {/* 轮播控制 */}
                 {heroCards.length > 1 && (
                   <>
                     <button 
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev - 1 + heroCards.length) % heroCards.length); }}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm z-30"
                     >
                       <ChevronLeft size={24} />
                     </button>
                     <button 
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev + 1) % heroCards.length); }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all backdrop-blur-sm z-30"
                     >
                       <ChevronRight size={24} />
                     </button>
@@ -363,11 +365,15 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
 
         {/* 底部自动加载触发器 */}
         {visibleCount < filteredCards.length ? (
-          <div ref={observerTarget} className="flex justify-center mt-16 pb-8 min-h-[50px]">
+          <div 
+            ref={observerTarget} 
+            className="flex justify-center mt-16 pb-8 min-h-[50px] cursor-pointer" 
+            onClick={() => setVisibleCount(prev => prev + LOAD_MORE_COUNT)}
+          >
             <div className={`flex items-center gap-2 text-stone-400 text-sm font-bold ${!firstScrollPaused ? 'animate-pulse' : ''}`}>
                <ChevronDown size={16} />
                <span className="uppercase tracking-widest">
-                 {firstScrollPaused ? '再次滑动加载更多' : '下拉加载更多'}
+                 {firstScrollPaused ? '再次滑动或点击加载更多' : '下拉加载更多'}
                </span>
             </div>
           </div>
