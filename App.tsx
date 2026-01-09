@@ -25,15 +25,23 @@ const MainRouter: React.FC = () => {
     setLoading(true);
     const result = await webdav.getPublicData();
     setData(result);
-    document.title = result.settings.title;
-    const favicon = document.getElementById('favicon') as HTMLLinkElement;
-    if (favicon && result.settings.iconUrl) favicon.href = result.settings.iconUrl;
     setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // 专门用于同步浏览器标题和图标的 Effect
+  useEffect(() => {
+    if (data.settings.title) {
+      document.title = data.settings.title;
+    }
+    if (data.settings.iconUrl) {
+      const favicon = document.getElementById('favicon') as HTMLLinkElement;
+      if (favicon) favicon.href = data.settings.iconUrl;
+    }
+  }, [data.settings]);
 
   if (loading) return <PageLoader />;
 
@@ -312,60 +320,62 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8 auto-rows-min">
             
-            {/* --- Hero Carousel (优化版：淡入淡出堆叠 + 触摸滑动) --- */}
+            {/* --- Hero Carousel (优化版：DOM 结构分离，允许箭头外移) --- */}
             {showHero && heroCards.length > 0 && (
               <div 
-                className="group relative sm:col-span-2 sm:row-span-2 aspect-video rounded-2xl shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400 w-full overflow-hidden isolate touch-pan-y"
+                className="group relative sm:col-span-2 sm:row-span-2 aspect-video w-full isolate touch-pan-y"
                 onMouseEnter={() => setIsHeroPaused(true)}
                 onMouseLeave={() => setIsHeroPaused(false)}
                 onTouchStart={onTouchStart}
                 onTouchMove={onTouchMove}
                 onTouchEnd={onTouchEnd}
-                style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}
               >
-                {/* 渲染所有幻灯片，通过透明度切换 */}
-                {heroCards.map((card, idx) => (
-                  <Link 
-                    key={card.id} 
-                    to={`/card/${card.id}`} 
-                    className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out ${idx === heroIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
-                    draggable={false}
-                  >
-                    <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full object-cover select-none" />
-                    <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
-                    
-                    <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
-                      <ThumbsUp size={24} />
-                    </div>
+                {/* 内部容器：负责圆角、阴影和裁切图片 */}
+                <div className="absolute inset-0 rounded-2xl shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400 overflow-hidden" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
+                   {/* 渲染所有幻灯片，通过透明度切换 */}
+                  {heroCards.map((card, idx) => (
+                    <Link 
+                      key={card.id} 
+                      to={`/card/${card.id}`} 
+                      className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out ${idx === heroIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                      draggable={false}
+                    >
+                      <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full object-cover select-none" />
+                      <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
+                      
+                      <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
+                        <ThumbsUp size={24} />
+                      </div>
 
-                    <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5">
-                      <Star size={12} className="text-amber-400 fill-amber-400" />
-                      <span className="text-xs font-black text-ink">{card.rating.toFixed(1)}</span>
-                    </div>
+                      <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5">
+                        <Star size={12} className="text-amber-400 fill-amber-400" />
+                        <span className="text-xs font-black text-ink">{card.rating.toFixed(1)}</span>
+                      </div>
 
-                    <div className="absolute bottom-0 left-0 right-0 p-6 text-white drop-shadow-md z-20">
-                      <h3 className="text-2xl sm:text-3xl font-black leading-tight line-clamp-2 mb-2">{card.title}</h3>
-                      <p className="text-white/90 text-sm line-clamp-2 font-medium">{card.description}</p>
-                    </div>
-                  </Link>
-                ))}
+                      <div className="absolute bottom-0 left-0 right-0 p-6 text-white drop-shadow-md z-20">
+                        <h3 className="text-2xl sm:text-3xl font-black leading-tight line-clamp-2 mb-2">{card.title}</h3>
+                        <p className="text-white/90 text-sm line-clamp-2 font-medium">{card.description}</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
 
-                {/* 轮播控制 (移动端纯箭头，桌面端带背景) */}
+                {/* 轮播控制 (移动端箭头外移，通过负边距实现) */}
                 {heroCards.length > 1 && (
                   <>
                     <button 
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev - 1 + heroCards.length) % heroCards.length); }}
-                      className="absolute left+4 top-1/2 -translate-y-1/2 p-2 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:bg-black/20 lg:hover:bg-black/40 lg:backdrop-blur-sm lg:rounded-full drop-shadow-md lg:left-2"
+                      className="absolute -left-2 top-1/2 -translate-y-1/2 p-2 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:bg-black/20 lg:hover:bg-black/40 lg:backdrop-blur-sm lg:rounded-full drop-shadow-md lg:left-2"
                     >
                       <ChevronLeft size={24} />
                     </button>
                     <button 
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev + 1) % heroCards.length); }}
-                      className="absolute right+4 top-1/2 -translate-y-1/2 p-2 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:bg-black/20 lg:hover:bg-black/40 lg:backdrop-blur-sm lg:rounded-full drop-shadow-md lg:right-2"
+                      className="absolute -right-2 top-1/2 -translate-y-1/2 p-2 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:bg-black/20 lg:hover:bg-black/40 lg:backdrop-blur-sm lg:rounded-full drop-shadow-md lg:right-2"
                     >
                       <ChevronRight size={24} />
                     </button>
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-30">
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-30 pointer-events-none">
                        {heroCards.map((_, idx) => (
                          <div 
                            key={idx} 

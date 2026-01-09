@@ -101,7 +101,8 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
             
             {/* 封面列：移动端在下(order-last)，桌面端在左(order-first) */}
             <div className="space-y-6 order-last lg:order-first">
-               <div className={`aspect-video rounded-3xl overflow-hidden transition-all duration-300 relative ${card.isRecommended ? 'border-2 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)]' : 'border border-stone-100 shadow-2xl'}`}>
+               {/* 阴影修改：未推荐时使用 shadow-md (垂直约4px)，替代 shadow-2xl */}
+               <div className={`aspect-video rounded-3xl overflow-hidden transition-all duration-300 relative ${card.isRecommended ? 'border-2 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)]' : 'border border-stone-100 shadow-md'}`}>
                  <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full" />
                  
                  {/* 桌面端点赞图标 (保留在左上角，保留动画) */}

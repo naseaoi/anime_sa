@@ -26,6 +26,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
     setChecking(false);
   }, []);
 
+  // 增加：同步浏览器标题和图标
+  useEffect(() => {
+    if (localData.settings.title) {
+      document.title = `${localData.settings.title} - 管理后台`;
+    }
+    if (localData.settings.iconUrl) {
+      const favicon = document.getElementById('favicon') as HTMLLinkElement;
+      if (favicon) favicon.href = localData.settings.iconUrl;
+    }
+  }, [localData.settings]);
+
   const handleDataChange = (newData: PublicData) => {
     setLocalData(newData);
     setHasChanges(true);
