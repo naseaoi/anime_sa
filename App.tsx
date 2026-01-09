@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2, CloudUpload, AlertCircle, RefreshCw, Check, Search, ExternalLink, X, ChevronLeft, ChevronRight, ArrowRight, ThumbsUp, ArrowUpDown } from 'lucide-react';
@@ -56,10 +57,18 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
   const [activeTag, setActiveTag] = useState<string>('all');
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey, order: SortOrder }>({ key: 'createdAt', order: 'desc' });
+  const [searchTerm, setSearchTerm] = useState('');
 
   // 过滤逻辑 (增加 "推荐" 分类逻辑)
   const filteredCards = useMemo(() => {
     let list = [...data.cards];
+    
+    // 关键词搜索
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      list = list.filter(c => c.title.toLowerCase().includes(term) || c.description.toLowerCase().includes(term));
+    }
+
     if (activeTag === 'recommended') {
       list = list.filter(c => c.isRecommended);
     } else if (activeTag !== 'all') {
@@ -72,7 +81,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
       const valB = b[sortConfig.key] || 0;
       return sortConfig.order === 'desc' ? Number(valB) - Number(valA) : Number(valA) - Number(valB);
     });
-  }, [data.cards, activeTag, sortConfig]);
+  }, [data.cards, activeTag, sortConfig, searchTerm]);
 
   const getYear = (dateStr?: string) => {
     if (!dateStr || typeof dateStr !== 'string' || !dateStr.includes('-')) return '';
@@ -132,14 +141,25 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
 
       {/* 主内容区 */}
       <main className="flex-1 p-6 md:p-10 lg:p-12 overflow-x-hidden">
-        {/* 顶部工具栏 (排序) */}
-        <div className="flex justify-between items-center mb-8">
-           <div className="text-xs font-bold text-stone-400 uppercase tracking-widest">
-             {activeTag === 'all' ? '全部项目' : activeTag === 'recommended' ? '精选推荐' : data.tags.find(t => t.id === activeTag)?.name}
-             <span className="ml-2 opacity-50">({filteredCards.length})</span>
+        {/* 顶部工具栏 (搜索与排序) */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
+           <div className="relative w-full sm:max-w-xs group">
+             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-300 group-focus-within:text-ink transition-colors" size={14} />
+             <input 
+               type="text"
+               placeholder="查找记录..."
+               value={searchTerm}
+               onChange={e => setSearchTerm(e.target.value)}
+               className="w-full bg-white border border-stone-200 rounded-xl py-2 pl-9 pr-9 text-xs font-bold focus:outline-none focus:border-ink focus:ring-4 focus:ring-stone-100 transition-all"
+             />
+             {searchTerm && (
+               <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-300 hover:text-ink">
+                 <X size={14} />
+               </button>
+             )}
            </div>
            
-           <div className="flex items-center gap-2">
+           <div className="flex items-center gap-2 self-end">
              <div className="flex bg-stone-100 p-1 rounded-lg">
                {(['createdAt', 'rating', 'updatedAt'] as SortKey[]).map(key => (
                  <button
@@ -147,7 +167,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                    onClick={() => setSortConfig(prev => ({ key, order: prev.key === key ? (prev.order === 'desc' ? 'asc' : 'desc') : 'desc' }))}
                    className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all flex items-center gap-1.5 ${sortConfig.key === key ? 'bg-white text-ink shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}
                  >
-                   {key === 'createdAt' ? '创建时间' : key === 'rating' ? '评分' : '更新时间'}
+                   {key === 'createdAt' ? '创建' : key === 'rating' ? '评分' : '更新'}
                    {sortConfig.key === key && <ArrowUpDown size={10} className={sortConfig.order === 'asc' ? 'rotate-180 transition-transform' : ''} />}
                  </button>
                ))}
@@ -161,43 +181,46 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
             <p className="text-sm font-medium tracking-widest">暂无内容</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8">
-            {filteredCards.map((card, idx) => (
-              <div 
-                key={card.id} 
-                onClick={() => setSelectedCard(card)} 
-                className="group cursor-pointer animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
-                style={{ animationDelay: `${idx * 50}ms` }}
-              >
-                <div className={`relative overflow-hidden rounded-2xl aspect-video transition-all duration-500 group-hover:shadow-xl group-hover:-translate-y-1.5 border border-stone-100 ${card.isRecommended ? 'ring-2 ring-amber-400/50 shadow-amber-100' : 'bg-stone-200 shadow-sm'}`}>
-                   <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full transition-transform duration-700 group-hover:scale-105" />
-                   
-                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                   
-                   {/* 悬浮标签 */}
-                   <div className="absolute top-4 left-4 flex gap-2">
-                      <div className="bg-white/90 backdrop-blur border border-white/20 px-2 py-0.5 rounded flex items-center shadow-sm">
-                         <span className="text-[9px] font-bold text-ink uppercase">{getYear(card.startDate) || '存档'}</span>
-                      </div>
-                      {card.isRecommended && (
-                        <div className="bg-amber-400 text-white p-1 rounded shadow-lg animate-in zoom-in duration-300">
-                          <ThumbsUp size={10} />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+            {filteredCards.map((card, idx) => {
+              const isFirst = idx === 0 && !searchTerm;
+              return (
+                <div 
+                  key={card.id} 
+                  onClick={() => setSelectedCard(card)} 
+                  className={`group cursor-pointer animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both ${isFirst ? 'md:col-span-2 md:row-span-1' : ''}`}
+                  style={{ animationDelay: `${idx * 50}ms` }}
+                >
+                  <div className={`relative overflow-hidden rounded-2xl aspect-video transition-all duration-500 group-hover:shadow-xl group-hover:-translate-y-1.5 border border-stone-100 ${card.isRecommended ? 'ring-2 ring-amber-400/50 shadow-amber-100' : 'bg-stone-200 shadow-sm'}`}>
+                    <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full transition-transform duration-700 group-hover:scale-105" />
+                    
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    
+                    {/* 悬浮标签 */}
+                    <div className="absolute top-4 left-4 flex gap-2">
+                        <div className="bg-white/90 backdrop-blur border border-white/20 px-2 py-0.5 rounded flex items-center shadow-sm">
+                          <span className="text-[9px] font-bold text-ink uppercase">{getYear(card.startDate) || '存档'}</span>
                         </div>
-                      )}
-                   </div>
+                        {card.isRecommended && (
+                          <div className="bg-amber-400 text-white p-1 rounded shadow-lg animate-in zoom-in duration-300">
+                            <ThumbsUp size={10} />
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 px-1">
+                    <h3 className={`font-bold text-ink truncate mb-1 group-hover:text-blue-600 transition-colors flex items-center gap-2 ${isFirst ? 'text-lg' : 'text-base'}`}>
+                      {card.title}
+                    </h3>
+                    <div className="flex items-center gap-3">
+                        <Rating value={card.rating} />
+                        <span className="text-[10px] text-stone-400 font-medium">{data.tags.find(t => t.id === card.tagIds[0])?.name || '未分类'}</span>
+                    </div>
+                  </div>
                 </div>
-                
-                <div className="mt-4 px-1">
-                   <h3 className="font-bold text-ink text-base truncate mb-1 group-hover:text-blue-600 transition-colors flex items-center gap-2">
-                    {card.title}
-                   </h3>
-                   <div className="flex items-center gap-3">
-                      <Rating value={card.rating} />
-                      <span className="text-[10px] text-stone-400 font-medium">{data.tags.find(t => t.id === card.tagIds[0])?.name || '未分类'}</span>
-                   </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
@@ -550,15 +573,18 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
         <div className="space-y-5">
           <Input label="卡片标题" value={editingCard.title || ''} onChange={e => setEditingCard({...editingCard, title: e.target.value})} />
           
-          <div className="flex items-center justify-between px-1">
-            <MultiSelect label="所属分类" options={data.tags} value={editingCard.tagIds || []} onChange={ids => setEditingCard({...editingCard, tagIds: ids})} />
-            <div className="flex flex-col items-center gap-1.5 ml-4">
-              <label className="text-[10px] font-bold text-stone-400 uppercase">设为推荐</label>
+          {/* 修改为并排布局且居中对齐 */}
+          <div className="flex items-end gap-5">
+            <div className="flex-1 min-w-0">
+              <MultiSelect label="分类" options={data.tags} value={editingCard.tagIds || []} onChange={ids => setEditingCard({...editingCard, tagIds: ids})} />
+            </div>
+            <div className="flex flex-col items-center gap-1 pb-0.5">
+              <label className="text-[10px] font-bold text-stone-400 uppercase whitespace-nowrap">推荐</label>
               <input 
                 type="checkbox" 
                 checked={!!editingCard.isRecommended} 
                 onChange={e => setEditingCard({...editingCard, isRecommended: e.target.checked})}
-                className="w-5 h-5 rounded border-stone-300 text-amber-500 focus:ring-amber-400"
+                className="w-5 h-5 rounded border-stone-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
               />
             </div>
           </div>
@@ -578,7 +604,6 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
           </div>
           
           <div className="grid grid-cols-2 gap-4">
-            {/* 加入 max 限制并在内部处理字符长度 */}
             <Input 
               label="开始日期" 
               type="date" 

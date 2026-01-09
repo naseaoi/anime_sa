@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Loader2, X, Check, ChevronDown, AlertTriangle, Info } from 'lucide-react';
 
@@ -30,7 +31,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed top-4 right-4 z-[1000] flex flex-col gap-2 pointer-events-none">
+      <div className="fixed bottom-4 right-4 z-[1000] flex flex-col gap-2 pointer-events-none">
         {toasts.map(toast => (
           <div key={toast.id} className={`pointer-events-auto min-w-[300px] max-w-sm p-4 rounded-xl shadow-lg border flex items-start gap-3 animate-in slide-in-from-right-full duration-300 ${
             toast.type === 'success' ? 'bg-white border-emerald-100 text-emerald-800' :
@@ -80,7 +81,7 @@ export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { lab
 }) => {
   return (
     <div className="flex flex-col gap-1.5 w-full">
-      {label && <label className="text-xs font-semibold text-subtle uppercase tracking-wider">{label}</label>}
+      {label && <label className="text-xs font-bold text-subtle uppercase tracking-wider">{label}</label>}
       <input 
         className={`w-full px-3 py-2 bg-white border ${error ? 'border-red-300 focus:border-red-500' : 'border-border focus:border-ink'} rounded-lg text-ink placeholder:text-stone-300 focus:outline-none focus:ring-4 focus:ring-stone-100 transition-all ${className}`}
         {...props}
@@ -95,7 +96,7 @@ export const TextArea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement
 }) => {
   return (
     <div className="flex flex-col gap-1.5 w-full">
-      {label && <label className="text-xs font-semibold text-subtle uppercase tracking-wider">{label}</label>}
+      {label && <label className="text-xs font-bold text-subtle uppercase tracking-wider">{label}</label>}
       <textarea 
         className={`w-full px-3 py-2 bg-white border border-border rounded-lg text-ink placeholder:text-stone-300 focus:outline-none focus:border-ink focus:ring-4 focus:ring-stone-100 transition-all min-h-[100px] resize-y ${className}`}
         {...props}
@@ -134,7 +135,7 @@ export const MultiSelect: React.FC<{
 
   return (
     <div className="flex flex-col gap-1.5 w-full relative" ref={containerRef}>
-      {label && <label className="text-xs font-semibold text-subtle uppercase tracking-wider">{label}</label>}
+      {label && <label className="text-xs font-bold text-subtle uppercase tracking-wider whitespace-nowrap">{label}</label>}
       <div 
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full px-3 py-2 bg-white border border-border rounded-lg text-ink cursor-pointer flex items-center justify-between hover:border-stone-400 transition-colors ${isOpen ? 'ring-4 ring-stone-100 border-ink' : ''}`}
