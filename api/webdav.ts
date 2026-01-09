@@ -1,3 +1,4 @@
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
@@ -28,7 +29,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
     targetUrl += '/';
   }
 
-  const authHeader = 'Basic ' + Buffer.from(`${VITE_WEBDAV_USERNAME}:${VITE_WEBDAV_PASSWORD}`).toString('base64');
+  // Use btoa instead of Buffer to avoid TypeScript "Cannot find name 'Buffer'" error in serverless environment
+  const authHeader = 'Basic ' + btoa(`${VITE_WEBDAV_USERNAME}:${VITE_WEBDAV_PASSWORD}`);
   
   // Use a high-trust desktop User-Agent for all outgoing requests
   const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
