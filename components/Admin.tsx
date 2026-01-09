@@ -47,6 +47,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
     const result = await webdav.savePublicData(localData);
     if (result.success) {
       await refreshData();
+      // 同步成功后更新本地缓存，保证 index.html 预加载能读到最新值
+      localStorage.setItem('tat_site_settings', JSON.stringify(localData.settings));
+      
       setHasChanges(false);
       showToast('数据同步成功', 'success');
     } else {

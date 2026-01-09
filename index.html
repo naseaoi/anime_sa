@@ -5,6 +5,20 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" id="favicon" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Collection</title>
+    <script>
+      // 立即尝试从缓存恢复标题和图标，避免默认标题闪烁
+      try {
+        const cached = localStorage.getItem('tat_site_settings');
+        if (cached) {
+          const settings = JSON.parse(cached);
+          if (settings.title) document.title = settings.title;
+          if (settings.iconUrl) {
+            const link = document.getElementById('favicon');
+            if (link) link.href = settings.iconUrl;
+          }
+        }
+      } catch (e) { console.error('Failed to restore settings from cache', e); }
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -18,6 +32,15 @@
             },
             fontFamily: {
               sans: ['Inter', 'system-ui', 'sans-serif'],
+            },
+            animation: {
+              'fade-up': 'fade-up 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards',
+            },
+            keyframes: {
+              'fade-up': {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              }
             }
           }
         }

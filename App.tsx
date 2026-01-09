@@ -19,29 +19,38 @@ const App: React.FC = () => {
 
 const MainRouter: React.FC = () => {
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<PublicData>(DEFAULT_PUBLIC_DATA);
+  
+  // 初始化时尝试从缓存读取设置，避免 React 水合时的闪烁
+  const [data, setData] = useState<PublicData>(() => {
+    try {
+      const cached = localStorage.getItem('tat_site_settings');
+      if (cached) {
+        return { ...DEFAULT_PUBLIC_DATA, settings: JSON.parse(cached) };
+      }
+    } catch (e) {}
+    return DEFAULT_PUBLIC_DATA;
+  });
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     const result = await webdav.getPublicData();
     setData(result);
+    // 缓存最新设置到本地，供下次 index.html 预加载使用
+    localStorage.setItem('tat_site_settings', JSON.stringify(result.settings));
+    
+    // 更新当前页面标题（以防缓存过时或不存在）
+    if (result.settings.title) document.title = result.settings.title;
+    if (result.settings.iconUrl) {
+      const favicon = document.getElementById('favicon') as HTMLLinkElement;
+      if (favicon) favicon.href = result.settings.iconUrl;
+    }
+    
     setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  // 专门用于同步浏览器标题和图标的 Effect
-  useEffect(() => {
-    if (data.settings.title) {
-      document.title = data.settings.title;
-    }
-    if (data.settings.iconUrl) {
-      const favicon = document.getElementById('favicon') as HTMLLinkElement;
-      if (favicon) favicon.href = data.settings.iconUrl;
-    }
-  }, [data.settings]);
 
   if (loading) return <PageLoader />;
 
@@ -202,6 +211,9 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
     return list;
   }, [data.cards, activeTag, sortConfig, searchTerm]);
 
+  // 生成一个 Key，当分类、搜索或排序变化时，强制重新渲染网格，触发动画
+  const gridKey = `${activeTag}-${searchTerm}-${sortConfig.key}-${sortConfig.order}`;
+
   return (
     <div className="min-h-screen bg-[#f8f8f7] flex flex-col lg:flex-row font-sans selection:bg-ink selection:text-white">
       {/* 桌面端侧边导航 (移动端隐藏) */}
@@ -318,12 +330,13 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
         {filteredCards.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center py-32 opacity-20"><Grid size={64} className="mb-4 stroke-[1]" /><p className="font-bold uppercase tracking-widest">NO DATA</p></div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8 auto-rows-min">
+          <div key={gridKey} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8 auto-rows-min">
             
             {/* --- Hero Carousel (优化版：DOM 结构分离，允许箭头外移) --- */}
             {showHero && heroCards.length > 0 && (
               <div 
-                className="group relative sm:col-span-2 sm:row-span-2 aspect-video w-full isolate touch-pan-y"
+                className="group relative sm:col-span-2 sm:row-span-2 aspect-video w-full isolate touch-pan-y animate-fade-up"
+                style={{ animationDelay: '0ms' }}
                 onMouseEnter={() => setIsHeroPaused(true)}
                 onMouseLeave={() => setIsHeroPaused(false)}
                 onTouchStart={onTouchStart}
@@ -393,8 +406,8 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
               <Link 
                 to={`/card/${card.id}`}
                 key={card.id} 
-                className="group cursor-pointer animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
-                style={{ animationDelay: `${(idx % 10) * 40}ms` }}
+                className="group cursor-pointer animate-fade-up fill-mode-both"
+                style={{ animationDelay: `${(idx % 10) * 50}ms` }}
               >
                 <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full aspect-video ${card.isRecommended ? 'shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
                   
