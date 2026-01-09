@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
-import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2, CloudUpload, AlertCircle, RefreshCw, Check, Search, ExternalLink, X, ChevronLeft, ChevronRight, ArrowRight, ThumbsUp, ArrowUpDown, ArrowLeft, Clock, Star, LayoutGrid, Menu } from 'lucide-react';
+import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2, CloudUpload, AlertCircle, RefreshCw, Check, Search, ExternalLink, X, ChevronLeft, ChevronRight, ArrowRight, ThumbsUp, ArrowUpDown, ArrowLeft, Clock, Star, LayoutGrid, Menu, Home } from 'lucide-react';
 import { webdav, DEFAULT_PUBLIC_DATA } from './services/webdavService';
 import { PublicData, CardData, Tag } from './types';
 import { Button, Input, Modal, PageLoader, ImagePreview, Rating, TextArea, AdminCard, ToastProvider, useToast, ConfirmModal, MultiSelect } from './components/Common';
@@ -54,7 +54,7 @@ type SortOrder = 'desc' | 'asc';
 
 // --- 前台首页 ---
 
-const ITEMS_PER_PAGE = 22;
+const BASE_PAGE_SIZE = 22;
 
 const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -97,6 +97,15 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // 检查是否有 Hero Card 处于激活状态
+  const hasHero = activeTag === 'all' && !searchTerm && heroCardId;
+  // Hero Card 占用 4 个格子，相当于占用了 1 个卡片数据位置但消耗了 4 个视觉位置。
+  // 为了让网格对齐，如果有 Hero，第一页的数据量应该是 BASE_PAGE_SIZE - 3。
+  // 比如：标准是22个。
+  // 第一页：1个Hero(占4格) + 18个普通(占18格) = 22个视觉格子。数据量 = 19。
+  // 第二页：22个普通 = 22个视觉格子。数据量 = 22。
+  const firstPageSize = hasHero ? BASE_PAGE_SIZE - 3 : BASE_PAGE_SIZE;
+
   const { paginatedCards, totalPages } = useMemo(() => {
     let list = [...data.cards];
     
@@ -122,7 +131,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
 
     // 4. Hero Card 处理逻辑 (仅在首页第一页且无搜索时)
     let heroItem = null;
-    if (activeTag === 'all' && !searchTerm && heroCardId && page === 1) {
+    if (hasHero && page === 1) {
        const heroIndex = list.findIndex(c => c.id === heroCardId);
        if (heroIndex > -1) {
          heroItem = list.splice(heroIndex, 1)[0];
@@ -131,12 +140,29 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
        }
     }
 
-    // 5. 分页计算
-    const total = Math.ceil(list.length / ITEMS_PER_PAGE);
-    const sliced = list.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+    // 5. 智能分页计算
+    let sliced: CardData[] = [];
+    let total = 0;
+
+    if (hasHero) {
+      // 动态计算总页数
+      // 剩余数据 = 总数 - 第一页容量
+      const remaining = Math.max(0, list.length - firstPageSize);
+      total = 1 + Math.ceil(remaining / BASE_PAGE_SIZE);
+
+      if (page === 1) {
+        sliced = list.slice(0, firstPageSize);
+      } else {
+        const start = firstPageSize + (page - 2) * BASE_PAGE_SIZE;
+        sliced = list.slice(start, start + BASE_PAGE_SIZE);
+      }
+    } else {
+      total = Math.ceil(list.length / BASE_PAGE_SIZE);
+      sliced = list.slice((page - 1) * BASE_PAGE_SIZE, page * BASE_PAGE_SIZE);
+    }
 
     return { paginatedCards: sliced, totalPages: total };
-  }, [data.cards, activeTag, sortConfig, searchTerm, heroCardId, page]);
+  }, [data.cards, activeTag, sortConfig, searchTerm, heroCardId, page, hasHero, firstPageSize]);
 
   return (
     <div className="min-h-screen bg-[#f8f8f7] flex flex-col lg:flex-row font-sans selection:bg-ink selection:text-white">
@@ -238,7 +264,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                    外部 div 负责阴影、边框、尺寸和布局。
                    内部 div 负责圆角遮罩和内容裁剪，解决 hover 时圆角变直角的问题。
                 */}
-                <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full ${isHero ? 'aspect-auto' : 'aspect-video'} ${card.isRecommended ? 'shadow-[0_0_25px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
+                <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full ${isHero ? 'aspect-auto' : 'aspect-video'} ${card.isRecommended ? 'shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
                   
                   {/* 内部容器：应用遮罩 */}
                   <div className="w-full h-full rounded-2xl overflow-hidden relative isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
@@ -351,7 +377,8 @@ const AdminLayout: React.FC<{ initialData: PublicData; refreshData: () => Promis
              <div onClick={() => setMobileMenuOpen(false)}><NavButton to="/tat/settings" icon={<Settings size={18} />} label="网站设置" /></div>
            </nav>
         </div>
-        <div className="p-6 border-t border-stone-100">
+        <div className="p-6 border-t border-stone-100 flex flex-col gap-2">
+          <div onClick={() => { window.location.href = '/'; }}><NavButton to="/" icon={<Home size={18} />} label="返回首页" /></div>
           <button onClick={() => { localStorage.removeItem('tat_expiry'); window.location.href = '/'; }} className="flex items-center gap-3 px-4 py-3 w-full text-sm font-bold text-red-500 hover:bg-red-50 rounded-xl transition-all"><LogOut size={16} /><span>退出登录</span></button>
         </div>
       </aside>
@@ -390,7 +417,7 @@ const AdminLayout: React.FC<{ initialData: PublicData; refreshData: () => Promis
 const NavButton: React.FC<{ to: string, icon: React.ReactNode, label: string, count?: number }> = ({ to, icon, label, count }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const isActive = location.pathname.includes(to);
+  const isActive = location.pathname.includes(to) && to !== '/'; // Home link shouldn't be active in admin
   // 增大字体到 text-base (默认)
   return (
     <button onClick={() => navigate(to)} className={`flex items-center justify-between px-4 py-3 w-full text-sm font-bold rounded-xl transition-all ${isActive ? 'bg-ink text-white shadow-md' : 'text-stone-500 hover:bg-stone-50 hover:text-ink'}`}>
@@ -532,7 +559,6 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
   );
 };
 
-// ...其余组件逻辑保持一致 (AdminTags, AdminSettings等) ...
 
 const AdminTags: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void }> = ({ data, onUpdate }) => {
   const [newTag, setNewTag] = useState('');

@@ -1,5 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Loader2, X, Check, ChevronDown, AlertTriangle, Info, Star, StarHalf, Menu, Camera } from 'lucide-react';
 
 // --- Toast System ---
@@ -206,8 +207,8 @@ export const ConfirmModal: React.FC<{
   type?: 'danger' | 'info';
 }> = ({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', type = 'info' }) => {
   if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-ink/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-ink/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full border border-white/50 animate-in zoom-in-95 duration-200 p-6">
         <h3 className="text-lg font-bold text-ink mb-2">{title}</h3>
         <p className="text-subtle text-sm mb-6 leading-relaxed">{message}</p>
@@ -221,7 +222,8 @@ export const ConfirmModal: React.FC<{
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -253,8 +255,8 @@ export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: stri
   isOpen, onClose, title, children 
 }) => {
   if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 z-[900] flex items-center justify-center bg-ink/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-ink/20 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-white/50 animate-in zoom-in-95 slide-in-from-bottom-2 duration-200 flex flex-col">
         <div className="px-6 py-4 border-b border-border flex justify-between items-center sticky top-0 bg-white/95 backdrop-blur z-10">
           <h3 className="font-semibold text-ink">{title}</h3>
@@ -266,7 +268,8 @@ export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: stri
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

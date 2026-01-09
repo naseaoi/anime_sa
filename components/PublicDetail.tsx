@@ -26,7 +26,7 @@ export const PublicDetail: React.FC<{ data: PublicData }> = ({ data }) => {
       <header className="fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-xl border-b border-stone-100 z-50 flex items-center justify-between px-6 lg:px-12">
         <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-ink hover:gap-3 transition-all font-bold text-sm">
           <ArrowLeft size={18} />
-          <span>返回列表</span>
+          <span>返回</span>
         </button>
         <div className="flex items-center gap-3">
            <img src={data.settings.iconUrl} alt="Logo" className="w-6 h-6 rounded object-cover" />
@@ -39,7 +39,7 @@ export const PublicDetail: React.FC<{ data: PublicData }> = ({ data }) => {
           {/* 上半部分：图片 + 核心信息 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-12">
             <div className="space-y-6">
-               <div className={`aspect-video rounded-3xl overflow-hidden transition-all duration-300 relative ${card.isRecommended ? 'border-2 border-amber-400 shadow-[0_0_25px_rgba(251,191,36,0.6)]' : 'border border-stone-100 shadow-2xl'}`}>
+               <div className={`aspect-video rounded-3xl overflow-hidden transition-all duration-300 relative ${card.isRecommended ? 'border-2 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)]' : 'border border-stone-100 shadow-2xl'}`}>
                  <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full" />
                  {card.isRecommended && (
                    <div className="absolute top-6 left-6 bg-amber-400 text-white p-3 rounded-2xl shadow-xl flex items-center justify-center animate-in zoom-in duration-500">
@@ -83,7 +83,7 @@ export const PublicDetail: React.FC<{ data: PublicData }> = ({ data }) => {
 
           {/* 下半部分：详细描述 */}
           <div className="bg-stone-50 p-8 rounded-3xl border border-stone-100/50">
-             <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest block mb-4">档案详情</span>
+             <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest block mb-4">感想</span>
              <div className="text-lg text-ink leading-relaxed whitespace-pre-wrap font-medium">
                {card.description || <span className="text-stone-300 italic">暂无详细描述信息。</span>}
              </div>
