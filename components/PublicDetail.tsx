@@ -98,12 +98,15 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
         <div className="max-w-7xl mx-auto px-6 lg:px-12 mt-12">
           {/* 上半部分：图片 + 核心信息 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-12">
-            <div className="space-y-6">
+            
+            {/* 封面列：移动端在下(order-last)，桌面端在左(order-first) */}
+            <div className="space-y-6 order-last lg:order-first">
                <div className={`aspect-video rounded-3xl overflow-hidden transition-all duration-300 relative ${card.isRecommended ? 'border-2 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)]' : 'border border-stone-100 shadow-2xl'}`}>
                  <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full" />
                  
+                 {/* 桌面端点赞图标 (保留在左上角，保留动画) */}
                  {card.isRecommended && (
-                   <div className="absolute top-6 left-6 z-10 animate-in zoom-in duration-500">
+                   <div className="hidden lg:block absolute top-6 left-6 z-10 animate-in zoom-in duration-500">
                       <style>{`
                         @keyframes thumb-up-bounce {
                           0% { transform: scale(1) rotate(-10deg); }
@@ -134,7 +137,8 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                </div>
             </div>
 
-            <div className="flex flex-col justify-center space-y-8">
+            {/* 信息列：移动端在上(order-first)，桌面端在右(order-last) */}
+            <div className="flex flex-col justify-center space-y-8 order-first lg:order-last">
               <div className="space-y-2">
                  <div className="flex flex-wrap gap-2 mb-4">
                     {card.tagIds.map(tid => (
@@ -143,10 +147,23 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                       </span>
                     ))}
                  </div>
-                 <h1 className="text-4xl lg:text-5xl font-black text-ink leading-tight tracking-tight">{card.title}</h1>
+                 
+                 <div className="flex items-start gap-3">
+                    {/* 移动端点赞图标 (标题前方，无动画) */}
+                    {card.isRecommended && (
+                       <ThumbsUp 
+                         size={32} 
+                         className="lg:hidden text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)] fill-amber-400 shrink-0 mt-1.5" 
+                         strokeWidth={3}
+                         stroke="white"
+                         style={{ transform: 'rotate(-10deg)' }}
+                       />
+                    )}
+                    <h1 className="text-4xl lg:text-5xl font-black text-ink leading-tight tracking-tight">{card.title}</h1>
+                 </div>
               </div>
 
-              {/* 评分与时间 (改为垂直排列) */}
+              {/* 评分与时间 (垂直排列) */}
               <div className="flex flex-col gap-6 items-start">
                  <div className="space-y-1">
                     <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest block">个人评分</span>
@@ -167,7 +184,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
             </div>
           </div>
 
-          {/* 下半部分：详细描述 (减小内间距 p-6) */}
+          {/* 下半部分：详细描述 */}
           <div className="bg-stone-50 p-6 rounded-3xl border border-stone-100/50">
              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest block mb-4">感想</span>
              <div className="text-lg text-ink leading-relaxed whitespace-pre-wrap font-medium">
@@ -175,8 +192,8 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
              </div>
           </div>
 
-          {/* 底部元数据 (去除上边框) */}
-          <div className="mt-16 pt-0 flex flex-wrap gap-8 items-center text-[10px] font-bold text-stone-300 uppercase tracking-[0.2em]">
+          {/* 底部元数据 (减少间距 mt-6) */}
+          <div className="mt-6 pt-0 flex flex-wrap gap-8 items-center text-[10px] font-bold text-stone-300 uppercase tracking-[0.2em]">
              <div className="flex items-center gap-2">
                 <Clock size={12} />
                 <span>创建于 {new Date(card.createdAt).toLocaleDateString()}</span>
