@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useParams, Link } from 'react-router-dom';
-import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2, CloudUpload, AlertCircle, RefreshCw, Check, Search, ExternalLink, X, ChevronLeft, ChevronRight, ArrowRight, ThumbsUp, ArrowUpDown, ArrowLeft, Clock, Star, LayoutGrid } from 'lucide-react';
+import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Calendar, Lock, Loader2, CloudUpload, AlertCircle, RefreshCw, Check, Search, ExternalLink, X, ChevronLeft, ChevronRight, ArrowRight, ThumbsUp, ArrowUpDown, ArrowLeft, Clock, Star, LayoutGrid, Menu } from 'lucide-react';
 import { webdav, DEFAULT_PUBLIC_DATA, testConnection } from './services/webdavService';
 import { PublicData, CardData, Tag } from './types';
 import { Button, Input, Modal, PageLoader, ImagePreview, Rating, TextArea, AdminCard, ToastProvider, useToast, ConfirmModal, MultiSelect } from './components/Common';
@@ -87,12 +87,16 @@ const PublicDetail: React.FC<{ data: PublicData }> = ({ data }) => {
         {/* 封面与基础信息 */}
         <div className="max-w-7xl mx-auto px-6 lg:px-12 grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12">
           <div className="space-y-6">
-             <div className={`aspect-[4/3] rounded-3xl overflow-hidden shadow-2xl border border-stone-100 relative ${card.isRecommended ? 'ring-8 ring-amber-400/20' : ''}`}>
+             {/* 
+                - 修改为 aspect-video (16:9)
+                - 修改推荐样式为发光描边 (box-shadow + border)
+                - 移除推荐图标旁的“精选推荐”文字
+             */}
+             <div className={`aspect-video rounded-3xl overflow-hidden transition-all duration-300 relative ${card.isRecommended ? 'border-2 border-amber-400 shadow-[0_0_25px_rgba(251,191,36,0.6)]' : 'border border-stone-100 shadow-2xl'}`}>
                <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full" />
                {card.isRecommended && (
-                 <div className="absolute top-6 left-6 bg-amber-400 text-white p-3 rounded-2xl shadow-xl flex items-center gap-2 animate-in zoom-in duration-500">
-                    <ThumbsUp size={20} />
-                    <span className="text-xs font-black uppercase">精选推荐</span>
+                 <div className="absolute top-6 left-6 bg-amber-400 text-white p-3 rounded-2xl shadow-xl flex items-center justify-center animate-in zoom-in duration-500">
+                    <ThumbsUp size={24} />
                  </div>
                )}
              </div>
@@ -162,6 +166,20 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
   const [activeTag, setActiveTag] = useState<string>('all');
   const [sortConfig, setSortConfig] = useState<{ key: SortKey, order: SortOrder }>({ key: 'createdAt', order: 'desc' });
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // 随机 Hero Card ID
+  const [heroCardId, setHeroCardId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // 每次组件挂载（回到首页）时，从推荐列表中随机选择一个
+    const recommended = data.cards.filter(c => c.isRecommended);
+    if (recommended.length > 0) {
+      const random = recommended[Math.floor(Math.random() * recommended.length)];
+      setHeroCardId(random.id);
+    } else {
+      setHeroCardId(null);
+    }
+  }, [data.cards]); // 仅在数据加载或更新时刷新
 
   const filteredCards = useMemo(() => {
     let list = [...data.cards];
@@ -174,12 +192,25 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
     } else if (activeTag !== 'all') {
       list = list.filter(c => c.tagIds.includes(activeTag));
     }
-    return list.sort((a, b) => {
+    
+    // 排序
+    list.sort((a, b) => {
       const valA = a[sortConfig.key] || 0;
       const valB = b[sortConfig.key] || 0;
       return sortConfig.order === 'desc' ? Number(valB) - Number(valA) : Number(valA) - Number(valB);
     });
-  }, [data.cards, activeTag, sortConfig, searchTerm]);
+
+    // 如果在“全部展示”且没有搜索词，且有Hero Card，将Hero Card移动到第一位
+    if (activeTag === 'all' && !searchTerm && heroCardId) {
+       const heroIndex = list.findIndex(c => c.id === heroCardId);
+       if (heroIndex > -1) {
+         const heroCard = list.splice(heroIndex, 1)[0];
+         list.unshift(heroCard);
+       }
+    }
+
+    return list;
+  }, [data.cards, activeTag, sortConfig, searchTerm, heroCardId]);
 
   return (
     <div className="min-h-screen bg-[#f8f8f7] flex flex-col lg:flex-row font-sans selection:bg-ink selection:text-white">
@@ -266,15 +297,17 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
         {filteredCards.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center py-32 opacity-20"><Grid size={64} className="mb-4 stroke-[1]" /><p className="font-bold uppercase tracking-widest">NO DATA</p></div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8">
-            {filteredCards.map((card, idx) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8 auto-rows-min">
+            {filteredCards.map((card, idx) => {
+              const isHero = card.id === heroCardId && activeTag === 'all' && !searchTerm;
+              return (
               <Link 
                 to={`/card/${card.id}`}
                 key={card.id} 
-                className="group cursor-pointer animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
+                className={`group cursor-pointer animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both ${isHero ? 'sm:col-span-2 sm:row-span-2' : ''}`}
                 style={{ animationDelay: `${idx * 40}ms` }}
               >
-                <div className={`relative overflow-hidden rounded-2xl aspect-video transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 border border-stone-100 ${card.isRecommended ? 'shadow-[0_0_25px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
+                <div className={`relative overflow-hidden rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 border border-stone-100 h-full w-full ${isHero ? 'aspect-auto' : 'aspect-video'} ${card.isRecommended ? 'shadow-[0_0_25px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
                   <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full transition-transform duration-1000 group-hover:scale-110" />
                   
                   {/* 黑色渐变：仅在底部1/4，颜色变浅 */}
@@ -282,7 +315,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                   
                   {card.isRecommended && (
                     <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
-                      <ThumbsUp size={16} />
+                      <ThumbsUp size={isHero ? 24 : 16} />
                     </div>
                   )}
 
@@ -294,18 +327,18 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                   </div>
                   
                   {/* 标题与描述：底部对齐，描述默认不占位 */}
-                  <div className="absolute bottom-0 left-0 right-0 p-4 text-white drop-shadow-md flex flex-col justify-end">
-                    <h3 className="text-lg font-black leading-tight line-clamp-2 origin-bottom-left transition-transform duration-300">{card.title}</h3>
+                  <div className={`absolute bottom-0 left-0 right-0 text-white drop-shadow-md flex flex-col justify-end ${isHero ? 'p-6' : 'p-4'}`}>
+                    <h3 className={`${isHero ? 'text-3xl' : 'text-lg'} font-black leading-tight line-clamp-2 origin-bottom-left transition-transform duration-300`}>{card.title}</h3>
                     {/* 使用 grid 动画实现描述文字的无缝展开 */}
                     <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-500 ease-out">
                        <div className="overflow-hidden">
-                          <p className="text-[10px] text-white/90 pt-2 line-clamp-2 font-medium">{card.description}</p>
+                          <p className={`text-white/90 pt-2 line-clamp-2 font-medium ${isHero ? 'text-sm' : 'text-[10px]'}`}>{card.description}</p>
                        </div>
                     </div>
                   </div>
                 </div>
               </Link>
-            ))}
+            )})}
           </div>
         )}
       </main>
@@ -321,6 +354,7 @@ const AdminLayout: React.FC<{ initialData: PublicData; refreshData: () => Promis
   const [isAuth, setIsAuth] = useState(false);
   const [checking, setChecking] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // 移动端菜单状态
   const location = useLocation();
   const { showToast } = useToast();
 
@@ -356,17 +390,23 @@ const AdminLayout: React.FC<{ initialData: PublicData; refreshData: () => Promis
 
   return (
     <div className="flex h-screen bg-stone-50 overflow-hidden font-sans">
-      {/* 调整侧边栏宽度为 w-64 */}
-      <aside className="w-64 bg-white border-r border-stone-200 flex flex-col hidden md:flex z-20">
-        <div className="h-20 border-b border-stone-100 flex items-center px-8 gap-4">
-          <div className="w-8 h-8 bg-ink rounded-lg flex items-center justify-center text-white"><Layout size={18} /></div>
-          <span className="font-bold text-ink text-lg">后台管理</span>
+      {/* 移动端侧边栏遮罩 */}
+      {mobileMenuOpen && <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 md:hidden" onClick={() => setMobileMenuOpen(false)} />}
+
+      {/* 侧边栏：移动端支持滑出 */}
+      <aside className={`w-64 bg-white border-r border-stone-200 flex flex-col z-40 fixed inset-y-0 left-0 transform transition-transform duration-300 md:relative md:translate-x-0 ${mobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
+        <div className="h-20 border-b border-stone-100 flex items-center px-8 gap-4 justify-between md:justify-start">
+          <div className="flex items-center gap-4">
+            <div className="w-8 h-8 bg-ink rounded-lg flex items-center justify-center text-white"><Layout size={18} /></div>
+            <span className="font-bold text-ink text-lg">后台管理</span>
+          </div>
+          <button onClick={() => setMobileMenuOpen(false)} className="md:hidden text-stone-400 hover:text-ink"><X size={20} /></button>
         </div>
         <div className="p-6 flex-1">
            <nav className="space-y-2">
-             <NavButton to="/tat/cards" icon={<Grid size={18} />} label="卡片管理" count={localData.cards.length} />
-             <NavButton to="/tat/tags" icon={<Tags size={18} />} label="分类管理" count={localData.tags.length} />
-             <NavButton to="/tat/settings" icon={<Settings size={18} />} label="网站设置" />
+             <div onClick={() => setMobileMenuOpen(false)}><NavButton to="/tat/cards" icon={<Grid size={18} />} label="卡片管理" count={localData.cards.length} /></div>
+             <div onClick={() => setMobileMenuOpen(false)}><NavButton to="/tat/tags" icon={<Tags size={18} />} label="分类管理" count={localData.tags.length} /></div>
+             <div onClick={() => setMobileMenuOpen(false)}><NavButton to="/tat/settings" icon={<Settings size={18} />} label="网站设置" /></div>
            </nav>
         </div>
         <div className="p-6 border-t border-stone-100">
@@ -375,11 +415,15 @@ const AdminLayout: React.FC<{ initialData: PublicData; refreshData: () => Promis
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="bg-white border-b border-stone-100 h-20 flex items-center justify-between px-8 z-10 sticky top-0">
-          <h2 className="text-lg font-bold text-ink">
-            {location.pathname.includes('cards') ? '卡片档案' : 
-             location.pathname.includes('tags') ? '分类配置' : '系统参数'}
-          </h2>
+        <header className="bg-white border-b border-stone-100 h-20 flex items-center justify-between px-6 sm:px-8 z-10 sticky top-0">
+          <div className="flex items-center gap-4">
+            {/* 移动端菜单按钮 */}
+            <button onClick={() => setMobileMenuOpen(true)} className="md:hidden p-2 -ml-2 text-stone-500 hover:bg-stone-100 rounded-lg"><Menu size={20} /></button>
+            <h2 className="text-lg font-bold text-ink">
+              {location.pathname.includes('cards') ? '卡片档案' : 
+               location.pathname.includes('tags') ? '分类配置' : '系统参数'}
+            </h2>
+          </div>
           <div className="flex items-center gap-4">
             {hasChanges && <div className="hidden sm:flex items-center gap-2 text-amber-600 bg-amber-50 px-4 py-2 rounded-lg text-xs font-bold border border-amber-100"><AlertCircle size={14} /><span>有待同步的修改</span></div>}
             <Button onClick={handleSync} disabled={!hasChanges || syncing} variant="success" size="md" className="rounded-xl h-10 px-5">
@@ -388,7 +432,7 @@ const AdminLayout: React.FC<{ initialData: PublicData; refreshData: () => Promis
             </Button>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-6 sm:p-10"><div className="max-w-7xl mx-auto w-full">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10"><div className="max-w-7xl mx-auto w-full">
             <Routes>
               <Route path="cards" element={<AdminCards data={localData} onUpdate={(d) => handleDataChange(d)} />} />
               <Route path="tags" element={<AdminTags data={localData} onUpdate={(d) => handleDataChange(d)} />} />
@@ -479,8 +523,8 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
         <Button onClick={() => { setEditingCard({ tagIds: [], rating: 0, description: '', startDate: '', endDate: '', isRecommended: false }); setIsModalOpen(true); }} size="md" className="rounded-xl h-11 px-6"><Plus size={18} /> 新建记录</Button>
       </div>
 
-      {/* 调整网格为 1列 -> 2列 -> 3列，使卡片更大 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+      {/* 调整网格为 1列 -> 2列 -> 3列 -> 4列 -> 5列，使卡片更小更紧凑 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
         {paginatedCards.map(card => (
           <div key={card.id} className={`bg-white rounded-2xl border overflow-hidden group flex flex-col h-full hover:border-stone-400 transition-colors shadow-sm ${card.isRecommended ? 'border-amber-200 ring-4 ring-amber-50' : 'border-stone-200'}`}>
             <div className="aspect-[21/9] bg-stone-50 overflow-hidden relative">
@@ -491,10 +535,10 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
               </div>
               {card.isRecommended && <div className="absolute top-3 left-3 bg-amber-400 text-white p-1.5 rounded-lg shadow-md"><ThumbsUp size={14} /></div>}
             </div>
-            <div className="p-6 flex-1 flex flex-col">
-              <h4 className="font-bold text-ink text-lg truncate mb-3">{card.title}</h4>
-              <div className="mt-auto flex items-center gap-4 text-xs text-stone-400">
-                 <span className="bg-stone-100 text-stone-500 px-2.5 py-1 rounded-lg font-bold uppercase tracking-wide">{data.tags.find(t=>t.id===card.tagIds[0])?.name || '未分类'}</span>
+            <div className="p-4 flex-1 flex flex-col">
+              <h4 className="font-bold text-ink text-sm truncate mb-2">{card.title}</h4>
+              <div className="mt-auto flex items-center gap-2 text-xs text-stone-400">
+                 <span className="bg-stone-100 text-stone-500 px-2 py-0.5 rounded font-bold uppercase tracking-wide scale-90 origin-left">{data.tags.find(t=>t.id===card.tagIds[0])?.name || '未分类'}</span>
                  <Rating value={card.rating} />
               </div>
             </div>

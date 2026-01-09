@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Loader2, X, Check, ChevronDown, AlertTriangle, Info } from 'lucide-react';
+import { Loader2, X, Check, ChevronDown, AlertTriangle, Info, Star, StarHalf, Menu } from 'lucide-react';
 
 // --- Toast System ---
 
@@ -279,10 +279,14 @@ export const PageLoader: React.FC = () => (
 
 export const Rating: React.FC<{ value: number }> = ({ value }) => (
   <div className="flex gap-0.5">
-    {[1, 2, 3, 4, 5].map((star) => (
-      <span key={star} className={`text-xs ${star <= value ? 'text-amber-400' : 'text-stone-200'}`}>
-        ★
-      </span>
-    ))}
+    {[1, 2, 3, 4, 5].map((star) => {
+       const filled = value >= star;
+       const half = value >= star - 0.5 && value < star;
+       return (
+         <span key={star} className={`text-xs ${filled || half ? 'text-amber-400' : 'text-stone-200'}`}>
+           {filled ? <Star size={12} fill="currentColor" /> : half ? <StarHalf size={12} fill="currentColor" /> : <Star size={12} fill="none" stroke="currentColor" />}
+         </span>
+       );
+    })}
   </div>
 );
