@@ -291,7 +291,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
              {searchTerm && <button onClick={clearSearch} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-300 hover:text-ink"><X size={16} /></button>}
            </div>
            
-           <div className="flex items-center gap-2 self-end">
+           <div className="flex items-center gap-2">
              <div className="flex bg-stone-100 p-1.5 rounded-xl">
                {(['createdAt', 'rating', 'updatedAt'] as SortKey[]).map(key => (
                  <button
@@ -355,13 +355,13 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                   <>
                     <button 
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev - 1 + heroCards.length) % heroCards.length); }}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 p-2 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:bg-black/20 lg:hover:bg-black/40 lg:backdrop-blur-sm lg:rounded-full drop-shadow-md"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 p-2 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:bg-black/20 lg:hover:bg-black/40 lg:backdrop-blur-sm lg:rounded-full drop-shadow-md lg:left-2"
                     >
                       <ChevronLeft size={24} />
                     </button>
                     <button 
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev + 1) % heroCards.length); }}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:bg-black/20 lg:hover:bg-black/40 lg:backdrop-blur-sm lg:rounded-full drop-shadow-md"
+                      className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:bg-black/20 lg:hover:bg-black/40 lg:backdrop-blur-sm lg:rounded-full drop-shadow-md lg:right-2"
                     >
                       <ChevronRight size={24} />
                     </button>

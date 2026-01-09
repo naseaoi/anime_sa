@@ -31,6 +31,16 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
     }
   }, [card, data.settings.title]);
 
+  const handleBack = () => {
+    // 如果历史记录长度大于1，说明有上一页，可以使用 -1
+    // 否则（例如新标签页打开），直接跳转回首页
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/', { replace: true });
+    }
+  };
+
   const handleEditClick = () => {
     if (card) {
       setEditingCard({ ...card });
@@ -74,7 +84,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
     <div className="min-h-screen bg-white font-sans selection:bg-ink selection:text-white">
       {/* 顶部导航 */}
       <header className="fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-xl border-b border-stone-100 z-50 flex items-center justify-between px-6 lg:px-12">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-ink hover:gap-3 transition-all font-bold text-sm">
+        <button onClick={handleBack} className="flex items-center gap-2 text-ink hover:gap-3 transition-all font-bold text-sm">
           <ArrowLeft size={18} />
           <span>返回</span>
         </button>
@@ -98,8 +108,8 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                         @keyframes thumb-up-bounce {
                           0% { transform: scale(1) rotate(-10deg); }
                           25% { transform: scale(1.05) rotate(-15deg); }
-                          45% { transform: scale(1.05) rotate(-8deg); }
-                          60% { transform: scale(1.05) rotate(-12deg); }
+                          45% { transform: scale(0.98) rotate(-8deg); }
+                          60% { transform: scale(1.02) rotate(-12deg); }
                           100% { transform: scale(1) rotate(-10deg); }
                         }
                       `}</style>
@@ -136,7 +146,8 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                  <h1 className="text-4xl lg:text-5xl font-black text-ink leading-tight tracking-tight">{card.title}</h1>
               </div>
 
-              <div className="flex items-center gap-5">
+              {/* 评分与时间 (改为垂直排列) */}
+              <div className="flex flex-col gap-6 items-start">
                  <div className="space-y-1">
                     <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest block">个人评分</span>
                     <div className="flex items-center gap-3">
@@ -144,7 +155,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                       <span className="text-xl font-black text-amber-500">{card.rating}</span>
                     </div>
                  </div>
-                 <div className="h-8 w-px bg-stone-100" />
+                 
                  <div className="space-y-1">
                     <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest block">时间周期</span>
                     <div className="flex items-center gap-2 text-ink font-bold">
@@ -156,16 +167,16 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
             </div>
           </div>
 
-          {/* 下半部分：详细描述 */}
-          <div className="bg-stone-50 p-8 rounded-3xl border border-stone-100/50">
+          {/* 下半部分：详细描述 (减小内间距 p-6) */}
+          <div className="bg-stone-50 p-6 rounded-3xl border border-stone-100/50">
              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest block mb-4">感想</span>
              <div className="text-lg text-ink leading-relaxed whitespace-pre-wrap font-medium">
                {card.description || <span className="text-stone-300 italic">暂无详细描述信息。</span>}
              </div>
           </div>
 
-          {/* 底部元数据 */}
-          <div className="mt-16 pt-12 border-t border-stone-100 flex flex-wrap gap-8 items-center text-[10px] font-bold text-stone-300 uppercase tracking-[0.2em]">
+          {/* 底部元数据 (去除上边框) */}
+          <div className="mt-16 pt-0 flex flex-wrap gap-8 items-center text-[10px] font-bold text-stone-300 uppercase tracking-[0.2em]">
              <div className="flex items-center gap-2">
                 <Clock size={12} />
                 <span>创建于 {new Date(card.createdAt).toLocaleDateString()}</span>
