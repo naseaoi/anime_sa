@@ -95,17 +95,20 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                  {card.isRecommended && (
                    <div className="absolute top-6 left-6 z-10 animate-in zoom-in duration-500">
                       <style>{`
-                        @keyframes thumb-pump {
-                          0%, 100% { transform: scale(1) rotate(-12deg); }
-                          50% { transform: scale(1.15) rotate(-12deg); }
+                        @keyframes thumb-up-bounce {
+                          0% { transform: scale(1) rotate(-12deg); }
+                          25% { transform: scale(1.25) rotate(-35deg); }
+                          45% { transform: scale(0.95) rotate(-10deg); }
+                          60% { transform: scale(1.05) rotate(-15deg); }
+                          100% { transform: scale(1) rotate(-12deg); }
                         }
                       `}</style>
                       <ThumbsUp 
                         size={48} 
-                        className="text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]" 
+                        className="text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)] fill-amber-400" 
                         strokeWidth={2}
                         stroke="white"
-                        style={{ animation: 'thumb-pump 2s ease-in-out infinite' }}
+                        style={{ animation: 'thumb-up-bounce 1.5s ease-in-out infinite', transformOrigin: 'bottom left' }}
                       />
                    </div>
                  )}

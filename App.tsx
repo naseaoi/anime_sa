@@ -68,6 +68,9 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
   // 状态：是否已经暂停过一次自动加载
   const [firstScrollPaused, setFirstScrollPaused] = useState(false);
   
+  // 使用 Ref 来跟踪是否需要暂停，避免 Effect 重新绑定导致的无限加载
+  const shouldPauseRef = useRef(true);
+  
   const observerTarget = useRef<HTMLDivElement>(null);
 
   // 状态：标签
@@ -98,16 +101,26 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
     return () => clearInterval(timer);
   }, [showHero, isHeroPaused, heroCards.length]);
 
+  // 当筛选条件改变时，重置滚动暂停状态和可见数量
+  useEffect(() => {
+    setFirstScrollPaused(false);
+    shouldPauseRef.current = true;
+    setVisibleCount(INITIAL_LOAD_COUNT);
+    setHeroIndex(0);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeTag, searchTerm, sortConfig]);
+
   // 监听底部实现加载逻辑
   useEffect(() => {
     const observer = new IntersectionObserver(
       entries => {
         if (entries[0].isIntersecting) {
-          if (!firstScrollPaused) {
-            // 第一次触底：不加载，仅显示提示
-            setFirstScrollPaused(true);
+          // 使用 Ref 进行判断，不依赖 state，防止 Observer 重建
+          if (shouldPauseRef.current) {
+            shouldPauseRef.current = false;
+            setFirstScrollPaused(true); // 触发 UI 更新显示文本
           } else {
-            // 第二次及以后触底：自动加载
+            // 第二次进入（或状态已变更），执行加载
             setVisibleCount(prev => prev + LOAD_MORE_COUNT);
           }
         }
@@ -124,15 +137,12 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
         observer.unobserve(observerTarget.current);
       }
     };
-  }, [observerTarget, firstScrollPaused]);
+  }, []); // 依赖项为空，确保 Observer 实例稳定
 
   // 处理标签切换
   const handleTagChange = (tagId: string) => {
     setSearchParams({ tag: tagId });
-    setVisibleCount(INITIAL_LOAD_COUNT); 
-    setFirstScrollPaused(false); // 重置暂停状态
-    setHeroIndex(0); 
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // 其他重置逻辑已由上面的 useEffect 处理
   };
 
   const filteredCards = useMemo(() => {

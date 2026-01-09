@@ -158,7 +158,7 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
   const [search, setSearch] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 22;
+  const itemsPerPage = 15;
 
   const filtered = useMemo(() => data.cards.filter(c => c.title.toLowerCase().includes(search.toLowerCase())).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)), [data.cards, search]);
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
