@@ -70,13 +70,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
       {mobileMenuOpen && <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 md:hidden" onClick={() => setMobileMenuOpen(false)} />}
 
       {/* 侧边栏 */}
-      <aside className={`w-64 bg-white dark:bg-[#18181b] border-r border-stone-200 dark:border-stone-800 flex flex-col z-40 fixed inset-y-0 left-0 transform transition-transform duration-300 md:relative md:translate-x-0 ${mobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
-        <div className="h-20 border-b border-stone-100 dark:border-stone-800 flex items-center px-8 gap-4 justify-between md:justify-start">
+      <aside className={`w-64 bg-white dark:bg-[#18181b] border-r border-stone-200 dark:border-zinc-800 flex flex-col z-40 fixed inset-y-0 left-0 transform transition-transform duration-300 md:relative md:translate-x-0 ${mobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}`}>
+        <div className="h-20 border-b border-stone-100 dark:border-zinc-800 flex items-center px-8 gap-4 justify-between md:justify-start">
           <div className="flex items-center gap-4">
-            <div className="w-8 h-8 bg-ink dark:bg-stone-700 rounded-lg flex items-center justify-center text-white"><Layout size={18} /></div>
-            <span className="font-bold text-ink dark:text-stone-100 text-lg">后台管理</span>
+            <div className="w-8 h-8 bg-ink dark:bg-zinc-700 rounded-lg flex items-center justify-center text-white"><Layout size={18} /></div>
+            <span className="font-bold text-ink dark:text-zinc-100 text-lg">后台管理</span>
           </div>
-          <button onClick={() => setMobileMenuOpen(false)} className="md:hidden text-stone-400 hover:text-ink dark:hover:text-stone-200"><X size={20} /></button>
+          <button onClick={() => setMobileMenuOpen(false)} className="md:hidden text-stone-400 hover:text-ink dark:hover:text-zinc-200"><X size={20} /></button>
         </div>
         <div className="p-6 flex-1">
            <nav className="space-y-2">
@@ -85,17 +85,17 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
              <div onClick={() => setMobileMenuOpen(false)}><NavButton to="/tat/settings" icon={<Settings size={18} />} label="网站设置" /></div>
            </nav>
         </div>
-        <div className="p-6 border-t border-stone-100 dark:border-stone-800 flex flex-col gap-2">
+        <div className="p-6 border-t border-stone-100 dark:border-zinc-800 flex flex-col gap-2">
           <div onClick={() => { window.location.href = '/'; }}><NavButton to="/" icon={<Home size={18} />} label="返回首页" /></div>
           <button onClick={() => { localStorage.removeItem('tat_expiry'); window.location.href = '/'; }} className="flex items-center gap-3 px-4 py-3 w-full text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"><LogOut size={16} /><span>退出登录</span></button>
         </div>
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="bg-white dark:bg-[#18181b] border-b border-stone-100 dark:border-stone-800 h-20 flex items-center justify-between px-6 sm:px-8 z-10 sticky top-0 transition-colors duration-300">
+        <header className="bg-white dark:bg-[#18181b] border-b border-stone-100 dark:border-zinc-800 h-20 flex items-center justify-between px-6 sm:px-8 z-10 sticky top-0 transition-colors duration-300">
           <div className="flex items-center gap-4">
-            <button onClick={() => setMobileMenuOpen(true)} className="md:hidden p-2 -ml-2 text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-lg"><Menu size={20} /></button>
-            <h2 className="text-lg font-bold text-ink dark:text-stone-100">
+            <button onClick={() => setMobileMenuOpen(true)} className="md:hidden p-2 -ml-2 text-stone-500 hover:bg-stone-100 dark:hover:bg-zinc-800 rounded-lg"><Menu size={20} /></button>
+            <h2 className="text-lg font-bold text-ink dark:text-zinc-100">
               {location.pathname.includes('cards') ? '卡片档案' : 
                location.pathname.includes('tags') ? '分类配置' : '系统参数'}
             </h2>
@@ -126,9 +126,9 @@ const NavButton: React.FC<{ to: string, icon: React.ReactNode, label: string, co
   const navigate = useNavigate();
   const isActive = location.pathname.includes(to) && to !== '/';
   return (
-    <button onClick={() => navigate(to)} className={`flex items-center justify-between px-4 py-3 w-full text-base font-bold rounded-xl transition-all ${isActive ? 'bg-ink text-white shadow-md dark:bg-stone-100 dark:text-black' : 'text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-stone-800 hover:text-ink dark:hover:text-stone-200'}`}>
+    <button onClick={() => navigate(to)} className={`flex items-center justify-between px-4 py-3 w-full text-base font-bold rounded-xl transition-all ${isActive ? 'bg-ink text-white shadow-md dark:bg-zinc-100 dark:text-black' : 'text-stone-500 dark:text-zinc-400 hover:bg-stone-50 dark:hover:bg-zinc-800 hover:text-ink dark:hover:text-zinc-200'}`}>
       <div className="flex items-center gap-3">{icon}<span>{label}</span></div>
-      {count !== undefined && <span className={`text-xs px-2 py-0.5 rounded ${isActive ? 'bg-white/20 text-white dark:bg-black/10 dark:text-black' : 'bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500'}`}>{count}</span>}
+      {count !== undefined && <span className={`text-xs px-2 py-0.5 rounded ${isActive ? 'bg-white/20 text-white dark:bg-black/10 dark:text-black' : 'bg-stone-100 dark:bg-zinc-800 text-stone-400 dark:text-zinc-500'}`}>{count}</span>}
     </button>
   );
 }
@@ -152,12 +152,12 @@ const AdminLogin: React.FC<{ onLogin: (keep: boolean) => void }> = ({ onLogin })
 
   return (
     <div className="h-screen flex items-center justify-center bg-stone-50 dark:bg-[#0c0c0c] p-6 transition-colors duration-300">
-      <div className="w-full max-w-md bg-white dark:bg-[#18181b] rounded-3xl shadow-xl border border-stone-100 dark:border-stone-800 p-12">
+      <div className="w-full max-w-md bg-white dark:bg-[#18181b] rounded-3xl shadow-xl border border-stone-100 dark:border-zinc-800 p-12">
         <h2 className="text-2xl font-bold text-center text-ink dark:text-white mb-10">后台管理登录</h2>
         <form onSubmit={handleSubmit} className="space-y-8">
           <Input label="账号" value={username} onChange={e => setUsername(e.target.value)} className="h-12 text-base" />
           <Input label="密码" type="password" value={password} onChange={e => setPassword(e.target.value)} className="h-12 text-base" />
-          <div className="flex items-center gap-2 px-1"><input type="checkbox" id="keep" checked={keep} onChange={e => setKeep(e.target.checked)} className="w-5 h-5 rounded border-stone-300 text-ink focus:ring-ink" /><label htmlFor="keep" className="text-sm font-bold text-stone-500 dark:text-stone-400 cursor-pointer">保持登录</label></div>
+          <div className="flex items-center gap-2 px-1"><input type="checkbox" id="keep" checked={keep} onChange={e => setKeep(e.target.checked)} className="w-5 h-5 rounded border-stone-300 text-ink focus:ring-ink" /><label htmlFor="keep" className="text-sm font-bold text-stone-500 dark:text-zinc-400 cursor-pointer">保持登录</label></div>
           {error && <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm font-bold rounded-xl border border-red-100 dark:border-red-900/30">{error}</div>}
           <Button type="submit" className="w-full h-14 rounded-2xl text-lg" disabled={loading}>{loading ? <Loader2 className="animate-spin" /> : '登录系统'}</Button>
         </form>
@@ -207,14 +207,14 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-        <div className="relative max-w-sm w-full"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} /><input placeholder="搜索记录..." className="w-full pl-11 pr-10 py-3 bg-white dark:bg-[#18181b] border border-stone-200 dark:border-stone-800 rounded-xl text-sm font-bold text-ink dark:text-stone-200 focus:outline-none focus:border-ink dark:focus:border-stone-500 transition-all" value={search} onChange={e => setSearch(e.target.value)} />{search && <button onClick={() => setSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-300 hover:text-ink dark:hover:text-stone-100"><X size={16} /></button>}</div>
+        <div className="relative max-w-sm w-full"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} /><input placeholder="搜索记录..." className="w-full pl-11 pr-10 py-3 bg-white dark:bg-[#18181b] border border-stone-200 dark:border-zinc-800 rounded-xl text-sm font-bold text-ink dark:text-zinc-200 focus:outline-none focus:border-ink dark:focus:border-zinc-500 transition-all" value={search} onChange={e => setSearch(e.target.value)} />{search && <button onClick={() => setSearch('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-300 hover:text-ink dark:hover:text-zinc-100"><X size={16} /></button>}</div>
         <Button onClick={() => { setEditingCard({ tagIds: [], rating: 0, description: '', startDate: '', endDate: '', isRecommended: false, isWatching: false }); setIsModalOpen(true); }} size="md" className="rounded-xl h-11 px-6"><Plus size={18} /> 新建记录</Button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
         {paginatedCards.map(card => (
-          <div key={card.id} className={`bg-white dark:bg-[#1f1f1f] rounded-2xl border overflow-hidden group flex flex-col h-full hover:border-stone-400 dark:hover:border-stone-500 transition-colors shadow-sm ${card.isRecommended ? 'border-amber-200 dark:border-amber-800/50 ring-4 ring-amber-50 dark:ring-amber-900/10' : 'border-stone-200 dark:border-stone-800'}`}>
-            <div className="aspect-[21/9] bg-stone-50 dark:bg-stone-800 overflow-hidden relative">
+          <div key={card.id} className={`bg-white dark:bg-[#1f1f1f] rounded-2xl border overflow-hidden group flex flex-col h-full hover:border-stone-400 dark:hover:border-zinc-500 transition-colors shadow-sm ${card.isRecommended ? 'border-amber-200 dark:border-amber-800/50 ring-4 ring-amber-50 dark:ring-amber-900/10' : 'border-stone-200 dark:border-zinc-800'}`}>
+            <div className="aspect-[21/9] bg-stone-50 dark:bg-zinc-800 overflow-hidden relative">
               <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full" />
               <div className="absolute inset-0 bg-ink/20 dark:bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
                 <button onClick={() => { setEditingCard(card); setIsModalOpen(true); }} className="p-3 bg-white text-ink rounded-xl shadow-lg hover:bg-ink hover:text-white transition-all"><Edit2 size={18} /></button>
@@ -223,9 +223,9 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
               {card.isRecommended && <div className="absolute top-3 left-3 bg-amber-400 text-white p-1.5 rounded-lg shadow-md"><ThumbsUp size={14} /></div>}
             </div>
             <div className="p-3 flex-1 flex flex-col">
-              <h4 className="font-bold text-ink dark:text-stone-100 text-sm truncate mb-1">{card.title}</h4>
-              <div className="mt-auto flex items-center gap-1.5 text-xs text-stone-400 dark:text-stone-500">
-                 <span className="bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 px-2 py-0.5 rounded font-bold uppercase tracking-wide scale-90 origin-left">{data.tags.find(t=>t.id===card.tagIds[0])?.name || '未分类'}</span>
+              <h4 className="font-bold text-ink dark:text-zinc-100 text-sm truncate mb-1">{card.title}</h4>
+              <div className="mt-auto flex items-center gap-1.5 text-xs text-stone-400 dark:text-zinc-500">
+                 <span className="bg-stone-100 dark:bg-zinc-800 text-stone-500 dark:text-zinc-400 px-2 py-0.5 rounded font-bold uppercase tracking-wide scale-90 origin-left">{data.tags.find(t=>t.id===card.tagIds[0])?.name || '未分类'}</span>
                  <Rating value={card.rating} />
               </div>
             </div>
@@ -307,29 +307,29 @@ const AdminTags: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void 
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {data.tags.map(tag => (
-          <div key={tag.id} className="bg-white dark:bg-stone-900 p-4 rounded-xl border border-stone-200 dark:border-stone-800 shadow-sm flex items-center justify-between group">
+          <div key={tag.id} className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-stone-200 dark:border-zinc-800 shadow-sm flex items-center justify-between group">
             {editingId === tag.id ? (
               <div className="flex items-center gap-2 w-full">
                 <input 
                   autoFocus
-                  className="w-full px-2 py-1 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-600 rounded text-sm focus:outline-none focus:border-ink dark:focus:border-stone-400 text-ink dark:text-stone-100"
+                  className="w-full px-2 py-1 bg-stone-50 dark:bg-zinc-800 border border-stone-300 dark:border-zinc-600 rounded text-sm focus:outline-none focus:border-ink dark:focus:border-zinc-400 text-ink dark:text-zinc-100"
                   value={editName}
                   onChange={e => setEditName(e.target.value)}
                   onKeyDown={e => { if(e.key === 'Enter') handleUpdate(tag.id); }}
                 />
                 <button onClick={() => handleUpdate(tag.id)} className="p-1.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded hover:bg-emerald-200 dark:hover:bg-emerald-900/50"><Check size={14} /></button>
-                <button onClick={() => setEditingId(null)} className="p-1.5 bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 rounded hover:bg-stone-200 dark:hover:bg-stone-700"><X size={14} /></button>
+                <button onClick={() => setEditingId(null)} className="p-1.5 bg-stone-100 dark:bg-zinc-800 text-stone-500 dark:text-zinc-400 rounded hover:bg-stone-200 dark:hover:bg-zinc-700"><X size={14} /></button>
               </div>
             ) : (
               <>
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-stone-100 dark:bg-stone-800 rounded-lg flex items-center justify-center text-stone-400 dark:text-stone-500 font-bold text-sm">
+                  <div className="w-8 h-8 bg-stone-100 dark:bg-zinc-800 rounded-lg flex items-center justify-center text-stone-400 dark:text-zinc-500 font-bold text-sm">
                     {tag.name.slice(0, 1)}
                   </div>
-                  <span className="font-bold text-ink dark:text-stone-100">{tag.name}</span>
+                  <span className="font-bold text-ink dark:text-zinc-100">{tag.name}</span>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => { setEditingId(tag.id); setEditName(tag.name); }} className="p-2 text-stone-400 hover:text-ink hover:bg-stone-100 dark:hover:bg-stone-800 rounded-lg transition-colors"><Edit2 size={16} /></button>
+                  <button onClick={() => { setEditingId(tag.id); setEditName(tag.name); }} className="p-2 text-stone-400 hover:text-ink hover:bg-stone-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"><Edit2 size={16} /></button>
                   <button onClick={() => handleDelete(tag.id)} className="p-2 text-stone-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"><Trash2 size={16} /></button>
                 </div>
               </>

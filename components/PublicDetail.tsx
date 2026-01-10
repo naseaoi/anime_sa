@@ -64,7 +64,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
     }
   };
 
-  if (!card) return <div className="h-screen flex flex-col items-center justify-center gap-4 text-subtle dark:text-stone-400">
+  if (!card) return <div className="h-screen flex flex-col items-center justify-center gap-4 text-subtle dark:text-zinc-400">
     <AlertCircle size={48} className="opacity-20" />
     <p>该档案不存在或已被移除</p>
     <Button onClick={() => navigate('/')} variant="outline">返回首页</Button>
@@ -73,15 +73,15 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
   return (
     <div className="min-h-screen bg-white dark:bg-[#0c0c0c] font-sans selection:bg-ink selection:text-white dark:selection:bg-white dark:selection:text-black transition-colors duration-300">
       {/* 顶部导航 */}
-      <header className="fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-[#0c0c0c]/80 backdrop-blur-xl border-b border-stone-100 dark:border-stone-800 z-50">
+      <header className="fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-[#0c0c0c]/80 backdrop-blur-xl border-b border-stone-100 dark:border-zinc-800 z-50">
         <div className="max-w-7xl mx-auto h-full px-6 lg:px-12 flex items-center justify-between">
-          <button onClick={handleBack} className="flex items-center gap-2 text-ink dark:text-stone-200 hover:gap-3 transition-all font-bold text-sm">
+          <button onClick={handleBack} className="flex items-center gap-2 text-ink dark:text-zinc-200 hover:gap-3 transition-all font-bold text-sm">
             <ArrowLeft size={18} />
             <span>返回</span>
           </button>
           <div className="flex items-center gap-3">
              <img src={data.settings.iconUrl} alt="Logo" className="w-6 h-6 rounded object-cover" />
-             <span className="text-xs font-bold text-stone-400 dark:text-stone-500 uppercase tracking-widest">{data.settings.title}</span>
+             <span className="text-xs font-bold text-stone-400 dark:text-zinc-500 uppercase tracking-widest">{data.settings.title}</span>
           </div>
         </div>
       </header>
@@ -95,7 +95,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
             
             {/* 封面列 */}
             <div className="space-y-6 order-last lg:order-first">
-               <div className={`aspect-video rounded-3xl overflow-hidden transition-all duration-300 relative ${card.isWatching ? 'border-2 border-dashed border-blue-400 dark:border-blue-700' : card.isRecommended ? 'border-2 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)]' : 'border border-stone-100 dark:border-stone-800 shadow-md'}`}>
+               <div className={`aspect-video rounded-3xl overflow-hidden transition-all duration-300 relative ${card.isWatching ? 'border-2 border-dashed border-blue-400 dark:border-blue-700' : card.isRecommended ? 'border-2 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)]' : 'border border-stone-100 dark:border-zinc-800 shadow-md'}`}>
                  <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full" />
                  
                  {/* 桌面端状态图标 */}
@@ -144,7 +144,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
               <div className="space-y-2">
                  <div className="flex flex-wrap gap-2 mb-2 lg:mb-4">
                     {card.tagIds.map(tid => (
-                      <span key={tid} className="px-3 py-1 bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-300 text-[10px] font-bold rounded-lg uppercase tracking-wider">
+                      <span key={tid} className="px-3 py-1 bg-stone-100 dark:bg-zinc-800 text-stone-500 dark:text-zinc-300 text-[10px] font-bold rounded-lg uppercase tracking-wider">
                         {data.tags.find(t => t.id === tid)?.name}
                       </span>
                     ))}
@@ -171,7 +171,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
               {/* 评分与时间 */}
               <div className="flex flex-col gap-4 lg:gap-6 items-start">
                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-widest block">个人评分</span>
+                    <span className="text-[10px] font-bold text-stone-400 dark:text-zinc-500 uppercase tracking-widest block">个人评分</span>
                     <div className="flex items-center gap-3">
                       <Rating value={card.rating} />
                       <span className="text-xl font-black text-amber-500">{card.rating}</span>
@@ -179,9 +179,9 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                  </div>
                  
                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-widest block">时间周期</span>
-                    <div className="flex items-center gap-2 text-ink dark:text-stone-200 font-bold">
-                      <Calendar size={14} className="text-stone-300 dark:text-stone-600" />
+                    <span className="text-[10px] font-bold text-stone-400 dark:text-zinc-500 uppercase tracking-widest block">时间周期</span>
+                    <div className="flex items-center gap-2 text-ink dark:text-zinc-200 font-bold">
+                      <Calendar size={14} className="text-stone-300 dark:text-zinc-600" />
                       <span className="text-sm">{card.startDate || '未知'} — {card.endDate || '至今'}</span>
                     </div>
                  </div>
@@ -190,15 +190,15 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
           </div>
 
           {/* 下半部分：详细描述 */}
-          <div className="bg-stone-50 dark:bg-[#18181b] p-6 rounded-3xl border border-stone-100/50 dark:border-stone-800/50">
-             <span className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-widest block mb-4">感想</span>
-             <div className="text-base lg:text-lg text-ink dark:text-stone-300 leading-relaxed whitespace-pre-wrap font-medium">
-               {card.description || <span className="text-stone-300 dark:text-stone-600 italic">暂无详细描述信息。</span>}
+          <div className="bg-stone-50 dark:bg-[#18181b] p-6 rounded-3xl border border-stone-100/50 dark:border-zinc-800/50">
+             <span className="text-[10px] font-bold text-stone-400 dark:text-zinc-500 uppercase tracking-widest block mb-4">感想</span>
+             <div className="text-base lg:text-lg text-ink dark:text-zinc-300 leading-relaxed whitespace-pre-wrap font-medium">
+               {card.description || <span className="text-stone-300 dark:text-zinc-600 italic">暂无详细描述信息。</span>}
              </div>
           </div>
 
           {/* 底部元数据 */}
-          <div className="mt-6 pt-0 flex flex-wrap gap-8 items-center text-[10px] font-bold text-stone-300 dark:text-stone-600 uppercase tracking-[0.2em]">
+          <div className="mt-6 pt-0 flex flex-wrap gap-8 items-center text-[10px] font-bold text-stone-300 dark:text-zinc-600 uppercase tracking-[0.2em]">
              <div className="flex items-center gap-2">
                 <Clock size={12} />
                 <span>创建于 {new Date(card.createdAt).toLocaleDateString()}</span>
