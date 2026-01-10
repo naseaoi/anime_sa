@@ -124,12 +124,14 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                     </div>
                  )}
                  
+                 {/* 管理员编辑按钮 - 样式优化 */}
                  {isAdmin && (
                    <button 
                     onClick={() => setIsEditing(true)}
-                    className="absolute top-6 right-6 bg-white/90 hover:bg-white text-ink p-3 rounded-2xl shadow-xl backdrop-blur transition-all hover:scale-110 z-20 group"
+                    className="absolute top-0 right-0 bg-ink/90 hover:bg-ink text-white p-3 rounded-bl-2xl shadow-lg backdrop-blur transition-all z-20 group"
+                    title="编辑此卡片"
                    >
-                     <Edit2 size={20} className="group-hover:text-blue-600 transition-colors" />
+                     <Edit2 size={20} className="group-hover:rotate-12 transition-transform" />
                    </button>
                  )}
                </div>

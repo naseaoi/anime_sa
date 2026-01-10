@@ -60,15 +60,13 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     sessionStorage.setItem('tat_sort_config', JSON.stringify(sortConfig));
   }, [sortConfig]);
   
-  // 状态：标签
+  // 状态：标签 (默认为 all)
   const activeTag = searchParams.get('tag') || 'all';
 
   // --- 辅助函数：重置列表视口 ---
-  // 只有在主动切换筛选条件时调用，返回时不调用
   const resetListView = () => {
     setVisibleCount(INITIAL_LOAD_COUNT);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    // 强制清除加载状态
     setIsLoadingMore(false);
   };
 
@@ -114,10 +112,14 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   const handleTagChange = (tagId: string) => {
     setSearchParams(prev => {
       const newParams = new URLSearchParams(prev);
-      newParams.set('tag', tagId);
+      if (tagId === 'all') {
+        newParams.delete('tag'); // 如果是 all，直接移除参数，保持 URL 干净
+      } else {
+        newParams.set('tag', tagId);
+      }
       return newParams;
     });
-    resetListView(); // 主动重置
+    resetListView(); 
   };
 
   const handleSortChange = (key: SortKey) => {
@@ -125,7 +127,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
       key, 
       order: prev.key === key ? (prev.order === 'desc' ? 'asc' : 'desc') : 'desc' 
     }));
-    resetListView(); // 主动重置
+    resetListView();
   };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,7 +140,6 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
       return newParams;
     }, { replace: true });
     
-    // 搜索通常需要立即反馈，可以不滚动到顶部，但要重置数量以显示相关性最高的结果
     setVisibleCount(INITIAL_LOAD_COUNT);
   };
 

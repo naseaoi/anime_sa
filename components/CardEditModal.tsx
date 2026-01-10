@@ -99,7 +99,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
         
         <div className="grid grid-cols-2 gap-6">
           <Input 
-            label="开始日期" 
+            label="START DATE" 
             type="date" 
             max="9999-12-31" 
             value={card.startDate || ''} 
@@ -107,7 +107,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
             className="h-11" 
           />
           <Input 
-            label="结束日期" 
+            label="END DATE" 
             type="date" 
             max="9999-12-31" 
             value={card.endDate || ''} 
