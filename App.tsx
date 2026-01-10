@@ -335,7 +335,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
             {/* --- Hero Carousel (优化版：DOM 结构分离，允许箭头外移) --- */}
             {showHero && heroCards.length > 0 && (
               <div 
-                className="group relative sm:col-span-2 sm:row-span-2 aspect-video w-full isolate touch-pan-y animate-fade-up"
+                className="group relative sm:col-span-2 sm:row-span-2 aspect-video w-full isolate touch-pan-y animate-fade-up opacity-0"
                 style={{ animationDelay: '0ms' }}
                 onMouseEnter={() => setIsHeroPaused(true)}
                 onMouseLeave={() => setIsHeroPaused(false)}
@@ -406,7 +406,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
               <Link 
                 to={`/card/${card.id}`}
                 key={card.id} 
-                className="group cursor-pointer animate-fade-up fill-mode-both"
+                className="group cursor-pointer animate-fade-up fill-mode-both opacity-0"
                 style={{ animationDelay: `${(idx % 10) * 50}ms` }}
               >
                 <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full aspect-video ${card.isRecommended ? 'shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>

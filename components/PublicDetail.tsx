@@ -82,15 +82,17 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
 
   return (
     <div className="min-h-screen bg-white font-sans selection:bg-ink selection:text-white">
-      {/* 顶部导航 */}
-      <header className="fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-xl border-b border-stone-100 z-50 flex items-center justify-between px-6 lg:px-12">
-        <button onClick={handleBack} className="flex items-center gap-2 text-ink hover:gap-3 transition-all font-bold text-sm">
-          <ArrowLeft size={18} />
-          <span>返回</span>
-        </button>
-        <div className="flex items-center gap-3">
-           <img src={data.settings.iconUrl} alt="Logo" className="w-6 h-6 rounded object-cover" />
-           <span className="text-xs font-bold text-stone-400 uppercase tracking-widest">{data.settings.title}</span>
+      {/* 顶部导航 (修改：内部增加 max-w-7xl 容器，对齐主体内容) */}
+      <header className="fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-xl border-b border-stone-100 z-50">
+        <div className="max-w-7xl mx-auto h-full px-6 lg:px-12 flex items-center justify-between">
+          <button onClick={handleBack} className="flex items-center gap-2 text-ink hover:gap-3 transition-all font-bold text-sm">
+            <ArrowLeft size={18} />
+            <span>返回</span>
+          </button>
+          <div className="flex items-center gap-3">
+             <img src={data.settings.iconUrl} alt="Logo" className="w-6 h-6 rounded object-cover" />
+             <span className="text-xs font-bold text-stone-400 uppercase tracking-widest">{data.settings.title}</span>
+          </div>
         </div>
       </header>
 

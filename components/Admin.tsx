@@ -202,16 +202,16 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
         {paginatedCards.map(card => (
           <div key={card.id} className={`bg-white rounded-2xl border overflow-hidden group flex flex-col h-full hover:border-stone-400 transition-colors shadow-sm ${card.isRecommended ? 'border-amber-200 ring-4 ring-amber-50' : 'border-stone-200'}`}>
             <div className="aspect-[21/9] bg-stone-50 overflow-hidden relative">
-              <ImagePreview src={card.coverUrl} alt={card.title} />
+              <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full" />
               <div className="absolute inset-0 bg-ink/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
                 <button onClick={() => { setEditingCard(card); setIsModalOpen(true); }} className="p-3 bg-white text-ink rounded-xl shadow-lg hover:bg-ink hover:text-white transition-all"><Edit2 size={18} /></button>
                 <button onClick={() => setDeleteId(card.id)} className="p-3 bg-white text-red-500 rounded-xl shadow-lg hover:bg-red-500 hover:text-white transition-all"><Trash2 size={18} /></button>
               </div>
               {card.isRecommended && <div className="absolute top-3 left-3 bg-amber-400 text-white p-1.5 rounded-lg shadow-md"><ThumbsUp size={14} /></div>}
             </div>
-            <div className="p-4 flex-1 flex flex-col">
-              <h4 className="font-bold text-ink text-sm truncate mb-2">{card.title}</h4>
-              <div className="mt-auto flex items-center gap-2 text-xs text-stone-400">
+            <div className="p-3 flex-1 flex flex-col">
+              <h4 className="font-bold text-ink text-sm truncate mb-1">{card.title}</h4>
+              <div className="mt-auto flex items-center gap-1.5 text-xs text-stone-400">
                  <span className="bg-stone-100 text-stone-500 px-2 py-0.5 rounded font-bold uppercase tracking-wide scale-90 origin-left">{data.tags.find(t=>t.id===card.tagIds[0])?.name || '未分类'}</span>
                  <Rating value={card.rating} />
               </div>
