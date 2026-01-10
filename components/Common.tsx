@@ -157,9 +157,9 @@ export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { lab
     <div className="flex flex-col gap-1.5 w-full">
       {label && <label className="text-xs font-bold text-subtle dark:text-zinc-400 uppercase tracking-wider">{label}</label>}
       <input 
-        // 样式修改：背景改为 zinc-950 (更深) 以区分模态框背景; 
+        // 样式修改：背景改为 zinc-850 (更浅) 以区分模态框背景; 
         // 添加 dark:[color-scheme:dark] 强制浏览器渲染白色日历图标
-        className={`w-full px-3 py-2 bg-white dark:bg-zinc-950 border ${error ? 'border-red-300 focus:border-red-500 dark:border-red-800' : 'border-border dark:border-zinc-800 focus:border-ink dark:focus:border-zinc-400'} rounded-lg text-ink dark:text-zinc-100 placeholder:text-stone-300 dark:placeholder:text-zinc-700 focus:outline-none focus:ring-4 focus:ring-stone-100 dark:focus:ring-zinc-800 dark:[color-scheme:dark] transition-all ${className}`}
+        className={`w-full px-3 py-2 bg-white dark:bg-zinc-850 border ${error ? 'border-red-300 focus:border-red-500 dark:border-red-800' : 'border-border dark:border-zinc-800 focus:border-ink dark:focus:border-zinc-400'} rounded-lg text-ink dark:text-zinc-100 placeholder:text-stone-300 dark:placeholder:text-zinc-700 focus:outline-none focus:ring-4 focus:ring-stone-100 dark:focus:ring-zinc-800 dark:[color-scheme:dark] transition-all ${className}`}
         {...props}
       />
       {error && <span className="text-xs text-red-500">{error}</span>}
