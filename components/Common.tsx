@@ -243,46 +243,6 @@ export const MultiSelect: React.FC<{
   );
 };
 
-// --- Animation Components ---
-
-export const FadeIn: React.FC<{ 
-  children: React.ReactNode; 
-  delay?: number; 
-  className?: string;
-  as?: React.ElementType;
-}> = ({ children, delay = 0, className = "", as: Component = "div" }) => {
-  const [isVisible, setIsVisible] = useState(false);
-  const domRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.1, rootMargin: '50px' }
-    );
-
-    if (domRef.current) {
-      observer.observe(domRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <Component
-      ref={domRef}
-      className={`${className} transition-opacity duration-700 ${isVisible ? 'animate-fade-up opacity-100' : 'opacity-0'}`}
-      style={{ animationDelay: `${delay}ms` }}
-    >
-      {children}
-    </Component>
-  );
-};
-
 
 // --- Admin Components ---
 

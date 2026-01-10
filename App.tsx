@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useSearchParams, Link } from 'react-router-dom';
-import { LayoutGrid, Search, X, ChevronLeft, ChevronRight, ChevronDown, ThumbsUp, ArrowUpDown, Star, Grid, Loader2 } from 'lucide-react';
+import { LayoutGrid, Search, X, ChevronLeft, ChevronRight, ChevronDown, ThumbsUp, ArrowUpDown, Star, Grid, Loader2, Plus } from 'lucide-react';
 import { webdav, DEFAULT_PUBLIC_DATA } from './services/webdavService';
-import { PublicData } from './types';
-import { Button, PageLoader, ImagePreview, Rating, ToastProvider, FadeIn } from './components/Common';
+import { PublicData, CardData } from './types';
+import { Button, PageLoader, ImagePreview, Rating, ToastProvider, Modal, Input, Select, TextArea, useToast } from './components/Common';
 import { PublicDetail } from './components/PublicDetail';
 import { AdminLayout } from './components/Admin';
 
@@ -57,7 +57,7 @@ const MainRouter: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<PublicHome data={data} />} />
+        <Route path="/" element={<PublicHome data={data} refreshData={fetchData} />} />
         <Route path="/card/:id" element={<PublicDetail data={data} refreshData={fetchData} />} />
         <Route path="/tat/*" element={<AdminLayout initialData={data} refreshData={fetchData} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -75,7 +75,7 @@ type SortOrder = 'desc' | 'asc';
 const INITIAL_LOAD_COUNT = 32; // 初始加载数量
 const LOAD_MORE_COUNT = 20;    // 每次加载更多数量
 
-const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
+const PublicHome: React.FC<{ data: PublicData; refreshData: () => Promise<void> }> = ({ data, refreshData }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [sortConfig, setSortConfig] = useState<{ key: SortKey, order: SortOrder }>({ key: 'createdAt', order: 'desc' });
   
@@ -91,6 +91,18 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
       return INITIAL_LOAD_COUNT;
     }
   });
+
+  // 管理员状态 & 创建卡片
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingCard, setEditingCard] = useState<Partial<CardData>>({});
+  const [saving, setSaving] = useState(false);
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    const expiry = localStorage.getItem('tat_expiry');
+    if (expiry && new Date().getTime() < parseInt(expiry)) setIsAdmin(true);
+  }, []);
 
   // 持久化 visibleCount
   useEffect(() => {
@@ -154,7 +166,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
     sessionStorage.setItem('tat_visible_count', INITIAL_LOAD_COUNT.toString());
     setHeroIndex(0);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [activeTag, sortConfig]); // 移除 searchTerm 依赖，防止输入时频繁跳动
+  }, [activeTag, sortConfig]);
 
   // Intersection Observer 监听底部 (触底自动加载)
   useEffect(() => {
@@ -193,7 +205,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
       if (val) newParams.set('q', val);
       else newParams.delete('q');
       return newParams;
-    }, { replace: true }); // 使用 replace 避免输入时产生大量历史记录
+    }, { replace: true });
   };
 
   const clearSearch = () => {
@@ -203,6 +215,36 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
       newParams.delete('q');
       return newParams;
     });
+  };
+
+  const handleCreateSave = async () => {
+    setSaving(true);
+    const newCards = [...data.cards];
+    const now = Date.now();
+    const newCardData: CardData = {
+      id: now.toString(),
+      title: editingCard.title || 'Untitled',
+      coverUrl: editingCard.coverUrl || '',
+      description: editingCard.description || '',
+      startDate: editingCard.startDate || '',
+      endDate: editingCard.endDate || '',
+      rating: editingCard.rating || 0,
+      tagIds: editingCard.tagIds || [],
+      isRecommended: !!editingCard.isRecommended,
+      createdAt: now,
+      updatedAt: now
+    };
+    newCards.push(newCardData);
+    
+    const result = await webdav.savePublicData({ ...data, cards: newCards });
+    if (result.success) {
+       await refreshData();
+       setIsCreateModalOpen(false);
+       showToast('创建成功', 'success');
+    } else {
+       showToast(result.error || '失败', 'error');
+    }
+    setSaving(false);
   };
 
   const filteredCards = useMemo(() => {
@@ -312,16 +354,28 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
 
         {/* 顶部工具栏 */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
-           <div className="relative w-full sm:max-w-xs group">
-             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-300 group-focus-within:text-ink transition-colors" size={16} />
-             <input 
-               type="text"
-               placeholder="搜你想看..."
-               value={searchTerm}
-               onChange={handleSearchChange}
-               className="w-full bg-white border border-stone-200 rounded-2xl py-3 pl-12 pr-10 text-sm font-bold focus:outline-none focus:border-ink focus:ring-8 focus:ring-stone-200/50 transition-all"
-             />
-             {searchTerm && <button onClick={clearSearch} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-300 hover:text-ink"><X size={16} /></button>}
+           <div className="flex gap-4 w-full sm:w-auto">
+             <div className="relative w-full sm:w-80 group">
+               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-300 group-focus-within:text-ink transition-colors" size={16} />
+               <input 
+                 type="text"
+                 placeholder="搜你想看..."
+                 value={searchTerm}
+                 onChange={handleSearchChange}
+                 className="w-full bg-white border border-stone-200 rounded-2xl py-3 pl-12 pr-10 text-sm font-bold focus:outline-none focus:border-ink focus:ring-8 focus:ring-stone-200/50 transition-all"
+               />
+               {searchTerm && <button onClick={clearSearch} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-300 hover:text-ink"><X size={16} /></button>}
+             </div>
+             
+             {isAdmin && (
+                <button 
+                  onClick={() => { setEditingCard({ tagIds: [], rating: 0, description: '', startDate: '', endDate: '', isRecommended: false }); setIsCreateModalOpen(true); }}
+                  className="bg-white border border-stone-200 text-stone-400 hover:text-ink hover:border-ink rounded-2xl w-12 flex items-center justify-center transition-all shadow-sm active:scale-95"
+                  title="快速添加"
+                >
+                  <Plus size={20} />
+                </button>
+             )}
            </div>
            
            <div className="flex items-center gap-2">
@@ -345,11 +399,10 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
         ) : (
           <div key={gridKey} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8 auto-rows-min">
             
-            {/* --- Hero Carousel (优化版：DOM 结构分离，允许箭头外移) --- */}
+            {/* --- Hero Carousel --- */}
             {showHero && heroCards.length > 0 && (
-              <FadeIn 
+              <div 
                 className="group relative sm:col-span-2 sm:row-span-2 aspect-video w-full isolate touch-pan-y"
-                delay={0}
               >
                 <div 
                   className="w-full h-full"
@@ -389,7 +442,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                       ))}
                     </div>
 
-                    {/* 轮播控制 (移动端箭头外移，通过负边距实现) */}
+                    {/* 轮播控制 */}
                     {heroCards.length > 1 && (
                       <>
                         <button 
@@ -415,17 +468,16 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                       </>
                     )}
                 </div>
-              </FadeIn>
+              </div>
             )}
 
             {/* --- 普通卡片网格 --- */}
             {filteredCards.slice(0, visibleCount).map((card, idx) => (
-              <FadeIn 
+              <Link 
                 key={card.id} 
+                to={`/card/${card.id}`}
                 className="group cursor-pointer fill-mode-both"
-                delay={(idx % 12) * 50} // 仅使用 modulo delay，配合 FadeIn 的 Viewport 触发，解决长列表延迟问题
               >
-                <Link to={`/card/${card.id}`}>
                   <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full aspect-video ${card.isRecommended ? 'shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
                     
                     <div className="w-full h-full rounded-2xl overflow-hidden relative isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
@@ -456,8 +508,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                       </div>
                     </div>
                   </div>
-                </Link>
-              </FadeIn>
+              </Link>
             ))}
           </div>
         )}
@@ -481,6 +532,44 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
           )
         )}
       </main>
+
+      {/* 创建模态框 */}
+      <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="快速添加记录">
+          <div className="space-y-8">
+            <Input label="标题" value={editingCard.title || ''} onChange={e => setEditingCard({...editingCard, title: e.target.value})} className="h-11 text-base" />
+            
+            <div className="flex items-end gap-6">
+              <div className="flex-1">
+                 <Select 
+                   label="分类"
+                   options={data.tags} 
+                   value={editingCard.tagIds?.[0] || ''}
+                   onChange={val => setEditingCard({...editingCard, tagIds: val ? [val] : []})}
+                   placeholder="选择分类..."
+                 />
+              </div>
+              <div className="flex flex-col items-center gap-2 pb-1">
+                <label className="text-xs font-bold text-stone-400 uppercase">推荐</label>
+                <input type="checkbox" checked={!!editingCard.isRecommended} onChange={e => setEditingCard({...editingCard, isRecommended: e.target.checked})} className="w-6 h-6 rounded border-stone-300 text-amber-500 focus:ring-amber-400" />
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              <Input label="封面链接 (URL)" value={editingCard.coverUrl || ''} onChange={e => setEditingCard({...editingCard, coverUrl: e.target.value})} className="h-11" />
+              <div className="flex items-center justify-between gap-4"><label className="text-xs font-bold text-stone-400 uppercase">评分</label><input type="range" min="0" max="5" step="0.5" className="flex-1 accent-ink h-2 bg-stone-100 rounded-lg appearance-none" value={editingCard.rating || 0} onChange={e => setEditingCard({...editingCard, rating: parseFloat(e.target.value)})} /><span className="text-sm font-bold text-ink w-8">{editingCard.rating}</span></div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-6">
+              <Input label="开始日期" type="date" max="9999-12-31" value={editingCard.startDate || ''} onChange={e => { const val = e.target.value; if (val.split('-')[0].length <= 4) setEditingCard({...editingCard, startDate: val}); }} className="h-11" />
+              <Input label="结束日期" type="date" max="9999-12-31" value={editingCard.endDate || ''} onChange={e => { const val = e.target.value; if (val.split('-')[0].length <= 4) setEditingCard({...editingCard, endDate: val}); }} className="h-11" />
+            </div>
+
+            <TextArea label="详细描述" value={editingCard.description || ''} onChange={e => setEditingCard({...editingCard, description: e.target.value})} className="min-h-[120px] text-base" />
+            <Button onClick={handleCreateSave} className="w-full h-14 rounded-2xl text-base" disabled={saving}>
+              {saving ? <Loader2 className="animate-spin" /> : '创建记录'}
+            </Button>
+          </div>
+      </Modal>
     </div>
   );
 };
