@@ -21,10 +21,17 @@ interface PublicHomeProps {
 
 export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdmin }) => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [sortConfig, setSortConfig] = useState<{ key: SortKey, order: SortOrder }>({ key: 'createdAt', order: 'desc' });
-  const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   
-  // 状态：当前可见的卡片数量 (从 SessionStorage 恢复，以支持返回时保留位置)
+  // 1. 状态初始化：优先从 SessionStorage 读取，保证返回时状态一致
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey, order: SortOrder }>(() => {
+    try {
+      const saved = sessionStorage.getItem('tat_sort_config');
+      return saved ? JSON.parse(saved) : { key: 'createdAt', order: 'desc' };
+    } catch {
+      return { key: 'createdAt', order: 'desc' };
+    }
+  });
+
   const [visibleCount, setVisibleCount] = useState(() => {
     try {
       const saved = sessionStorage.getItem('tat_visible_count');
@@ -34,17 +41,36 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     }
   });
 
+  // 状态：搜索词 (URL 为准)
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
+  
+  // 状态：加载中 (用于显示底部 Spinner)
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   // 创建卡片相关状态
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const { showToast } = useToast();
 
-  // 持久化 visibleCount
+  // 持久化 visibleCount 和 sortConfig
   useEffect(() => {
     sessionStorage.setItem('tat_visible_count', visibleCount.toString());
   }, [visibleCount]);
+
+  useEffect(() => {
+    sessionStorage.setItem('tat_sort_config', JSON.stringify(sortConfig));
+  }, [sortConfig]);
   
   // 状态：标签
   const activeTag = searchParams.get('tag') || 'all';
+
+  // --- 辅助函数：重置列表视口 ---
+  // 只有在主动切换筛选条件时调用，返回时不调用
+  const resetListView = () => {
+    setVisibleCount(INITIAL_LOAD_COUNT);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // 强制清除加载状态
+    setIsLoadingMore(false);
+  };
 
   // --- Hero 轮播逻辑 ---
   const [heroIndex, setHeroIndex] = useState(0);
@@ -82,13 +108,8 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     return () => clearInterval(timer);
   }, [showHero, isHeroPaused, heroCards.length]);
 
-  // 当筛选条件改变时，重置显示数量
-  useEffect(() => {
-    setVisibleCount(INITIAL_LOAD_COUNT);
-    sessionStorage.setItem('tat_visible_count', INITIAL_LOAD_COUNT.toString());
-    setHeroIndex(0);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [activeTag, sortConfig]);
+
+  // --- 事件处理 ---
 
   const handleTagChange = (tagId: string) => {
     setSearchParams(prev => {
@@ -96,6 +117,15 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
       newParams.set('tag', tagId);
       return newParams;
     });
+    resetListView(); // 主动重置
+  };
+
+  const handleSortChange = (key: SortKey) => {
+    setSortConfig(prev => ({ 
+      key, 
+      order: prev.key === key ? (prev.order === 'desc' ? 'asc' : 'desc') : 'desc' 
+    }));
+    resetListView(); // 主动重置
   };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,6 +137,9 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
       else newParams.delete('q');
       return newParams;
     }, { replace: true });
+    
+    // 搜索通常需要立即反馈，可以不滚动到顶部，但要重置数量以显示相关性最高的结果
+    setVisibleCount(INITIAL_LOAD_COUNT);
   };
 
   const clearSearch = () => {
@@ -116,8 +149,10 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
       newParams.delete('q');
       return newParams;
     });
+    resetListView();
   };
 
+  // --- 数据过滤 ---
   const filteredCards = useMemo(() => {
     let list = [...data.cards];
     if (searchTerm) {
@@ -137,26 +172,35 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     return list;
   }, [data.cards, activeTag, sortConfig, searchTerm]);
 
-  // --- 优化后的瀑布流加载逻辑 ---
+  // --- 瀑布流加载逻辑 ---
   const loadRef = useRef<HTMLDivElement>(null);
   const hasMore = visibleCount < filteredCards.length;
 
   useEffect(() => {
-    if (!hasMore) return;
+    // 如果没有更多数据，或者正在加载中，则不监听
+    if (!hasMore || isLoadingMore) return;
+
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          // 使用函数式更新，确保在闭包中获取最新值
-          setVisibleCount(prev => Math.min(prev + LOAD_MORE_COUNT, filteredCards.length));
+          // 触发加载：先显示 Loading 状态
+          setIsLoadingMore(true);
+          
+          // 人为延迟 600ms，让用户看到“加载中”，解决视觉反馈缺失问题
+          setTimeout(() => {
+            setVisibleCount(prev => Math.min(prev + LOAD_MORE_COUNT, filteredCards.length));
+            setIsLoadingMore(false);
+          }, 600);
         }
       },
-      { threshold: 0.1, rootMargin: '100px' } // 提前 100px 触发，体验更丝滑
+      { threshold: 0.1, rootMargin: '100px' }
     );
 
     if (loadRef.current) observer.observe(loadRef.current);
     return () => observer.disconnect();
-  }, [hasMore, filteredCards.length]); // 依赖项：当是否有更多数据变化，或列表长度变化时重新绑定
+  }, [hasMore, isLoadingMore, filteredCards.length]); 
 
+  // --- 创建卡片 ---
   const handleCreateSave = async (cardData: Partial<CardData>) => {
     const newCards = [...data.cards];
     const now = Date.now();
@@ -250,7 +294,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
            <div className="flex items-center gap-2">
              <div className="flex bg-stone-100 p-1.5 rounded-xl">
                {(['createdAt', 'rating', 'updatedAt'] as SortKey[]).map(key => (
-                 <button key={key} onClick={() => setSortConfig(prev => ({ key, order: prev.key === key ? (prev.order === 'desc' ? 'asc' : 'desc') : 'desc' }))} className={`px-4 py-2 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2 ${sortConfig.key === key ? 'bg-white text-ink shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}>
+                 <button key={key} onClick={() => handleSortChange(key)} className={`px-4 py-2 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2 ${sortConfig.key === key ? 'bg-white text-ink shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}>
                    {key === 'createdAt' ? '创建' : key === 'rating' ? '评分' : '更新'}
                    {sortConfig.key === key && <ArrowUpDown size={10} className={sortConfig.order === 'asc' ? 'rotate-180 transition-transform' : ''} />}
                  </button>
@@ -306,20 +350,25 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
           </div>
         )}
 
-        {/* 底部加载状态 - 仅当有更多数据时才显示 */}
-        {hasMore ? (
+        {/* 底部加载状态控制：只要有更多数据，或者处于加载状态中，就渲染底部区域 */}
+        {(hasMore || isLoadingMore) && (
           <div ref={loadRef} className="flex justify-center mt-16 pb-8 min-h-[50px]">
-            <div className="animate-pulse flex items-center gap-2 text-stone-300 text-xs font-bold uppercase tracking-widest">
-               <Loader2 className="animate-spin" size={14} />
-               <span>Loading more</span>
-            </div>
+            {/* 只有在 isLoadingMore 为 true 时才显示文字，避免观察到时还是空白 */}
+            {isLoadingMore && (
+              <div className="animate-pulse flex items-center gap-2 text-stone-300 text-xs font-bold uppercase tracking-widest">
+                 <Loader2 className="animate-spin" size={14} />
+                 <span>Loading more</span>
+              </div>
+            )}
+            {/* 如果没在加载但有更多数据，可以显示一个占位符或提示继续滑动，这里保持透明以便自动触发 */}
+            {!isLoadingMore && hasMore && <div className="h-4 w-full" />}
           </div>
-        ) : (
-          filteredCards.length > 0 && (
-            <div className="text-center mt-16 pb-8 text-xs font-bold text-stone-300 uppercase tracking-widest">
-              — End of Collection —
-            </div>
-          )
+        )}
+
+        {!hasMore && filteredCards.length > 0 && (
+          <div className="text-center mt-16 pb-8 text-xs font-bold text-stone-300 uppercase tracking-widest">
+            — End of Collection —
+          </div>
         )}
       </main>
 
