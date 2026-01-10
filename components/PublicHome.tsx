@@ -1,0 +1,336 @@
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { LayoutGrid, Search, X, ChevronLeft, ChevronRight, ThumbsUp, ArrowUpDown, Star, Grid, Loader2, Plus } from 'lucide-react';
+import { PublicData, CardData } from '../types';
+import { ImagePreview, useToast } from './Common';
+import { CardEditModal } from './CardEditModal';
+import { webdav } from '../services/webdavService';
+
+// --- 排序类型定义 ---
+type SortKey = 'createdAt' | 'rating' | 'updatedAt';
+type SortOrder = 'desc' | 'asc';
+
+const INITIAL_LOAD_COUNT = 32;
+const LOAD_MORE_COUNT = 20;
+
+interface PublicHomeProps {
+  data: PublicData;
+  refreshData: () => Promise<void>;
+  isAdmin: boolean;
+}
+
+export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdmin }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey, order: SortOrder }>({ key: 'createdAt', order: 'desc' });
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
+  
+  // 状态：当前可见的卡片数量 (从 SessionStorage 恢复，以支持返回时保留位置)
+  const [visibleCount, setVisibleCount] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('tat_visible_count');
+      return saved ? parseInt(saved) : INITIAL_LOAD_COUNT;
+    } catch {
+      return INITIAL_LOAD_COUNT;
+    }
+  });
+
+  // 创建卡片相关状态
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const { showToast } = useToast();
+
+  // 持久化 visibleCount
+  useEffect(() => {
+    sessionStorage.setItem('tat_visible_count', visibleCount.toString());
+  }, [visibleCount]);
+  
+  // 状态：标签
+  const activeTag = searchParams.get('tag') || 'all';
+
+  // --- Hero 轮播逻辑 ---
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [isHeroPaused, setIsHeroPaused] = useState(false);
+  const touchStart = useRef<number | null>(null);
+  const touchEnd = useRef<number | null>(null);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchEnd.current = null;
+    touchStart.current = e.targetTouches[0].clientX;
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    touchEnd.current = e.targetTouches[0].clientX;
+  };
+  const onTouchEnd = () => {
+    if (!touchStart.current || !touchEnd.current) return;
+    const distance = touchStart.current - touchEnd.current;
+    if (distance > 50) setHeroIndex(prev => (prev + 1) % heroCards.length);
+    if (distance < -50) setHeroIndex(prev => (prev - 1 + heroCards.length) % heroCards.length);
+  };
+
+  const heroCards = useMemo(() => {
+    const recommended = data.cards.filter(c => c.isRecommended);
+    const shuffled = [...recommended].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, 10);
+  }, [data.cards]);
+  
+  const showHero = activeTag === 'all' && !searchTerm && heroCards.length > 0;
+
+  useEffect(() => {
+    if (!showHero || isHeroPaused || heroCards.length <= 1) return;
+    const timer = setInterval(() => {
+      setHeroIndex(prev => (prev + 1) % heroCards.length);
+    }, 4000); 
+    return () => clearInterval(timer);
+  }, [showHero, isHeroPaused, heroCards.length]);
+
+  // 当筛选条件改变时，重置显示数量
+  useEffect(() => {
+    setVisibleCount(INITIAL_LOAD_COUNT);
+    sessionStorage.setItem('tat_visible_count', INITIAL_LOAD_COUNT.toString());
+    setHeroIndex(0);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeTag, sortConfig]);
+
+  const handleTagChange = (tagId: string) => {
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev);
+      newParams.set('tag', tagId);
+      return newParams;
+    });
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchTerm(val);
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev);
+      if (val) newParams.set('q', val);
+      else newParams.delete('q');
+      return newParams;
+    }, { replace: true });
+  };
+
+  const clearSearch = () => {
+    setSearchTerm('');
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev);
+      newParams.delete('q');
+      return newParams;
+    });
+  };
+
+  const filteredCards = useMemo(() => {
+    let list = [...data.cards];
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      list = list.filter(c => c.title.toLowerCase().includes(term) || c.description.toLowerCase().includes(term));
+    }
+    if (activeTag === 'recommended') {
+      list = list.filter(c => c.isRecommended);
+    } else if (activeTag !== 'all') {
+      list = list.filter(c => c.tagIds.includes(activeTag));
+    }
+    list.sort((a, b) => {
+      const valA = a[sortConfig.key] || 0;
+      const valB = b[sortConfig.key] || 0;
+      return sortConfig.order === 'desc' ? Number(valB) - Number(valA) : Number(valA) - Number(valB);
+    });
+    return list;
+  }, [data.cards, activeTag, sortConfig, searchTerm]);
+
+  // --- 优化后的瀑布流加载逻辑 ---
+  const loadRef = useRef<HTMLDivElement>(null);
+  const hasMore = visibleCount < filteredCards.length;
+
+  useEffect(() => {
+    if (!hasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          // 使用函数式更新，确保在闭包中获取最新值
+          setVisibleCount(prev => Math.min(prev + LOAD_MORE_COUNT, filteredCards.length));
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' } // 提前 100px 触发，体验更丝滑
+    );
+
+    if (loadRef.current) observer.observe(loadRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, filteredCards.length]); // 依赖项：当是否有更多数据变化，或列表长度变化时重新绑定
+
+  const handleCreateSave = async (cardData: Partial<CardData>) => {
+    const newCards = [...data.cards];
+    const now = Date.now();
+    const newCard: CardData = {
+      id: now.toString(),
+      title: cardData.title || 'Untitled',
+      coverUrl: cardData.coverUrl || '',
+      description: cardData.description || '',
+      startDate: cardData.startDate || '',
+      endDate: cardData.endDate || '',
+      rating: cardData.rating || 0,
+      tagIds: cardData.tagIds || [],
+      isRecommended: !!cardData.isRecommended,
+      createdAt: now,
+      updatedAt: now
+    };
+    newCards.push(newCard);
+    
+    const result = await webdav.savePublicData({ ...data, cards: newCards });
+    if (result.success) {
+       await refreshData();
+       setIsCreateModalOpen(false);
+       showToast('创建成功', 'success');
+    } else {
+       showToast(result.error || '失败', 'error');
+    }
+  };
+
+  const gridKey = `${activeTag}-${searchTerm}-${sortConfig.key}-${sortConfig.order}`;
+
+  return (
+    <div className="min-h-screen bg-[#f8f8f7] flex flex-col lg:flex-row font-sans selection:bg-ink selection:text-white">
+      {/* 侧边导航 */}
+      <aside className="hidden lg:flex lg:w-64 lg:h-screen lg:sticky lg:top-0 bg-white border-r border-stone-200 p-8 flex-col z-40">
+        <div className="flex items-center gap-3 mb-12 cursor-pointer" onClick={() => window.location.href = '/'}>
+          <img src={data.settings.iconUrl} alt="Logo" className="w-8 h-8 rounded-lg shadow-sm object-cover" />
+          <h1 className="font-bold text-lg text-ink tracking-tight">{data.settings.title}</h1>
+        </div>
+
+        <nav className="flex flex-col gap-1 overflow-y-auto no-scrollbar flex-1">
+          <button onClick={() => handleTagChange('all')} className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all ${activeTag === 'all' ? 'bg-ink text-white shadow-md' : 'text-subtle hover:bg-stone-100 hover:text-ink'}`}>
+            <div className="flex items-center gap-2"><LayoutGrid size={14} /><span className="text-sm font-semibold">全部展示</span></div>
+            <span className="text-[10px] font-mono opacity-60">{data.cards.length}</span>
+          </button>
+          <button onClick={() => handleTagChange('recommended')} className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all mt-1 ${activeTag === 'recommended' ? 'bg-amber-500 text-white shadow-md' : 'text-amber-600 hover:bg-amber-50'}`}>
+            <div className="flex items-center gap-2"><ThumbsUp size={14} /><span className="text-sm font-semibold">精选推荐</span></div>
+            <span className="text-[10px] font-mono opacity-60">{data.cards.filter(c => c.isRecommended).length}</span>
+          </button>
+          <div className="h-px bg-stone-100 my-4 mx-4" />
+          {data.tags.map(tag => (
+            <button key={tag.id} onClick={() => handleTagChange(tag.id)} className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all ${activeTag === tag.id ? 'bg-ink text-white shadow-md' : 'text-subtle hover:bg-stone-100 hover:text-ink'}`}>
+              <span className="text-sm font-semibold">{tag.name}</span>
+              <span className="text-[10px] font-mono opacity-60">{data.cards.filter(c => c.tagIds.includes(tag.id)).length}</span>
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      {/* 主内容 */}
+      <main className="flex-1 p-6 md:p-10 lg:p-12 overflow-x-hidden flex flex-col">
+        {/* 移动端头部 */}
+        <div className="lg:hidden flex flex-col gap-4 mb-6">
+          <div className="flex items-center gap-3" onClick={() => window.location.href = '/'}>
+            <img src={data.settings.iconUrl} alt="Logo" className="w-8 h-8 rounded-lg shadow-sm object-cover" />
+            <h1 className="font-bold text-lg text-ink tracking-tight">{data.settings.title}</h1>
+          </div>
+          <div className="flex overflow-x-auto gap-2 no-scrollbar pb-2 mask-linear-fade">
+             <button onClick={() => handleTagChange('all')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'all' ? 'bg-ink text-white shadow-md' : 'bg-white border border-stone-200 text-subtle'}`}><LayoutGrid size={12} /> 全部</button>
+             <button onClick={() => handleTagChange('recommended')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'recommended' ? 'bg-amber-500 text-white shadow-md' : 'bg-white border border-stone-200 text-amber-600'}`}><ThumbsUp size={12} /> 推荐</button>
+             {data.tags.map(tag => (
+                <button key={tag.id} onClick={() => handleTagChange(tag.id)} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 ${activeTag === tag.id ? 'bg-ink text-white shadow-md' : 'bg-white border border-stone-200 text-subtle'}`}>{tag.name}</button>
+             ))}
+          </div>
+        </div>
+
+        {/* 顶部工具栏 */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
+           <div className="flex gap-4 w-full sm:w-auto">
+             <div className="relative w-full sm:w-80 group">
+               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-300 group-focus-within:text-ink transition-colors" size={16} />
+               <input type="text" placeholder="搜你想看..." value={searchTerm} onChange={handleSearchChange} className="w-full bg-white border border-stone-200 rounded-2xl py-3 pl-12 pr-10 text-sm font-bold focus:outline-none focus:border-ink focus:ring-8 focus:ring-stone-200/50 transition-all" />
+               {searchTerm && <button onClick={clearSearch} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-300 hover:text-ink"><X size={16} /></button>}
+             </div>
+             {isAdmin && (
+                <button onClick={() => setIsCreateModalOpen(true)} className="bg-white border border-stone-200 text-stone-400 hover:text-ink hover:border-ink rounded-2xl w-12 flex items-center justify-center transition-all shadow-sm active:scale-95" title="快速添加">
+                  <Plus size={20} />
+                </button>
+             )}
+           </div>
+           
+           <div className="flex items-center gap-2">
+             <div className="flex bg-stone-100 p-1.5 rounded-xl">
+               {(['createdAt', 'rating', 'updatedAt'] as SortKey[]).map(key => (
+                 <button key={key} onClick={() => setSortConfig(prev => ({ key, order: prev.key === key ? (prev.order === 'desc' ? 'asc' : 'desc') : 'desc' }))} className={`px-4 py-2 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2 ${sortConfig.key === key ? 'bg-white text-ink shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}>
+                   {key === 'createdAt' ? '创建' : key === 'rating' ? '评分' : '更新'}
+                   {sortConfig.key === key && <ArrowUpDown size={10} className={sortConfig.order === 'asc' ? 'rotate-180 transition-transform' : ''} />}
+                 </button>
+               ))}
+             </div>
+           </div>
+        </div>
+
+        {filteredCards.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center py-32 opacity-20"><Grid size={64} className="mb-4 stroke-[1]" /><p className="font-bold uppercase tracking-widest">NO DATA</p></div>
+        ) : (
+          <div key={gridKey} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8 auto-rows-min">
+            {/* Hero Carousel */}
+            {showHero && (
+              <div className="group relative sm:col-span-2 sm:row-span-2 aspect-video w-full isolate touch-pan-y">
+                <div className="w-full h-full" onMouseEnter={() => setIsHeroPaused(true)} onMouseLeave={() => setIsHeroPaused(false)} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+                    <div className="absolute inset-0 rounded-2xl shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400 overflow-hidden" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
+                      {heroCards.map((card, idx) => (
+                        <Link key={card.id} to={`/card/${card.id}`} className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out ${idx === heroIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`} draggable={false}>
+                          <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full object-cover select-none" />
+                          <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
+                          <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10"><ThumbsUp size={24} /></div>
+                          <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5"><Star size={12} className="text-amber-400 fill-amber-400" /><span className="text-xs font-black text-ink">{card.rating.toFixed(1)}</span></div>
+                          <div className="absolute bottom-0 left-0 right-0 p-6 text-white drop-shadow-md z-20"><h3 className="text-2xl sm:text-3xl font-black leading-tight line-clamp-2 mb-2">{card.title}</h3><p className="text-white/90 text-sm line-clamp-2 font-medium">{card.description}</p></div>
+                        </Link>
+                      ))}
+                    </div>
+                    {/* Controls */}
+                    {heroCards.length > 1 && (
+                      <>
+                        <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev - 1 + heroCards.length) % heroCards.length); }} className="absolute -left-2 top-1/2 -translate-y-1/2 p-2 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:bg-black/20 lg:hover:bg-black/40 lg:backdrop-blur-sm lg:rounded-full drop-shadow-md lg:left-2"><ChevronLeft size={24} /></button>
+                        <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev + 1) % heroCards.length); }} className="absolute -right-2 top-1/2 -translate-y-1/2 p-2 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:bg-black/20 lg:hover:bg-black/40 lg:backdrop-blur-sm lg:rounded-full drop-shadow-md lg:right-2"><ChevronRight size={24} /></button>
+                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-30 pointer-events-none">{heroCards.map((_, idx) => (<div key={idx} className={`h-1 rounded-full transition-all duration-300 ${idx === heroIndex ? 'w-6 bg-white' : 'w-1.5 bg-white/40'}`} />))}</div>
+                      </>
+                    )}
+                </div>
+              </div>
+            )}
+            {/* Grid */}
+            {filteredCards.slice(0, visibleCount).map((card) => (
+              <Link key={card.id} to={`/card/${card.id}`} className="group cursor-pointer fill-mode-both">
+                  <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full aspect-video ${card.isRecommended ? 'shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
+                    <div className="w-full h-full rounded-2xl overflow-hidden relative isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
+                      <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full transition-transform duration-1000 group-hover:scale-110" />
+                      <div className="absolute bottom-0 left-0 right-0 h-1/4 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                      {card.isRecommended && (<div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10"><ThumbsUp size={16} /></div>)}
+                      <div className="absolute top-3 right-3 flex gap-2"><div className="bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5"><Star size={12} className="text-amber-400 fill-amber-400" /><span className="text-xs font-black text-ink">{card.rating.toFixed(1)}</span></div></div>
+                      <div className="absolute bottom-0 left-0 right-0 text-white drop-shadow-md flex flex-col justify-end p-4"><h3 className="text-lg font-black leading-tight line-clamp-2 origin-bottom-left transition-transform duration-300">{card.title}</h3><div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-500 ease-out"><div className="overflow-hidden"><p className="text-white/90 pt-2 line-clamp-2 font-medium text-[10px]">{card.description}</p></div></div></div>
+                    </div>
+                  </div>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {/* 底部加载状态 - 仅当有更多数据时才显示 */}
+        {hasMore ? (
+          <div ref={loadRef} className="flex justify-center mt-16 pb-8 min-h-[50px]">
+            <div className="animate-pulse flex items-center gap-2 text-stone-300 text-xs font-bold uppercase tracking-widest">
+               <Loader2 className="animate-spin" size={14} />
+               <span>Loading more</span>
+            </div>
+          </div>
+        ) : (
+          filteredCards.length > 0 && (
+            <div className="text-center mt-16 pb-8 text-xs font-bold text-stone-300 uppercase tracking-widest">
+              — End of Collection —
+            </div>
+          )
+        )}
+      </main>
+
+      <CardEditModal 
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        title="快速添加记录"
+        initialCard={{ tagIds: [], rating: 0, description: '', startDate: '', endDate: '', isRecommended: false }}
+        tags={data.tags}
+        onSave={handleCreateSave}
+      />
+    </div>
+  );
+};

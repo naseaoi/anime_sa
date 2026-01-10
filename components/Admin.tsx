@@ -3,7 +3,8 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Loader2, CloudUpload, AlertCircle, Search, X, ChevronLeft, ChevronRight, ThumbsUp, Home, Menu, Check, ChevronDown } from 'lucide-react';
 import { PublicData, CardData } from '../types';
 import { webdav } from '../services/webdavService';
-import { Button, Input, Modal, PageLoader, ImagePreview, Rating, TextArea, AdminCard, useToast, ConfirmModal, Select } from './Common';
+import { Button, Input, PageLoader, ImagePreview, Rating, AdminCard, useToast, ConfirmModal } from './Common';
+import { CardEditModal } from './CardEditModal';
 
 interface AdminLayoutProps {
   initialData: PublicData;
@@ -47,9 +48,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
     const result = await webdav.savePublicData(localData);
     if (result.success) {
       await refreshData();
-      // 同步成功后更新本地缓存，保证 index.html 预加载能读到最新值
       localStorage.setItem('tat_site_settings', JSON.stringify(localData.settings));
-      
       setHasChanges(false);
       showToast('数据同步成功', 'success');
     } else {
@@ -178,14 +177,27 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginatedCards = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const handleSave = () => {
+  const handleSave = async (cardData: Partial<CardData>) => {
     const newCards = [...data.cards];
     const now = Date.now();
-    if (editingCard.id) {
-      const idx = newCards.findIndex(c => c.id === editingCard.id);
-      if (idx !== -1) newCards[idx] = { ...editingCard, updatedAt: now } as CardData;
+    if (cardData.id) {
+      const idx = newCards.findIndex(c => c.id === cardData.id);
+      if (idx !== -1) newCards[idx] = { ...cardData, updatedAt: now } as CardData;
     } else {
-      newCards.push({ ...editingCard, id: now.toString(), createdAt: now, updatedAt: now } as CardData);
+      // Create logic handled by Modal usually, but here we construct
+      newCards.push({ 
+        id: now.toString(),
+        title: cardData.title || '',
+        coverUrl: cardData.coverUrl || '',
+        description: cardData.description || '',
+        startDate: cardData.startDate || '',
+        endDate: cardData.endDate || '',
+        rating: cardData.rating || 0,
+        tagIds: cardData.tagIds || [],
+        isRecommended: !!cardData.isRecommended,
+        createdAt: now, 
+        updatedAt: now 
+      } as CardData);
     }
     onUpdate({ ...data, cards: newCards });
     setIsModalOpen(false);
@@ -228,40 +240,14 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
         </div>
       )}
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCard.id ? "编辑记录" : "新建记录"}>
-        <div className="space-y-8">
-          <Input label="标题" value={editingCard.title || ''} onChange={e => setEditingCard({...editingCard, title: e.target.value})} className="h-11 text-base" />
-          
-          <div className="flex items-end gap-6">
-            <div className="flex-1">
-                 <Select 
-                   label="分类"
-                   options={data.tags} 
-                   value={editingCard.tagIds?.[0] || ''}
-                   onChange={val => setEditingCard({...editingCard, tagIds: val ? [val] : []})}
-                   placeholder="选择分类..."
-                 />
-            </div>
-            <div className="flex flex-col items-center gap-2 pb-1">
-              <label className="text-xs font-bold text-stone-400 uppercase">推荐</label>
-              <input type="checkbox" checked={!!editingCard.isRecommended} onChange={e => setEditingCard({...editingCard, isRecommended: e.target.checked})} className="w-6 h-6 rounded border-stone-300 text-amber-500 focus:ring-amber-400" />
-            </div>
-          </div>
-
-          <div className="space-y-5">
-             <Input label="封面链接 (URL)" value={editingCard.coverUrl || ''} onChange={e => setEditingCard({...editingCard, coverUrl: e.target.value})} className="h-11" />
-             <div className="flex items-center justify-between gap-4"><label className="text-xs font-bold text-stone-400 uppercase">评分</label><input type="range" min="0" max="5" step="0.5" className="flex-1 accent-ink h-2 bg-stone-100 rounded-lg appearance-none" value={editingCard.rating || 0} onChange={e => setEditingCard({...editingCard, rating: parseFloat(e.target.value)})} /><span className="text-sm font-bold text-ink w-8">{editingCard.rating}</span></div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-6">
-            <Input label="开始日期" type="date" max="9999-12-31" value={editingCard.startDate || ''} onChange={e => { const val = e.target.value; if (val.split('-')[0].length <= 4) setEditingCard({...editingCard, startDate: val}); }} className="h-11" />
-            <Input label="结束日期" type="date" max="9999-12-31" value={editingCard.endDate || ''} onChange={e => { const val = e.target.value; if (val.split('-')[0].length <= 4) setEditingCard({...editingCard, endDate: val}); }} className="h-11" />
-          </div>
-
-          <TextArea label="详细描述" value={editingCard.description || ''} onChange={e => setEditingCard({...editingCard, description: e.target.value})} className="min-h-[120px] text-base" />
-          <Button onClick={handleSave} className="w-full h-14 rounded-2xl text-base">确认保存</Button>
-        </div>
-      </Modal>
+      <CardEditModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingCard.id ? "编辑记录" : "新建记录"}
+        initialCard={editingCard}
+        tags={data.tags}
+        onSave={handleSave}
+      />
 
       <ConfirmModal isOpen={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={() => onUpdate({ ...data, cards: data.cards.filter(c => c.id !== deleteId) })} title="删除确认" message="确定要永久移除此记录吗？" confirmText="删除" type="danger" />
     </div>
