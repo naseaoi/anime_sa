@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { LayoutGrid, Search, X, ChevronLeft, ChevronRight, ThumbsUp, ArrowUpDown, Star, Grid, Loader2, Plus, PlayCircle } from 'lucide-react';
@@ -350,12 +351,12 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
             {/* Grid */}
             {filteredCards.slice(0, visibleCount).map((card) => (
               <Link key={card.id} to={`/card/${card.id}`} className="group cursor-pointer fill-mode-both">
-                  {/* 样式修改点：如果 isWatching 为真，添加蓝色虚线边框 */}
+                  {/* 样式修改点：如果 isWatching 为真，添加蓝色虚线边框；推荐卡片使用双层边框（border-white + ring-amber） */}
                   <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full aspect-video ${
                     card.isWatching 
                       ? 'border-2 border-dashed border-blue-400 bg-blue-50/10' // 观看中样式（优先级高）
                       : card.isRecommended 
-                        ? 'shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' 
+                        ? 'border-2 border-white ring-1 ring-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)]' 
                         : 'bg-stone-200 shadow-sm'
                   }`}>
                     <div className="w-full h-full rounded-2xl overflow-hidden relative isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
