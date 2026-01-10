@@ -14,6 +14,7 @@ export interface CardData {
   rating: number; // 0-5
   tagIds: string[];
   isRecommended: boolean; // 是否推荐
+  isWatching?: boolean; // 是否正在观看
   createdAt: number; // 创建时间戳
   updatedAt: number; // 更新时间戳
 }

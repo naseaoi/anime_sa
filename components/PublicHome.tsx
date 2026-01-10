@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { LayoutGrid, Search, X, ChevronLeft, ChevronRight, ThumbsUp, ArrowUpDown, Star, Grid, Loader2, Plus } from 'lucide-react';
+import { LayoutGrid, Search, X, ChevronLeft, ChevronRight, ThumbsUp, ArrowUpDown, Star, Grid, Loader2, Plus, PlayCircle } from 'lucide-react';
 import { PublicData, CardData } from '../types';
 import { ImagePreview, useToast } from './Common';
 import { CardEditModal } from './CardEditModal';
@@ -159,11 +159,16 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
       const term = searchTerm.toLowerCase();
       list = list.filter(c => c.title.toLowerCase().includes(term) || c.description.toLowerCase().includes(term));
     }
+    
+    // 标签筛选逻辑
     if (activeTag === 'recommended') {
       list = list.filter(c => c.isRecommended);
+    } else if (activeTag === 'watching') {
+      list = list.filter(c => c.isWatching);
     } else if (activeTag !== 'all') {
       list = list.filter(c => c.tagIds.includes(activeTag));
     }
+
     list.sort((a, b) => {
       const valA = a[sortConfig.key] || 0;
       const valB = b[sortConfig.key] || 0;
@@ -177,16 +182,12 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   const hasMore = visibleCount < filteredCards.length;
 
   useEffect(() => {
-    // 如果没有更多数据，或者正在加载中，则不监听
     if (!hasMore || isLoadingMore) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          // 触发加载：先显示 Loading 状态
           setIsLoadingMore(true);
-          
-          // 人为延迟 600ms，让用户看到“加载中”，解决视觉反馈缺失问题
           setTimeout(() => {
             setVisibleCount(prev => Math.min(prev + LOAD_MORE_COUNT, filteredCards.length));
             setIsLoadingMore(false);
@@ -214,6 +215,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
       rating: cardData.rating || 0,
       tagIds: cardData.tagIds || [],
       isRecommended: !!cardData.isRecommended,
+      isWatching: !!cardData.isWatching,
       createdAt: now,
       updatedAt: now
     };
@@ -245,10 +247,17 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
             <div className="flex items-center gap-2"><LayoutGrid size={14} /><span className="text-sm font-semibold">全部展示</span></div>
             <span className="text-[10px] font-mono opacity-60">{data.cards.length}</span>
           </button>
+          
           <button onClick={() => handleTagChange('recommended')} className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all mt-1 ${activeTag === 'recommended' ? 'bg-amber-500 text-white shadow-md' : 'text-amber-600 hover:bg-amber-50'}`}>
             <div className="flex items-center gap-2"><ThumbsUp size={14} /><span className="text-sm font-semibold">精选推荐</span></div>
             <span className="text-[10px] font-mono opacity-60">{data.cards.filter(c => c.isRecommended).length}</span>
           </button>
+
+          <button onClick={() => handleTagChange('watching')} className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all mt-1 ${activeTag === 'watching' ? 'bg-blue-500 text-white shadow-md' : 'text-blue-600 hover:bg-blue-50'}`}>
+            <div className="flex items-center gap-2"><PlayCircle size={14} /><span className="text-sm font-semibold">正在观看</span></div>
+            <span className="text-[10px] font-mono opacity-60">{data.cards.filter(c => c.isWatching).length}</span>
+          </button>
+
           <div className="h-px bg-stone-100 my-4 mx-4" />
           {data.tags.map(tag => (
             <button key={tag.id} onClick={() => handleTagChange(tag.id)} className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all ${activeTag === tag.id ? 'bg-ink text-white shadow-md' : 'text-subtle hover:bg-stone-100 hover:text-ink'}`}>
@@ -269,7 +278,11 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
           </div>
           <div className="flex overflow-x-auto gap-2 no-scrollbar pb-2 mask-linear-fade">
              <button onClick={() => handleTagChange('all')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'all' ? 'bg-ink text-white shadow-md' : 'bg-white border border-stone-200 text-subtle'}`}><LayoutGrid size={12} /> 全部</button>
+             
              <button onClick={() => handleTagChange('recommended')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'recommended' ? 'bg-amber-500 text-white shadow-md' : 'bg-white border border-stone-200 text-amber-600'}`}><ThumbsUp size={12} /> 推荐</button>
+             
+             <button onClick={() => handleTagChange('watching')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'watching' ? 'bg-blue-500 text-white shadow-md' : 'bg-white border border-stone-200 text-blue-600'}`}><PlayCircle size={12} /> 观看中</button>
+
              {data.tags.map(tag => (
                 <button key={tag.id} onClick={() => handleTagChange(tag.id)} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 ${activeTag === tag.id ? 'bg-ink text-white shadow-md' : 'bg-white border border-stone-200 text-subtle'}`}>{tag.name}</button>
              ))}
@@ -336,11 +349,24 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
             {/* Grid */}
             {filteredCards.slice(0, visibleCount).map((card) => (
               <Link key={card.id} to={`/card/${card.id}`} className="group cursor-pointer fill-mode-both">
-                  <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full aspect-video ${card.isRecommended ? 'shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
+                  {/* 样式修改点：如果 isWatching 为真，添加蓝色虚线边框 */}
+                  <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full aspect-video ${
+                    card.isWatching 
+                      ? 'border-2 border-dashed border-blue-400 bg-blue-50/10' // 观看中样式（优先级高）
+                      : card.isRecommended 
+                        ? 'shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' 
+                        : 'bg-stone-200 shadow-sm'
+                  }`}>
                     <div className="w-full h-full rounded-2xl overflow-hidden relative isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
                       <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full transition-transform duration-1000 group-hover:scale-110" />
                       <div className="absolute bottom-0 left-0 right-0 h-1/4 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                      
+                      {/* 推荐图标 */}
                       {card.isRecommended && (<div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10"><ThumbsUp size={16} /></div>)}
+                      
+                      {/* 观看中角标 (如果既是推荐又是观看，则显示在推荐下方，或者根据设计调整。这里如果已经有边框了，也许不需要额外角标，但为了区分更明显，可以在右上角或标题前加指示) */}
+                      {card.isWatching && !card.isRecommended && (<div className="absolute top-0 left-0 bg-blue-500 text-white p-2.5 rounded-br-2xl shadow-lg z-10"><PlayCircle size={16} /></div>)}
+                      
                       <div className="absolute top-3 right-3 flex gap-2"><div className="bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5"><Star size={12} className="text-amber-400 fill-amber-400" /><span className="text-xs font-black text-ink">{card.rating.toFixed(1)}</span></div></div>
                       <div className="absolute bottom-0 left-0 right-0 text-white drop-shadow-md flex flex-col justify-end p-4"><h3 className="text-lg font-black leading-tight line-clamp-2 origin-bottom-left transition-transform duration-300">{card.title}</h3><div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-500 ease-out"><div className="overflow-hidden"><p className="text-white/90 pt-2 line-clamp-2 font-medium text-[10px]">{card.description}</p></div></div></div>
                     </div>
@@ -350,17 +376,15 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
           </div>
         )}
 
-        {/* 底部加载状态控制：只要有更多数据，或者处于加载状态中，就渲染底部区域 */}
+        {/* 底部加载状态控制 */}
         {(hasMore || isLoadingMore) && (
           <div ref={loadRef} className="flex justify-center mt-16 pb-8 min-h-[50px]">
-            {/* 只有在 isLoadingMore 为 true 时才显示文字，避免观察到时还是空白 */}
             {isLoadingMore && (
               <div className="animate-pulse flex items-center gap-2 text-stone-300 text-xs font-bold uppercase tracking-widest">
                  <Loader2 className="animate-spin" size={14} />
                  <span>Loading more</span>
               </div>
             )}
-            {/* 如果没在加载但有更多数据，可以显示一个占位符或提示继续滑动，这里保持透明以便自动触发 */}
             {!isLoadingMore && hasMore && <div className="h-4 w-full" />}
           </div>
         )}
@@ -376,7 +400,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         title="快速添加记录"
-        initialCard={{ tagIds: [], rating: 0, description: '', startDate: '', endDate: '', isRecommended: false }}
+        initialCard={{ tagIds: [], rating: 0, description: '', startDate: '', endDate: '', isRecommended: false, isWatching: false }}
         tags={data.tags}
         onSave={handleCreateSave}
       />

@@ -51,14 +51,27 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
                placeholder="选择分类..."
              />
           </div>
-          <div className="flex flex-col items-center gap-2 pb-1">
-            <label className="text-xs font-bold text-stone-400 uppercase">推荐</label>
-            <input 
-              type="checkbox" 
-              checked={!!card.isRecommended} 
-              onChange={e => setCard({...card, isRecommended: e.target.checked})} 
-              className="w-6 h-6 rounded border-stone-300 text-amber-500 focus:ring-amber-400" 
-            />
+          
+          {/* 状态开关组 */}
+          <div className="flex items-center gap-6 pb-1">
+            <div className="flex flex-col items-center gap-2">
+              <label className="text-xs font-bold text-stone-400 uppercase">推荐</label>
+              <input 
+                type="checkbox" 
+                checked={!!card.isRecommended} 
+                onChange={e => setCard({...card, isRecommended: e.target.checked})} 
+                className="w-6 h-6 rounded border-stone-300 text-amber-500 focus:ring-amber-400 cursor-pointer" 
+              />
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <label className="text-xs font-bold text-stone-400 uppercase">观看中</label>
+              <input 
+                type="checkbox" 
+                checked={!!card.isWatching} 
+                onChange={e => setCard({...card, isWatching: e.target.checked})} 
+                className="w-6 h-6 rounded border-stone-300 text-blue-500 focus:ring-blue-400 cursor-pointer" 
+              />
+            </div>
           </div>
         </div>
 
