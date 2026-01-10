@@ -157,9 +157,8 @@ export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { lab
     <div className="flex flex-col gap-1.5 w-full">
       {label && <label className="text-xs font-bold text-subtle dark:text-zinc-400 uppercase tracking-wider">{label}</label>}
       <input 
-        // 样式修改：背景改为 pure black 以区分模态框背景 (zinc-900)
-        // dark:[color-scheme:dark] 强制日历图标变白
-        className={`w-full px-3 py-2 bg-white dark:bg-black border ${error ? 'border-red-300 focus:border-red-500 dark:border-red-800' : 'border-border dark:border-zinc-800 focus:border-ink dark:focus:border-zinc-400'} rounded-lg text-ink dark:text-zinc-100 placeholder:text-stone-300 dark:placeholder:text-zinc-700 focus:outline-none focus:ring-4 focus:ring-stone-100 dark:focus:ring-zinc-800 dark:[color-scheme:dark] transition-all ${className}`}
+        // 样式修改：背景改为 zinc-800 (比模态框 zinc-900 浅)
+        className={`w-full px-3 py-2 bg-white dark:bg-zinc-800 border ${error ? 'border-red-300 focus:border-red-500 dark:border-red-800' : 'border-border dark:border-zinc-800 focus:border-ink dark:focus:border-zinc-400'} rounded-lg text-ink dark:text-zinc-100 placeholder:text-stone-300 dark:placeholder:text-zinc-700 focus:outline-none focus:ring-4 focus:ring-stone-100 dark:focus:ring-zinc-800 dark:[color-scheme:dark] transition-all ${className}`}
         {...props}
       />
       {error && <span className="text-xs text-red-500">{error}</span>}
@@ -197,7 +196,7 @@ export const Select: React.FC<{
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
-        className={`w-full px-3 py-2 bg-white dark:bg-black border border-border dark:border-zinc-800 rounded-lg text-ink dark:text-zinc-100 flex items-center justify-between hover:border-stone-400 dark:hover:border-zinc-600 focus:outline-none focus:ring-4 focus:ring-stone-100 dark:focus:ring-zinc-800 transition-all ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${isOpen ? 'border-ink dark:border-zinc-400 ring-4 ring-stone-100 dark:ring-zinc-800' : ''}`}
+        className={`w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-border dark:border-zinc-800 rounded-lg text-ink dark:text-zinc-100 flex items-center justify-between hover:border-stone-400 dark:hover:border-zinc-600 focus:outline-none focus:ring-4 focus:ring-stone-100 dark:focus:ring-zinc-800 transition-all ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${isOpen ? 'border-ink dark:border-zinc-400 ring-4 ring-stone-100 dark:ring-zinc-800' : ''}`}
       >
         <span className={selectedOption ? 'text-ink dark:text-zinc-100' : 'text-stone-300 dark:text-zinc-600'}>
           {selectedOption ? selectedOption.name : placeholder}
@@ -234,7 +233,7 @@ export const TextArea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement
     <div className="flex flex-col gap-1.5 w-full">
       {label && <label className="text-xs font-bold text-subtle dark:text-zinc-400 uppercase tracking-wider">{label}</label>}
       <textarea 
-        className={`w-full px-3 py-2 bg-white dark:bg-black border border-border dark:border-zinc-800 rounded-lg text-ink dark:text-zinc-100 placeholder:text-stone-300 dark:placeholder:text-zinc-700 focus:outline-none focus:border-ink dark:focus:border-zinc-400 focus:ring-4 focus:ring-stone-100 dark:focus:ring-zinc-800 transition-all min-h-[100px] resize-y ${className}`}
+        className={`w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-border dark:border-zinc-800 rounded-lg text-ink dark:text-zinc-100 placeholder:text-stone-300 dark:placeholder:text-zinc-700 focus:outline-none focus:border-ink dark:focus:border-zinc-400 focus:ring-4 focus:ring-stone-100 dark:focus:ring-zinc-800 transition-all min-h-[100px] resize-y ${className}`}
         {...props}
       />
     </div>
@@ -274,7 +273,7 @@ export const MultiSelect: React.FC<{
       {label && <label className="text-xs font-bold text-subtle dark:text-zinc-400 uppercase tracking-wider whitespace-nowrap">{label}</label>}
       <div 
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full px-3 py-2 bg-white dark:bg-black border border-border dark:border-zinc-800 rounded-lg text-ink dark:text-zinc-100 cursor-pointer flex items-center justify-between hover:border-stone-400 dark:hover:border-zinc-600 transition-colors ${isOpen ? 'ring-4 ring-stone-100 dark:ring-zinc-800 border-ink dark:border-zinc-400' : ''}`}
+        className={`w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-border dark:border-zinc-800 rounded-lg text-ink dark:text-zinc-100 cursor-pointer flex items-center justify-between hover:border-stone-400 dark:hover:border-zinc-600 transition-colors ${isOpen ? 'ring-4 ring-stone-100 dark:ring-zinc-800 border-ink dark:border-zinc-400' : ''}`}
       >
         <div className="flex flex-wrap gap-1">
           {value.length === 0 ? (

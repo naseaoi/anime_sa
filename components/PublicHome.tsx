@@ -377,7 +377,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
             {/* Grid */}
             {filteredCards.slice(0, visibleCount).map((card) => (
               <Link key={card.id} to={`/card/${card.id}`} className="group cursor-pointer fill-mode-both">
-                  <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full aspect-video ${
+                  <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:scale-[1.02] h-full w-full aspect-video ${
                     card.isWatching 
                       ? 'border-2 border-dashed border-blue-400 bg-blue-50/10 dark:bg-blue-900/10' // 观看中样式（优先级高）
                       : card.isRecommended 

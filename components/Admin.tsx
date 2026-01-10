@@ -86,7 +86,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
            </nav>
         </div>
         <div className="p-6 border-t border-stone-100 dark:border-zinc-800 flex flex-col gap-2">
-          <div onClick={() => { window.location.href = '/'; }}><NavButton to="/" icon={<Home size={18} />} label="返回首页" /></div>
+          {/* 修改：移除外层 div 的 onClick 强制刷新，NavButton 内部已处理路由跳转 */}
+          <div><NavButton to="/" icon={<Home size={18} />} label="返回首页" /></div>
           <button onClick={() => { localStorage.removeItem('tat_expiry'); window.location.href = '/'; }} className="flex items-center gap-3 px-4 py-3 w-full text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"><LogOut size={16} /><span>退出登录</span></button>
         </div>
       </aside>
