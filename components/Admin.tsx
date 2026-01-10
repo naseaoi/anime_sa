@@ -290,7 +290,7 @@ const AdminTags: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void 
   };
 
   return (
-    <div className="max-w-4xl space-y-8">
+    <div className="max-w-4xl mx-auto space-y-8">
       <AdminCard title="添加新分类">
         <div className="flex gap-4">
           <Input 
@@ -323,8 +323,8 @@ const AdminTags: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void 
             ) : (
               <>
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-stone-100 rounded-lg flex items-center justify-center text-stone-400 font-mono text-xs font-bold">
-                    {data.cards.filter(c => c.tagIds.includes(tag.id)).length}
+                  <div className="w-8 h-8 bg-stone-100 rounded-lg flex items-center justify-center text-stone-400 font-bold text-sm">
+                    {tag.name.slice(0, 1)}
                   </div>
                   <span className="font-bold text-ink">{tag.name}</span>
                 </div>
@@ -348,7 +348,7 @@ const AdminSettings: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => v
   useEffect(() => { webdav.getPrivateData().then(setCreds); }, []);
 
   return (
-    <div className="flex flex-col gap-10 max-w-4xl">
+    <div className="flex flex-col gap-10 max-w-4xl mx-auto">
       <div className="w-full">
         <AdminCard title="网站设置"><div className="space-y-8"><Input label="网站标题" value={siteSettings.title} onChange={e => { const s = {...siteSettings, title: e.target.value}; setSiteSettings(s); onUpdate({...data, settings: s}); }} className="h-12 text-base" /><Input label="图标 (URL)" value={siteSettings.iconUrl} onChange={e => { const s = {...siteSettings, iconUrl: e.target.value}; setSiteSettings(s); onUpdate({...data, settings: s}); }} className="h-12 text-base" /></div></AdminCard>
       </div>

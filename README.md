@@ -6,8 +6,17 @@
 
 - **前端展示**：极简卡片流，支持封面、评分、日期和标签筛选。
 - **后台管理**：通过 `/tat` 路径访问，支持可视化管理卡片、分类和网站设置。
-- **数据同步**：基于 WebDAV 协议，数据完全掌握在自己手中。
+- **数据同步**：基于 WebDAV 协议，数据完全掌握在自己手中，支持坚果云等标准 WebDAV 服务。
 - **响应式设计**：完美适配桌面端和移动端。
+
+## 项目结构说明
+
+为了方便维护，以下是关键文件的作用说明：
+
+- **`services/webdavService.ts`**: **核心数据层**。负责与 WebDAV 服务器通信，执行读取和保存 JSON 数据的逻辑。请勿删除。
+- **`api/webdav.ts`**: Vercel Serverless Function。作为 API 代理，解决浏览器的跨域(CORS)限制，并实现方法隧道(Tunneling)以绕过部分网络防火墙对 WebDAV 方法的拦截。
+- **`types.ts`**: TypeScript 类型定义文件，定义了卡片(CardData)、公开数据(PublicData)等数据结构。
+- **`components/Common.tsx`**: 通用组件库，包含按钮、输入框、模态框、Toast 提示等基础 UI 组件。
 
 ## 部署说明 (Vercel)
 
