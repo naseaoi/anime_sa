@@ -3,7 +3,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Loader2, CloudUpload, AlertCircle, Search, X, ChevronLeft, ChevronRight, ThumbsUp, Home, Menu, Check, ChevronDown } from 'lucide-react';
 import { PublicData, CardData } from '../types';
 import { webdav } from '../services/webdavService';
-import { Button, Input, Modal, PageLoader, ImagePreview, Rating, TextArea, AdminCard, useToast, ConfirmModal } from './Common';
+import { Button, Input, Modal, PageLoader, ImagePreview, Rating, TextArea, AdminCard, useToast, ConfirmModal, Select } from './Common';
 
 interface AdminLayoutProps {
   initialData: PublicData;
@@ -233,23 +233,14 @@ const AdminCards: React.FC<{ data: PublicData; onUpdate: (d: PublicData) => void
           <Input label="标题" value={editingCard.title || ''} onChange={e => setEditingCard({...editingCard, title: e.target.value})} className="h-11 text-base" />
           
           <div className="flex items-end gap-6">
-            <div className="flex-1 flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-subtle uppercase tracking-wider">分类</label>
-                  <div className="relative">
-                    <select
-                      value={editingCard.tagIds?.[0] || ''}
-                      onChange={e => setEditingCard({...editingCard, tagIds: e.target.value ? [e.target.value] : []})}
-                      className="w-full px-3 py-2 bg-white border border-border rounded-lg text-ink appearance-none focus:outline-none focus:border-ink focus:ring-4 focus:ring-stone-100 transition-all"
-                    >
-                      <option value="" disabled>选择分类...</option>
-                      {data.tags.map(tag => (
-                        <option key={tag.id} value={tag.id}>{tag.name}</option>
-                      ))}
-                    </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-stone-400">
-                      <ChevronDown size={16} />
-                    </div>
-                  </div>
+            <div className="flex-1">
+                 <Select 
+                   label="分类"
+                   options={data.tags} 
+                   value={editingCard.tagIds?.[0] || ''}
+                   onChange={val => setEditingCard({...editingCard, tagIds: val ? [val] : []})}
+                   placeholder="选择分类..."
+                 />
             </div>
             <div className="flex flex-col items-center gap-2 pb-1">
               <label className="text-xs font-bold text-stone-400 uppercase">推荐</label>

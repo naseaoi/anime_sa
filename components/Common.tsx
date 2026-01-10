@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, X, Check, ChevronDown, AlertTriangle, Info, Star, StarHalf, Menu, Camera } from 'lucide-react';
 
@@ -88,6 +88,66 @@ export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { lab
         {...props}
       />
       {error && <span className="text-xs text-red-500">{error}</span>}
+    </div>
+  );
+};
+
+export const Select: React.FC<{ 
+  label?: string; 
+  value: string; 
+  onChange: (value: string) => void;
+  options: { id: string; name: string }[];
+  placeholder?: string;
+  disabled?: boolean;
+}> = ({ label, value, onChange, options, placeholder = "请选择...", disabled = false }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find(o => o.id === value);
+
+  return (
+    <div className="flex flex-col gap-1.5 w-full relative" ref={containerRef}>
+      {label && <label className="text-xs font-bold text-subtle uppercase tracking-wider">{label}</label>}
+      <button
+        type="button"
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className={`w-full px-3 py-2 bg-white border border-border rounded-lg text-ink flex items-center justify-between hover:border-stone-400 focus:outline-none focus:ring-4 focus:ring-stone-100 transition-all ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${isOpen ? 'border-ink ring-4 ring-stone-100' : ''}`}
+      >
+        <span className={selectedOption ? 'text-ink' : 'text-stone-300'}>
+          {selectedOption ? selectedOption.name : placeholder}
+        </span>
+        <ChevronDown size={16} className={`text-stone-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-border rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto p-1 animate-in fade-in zoom-in-95 duration-100">
+          {options.length === 0 ? (
+            <div className="p-3 text-xs text-stone-400 text-center">暂无选项</div>
+          ) : (
+            options.map(option => (
+              <div 
+                key={option.id} 
+                onClick={() => { onChange(option.id); setIsOpen(false); }}
+                className={`px-3 py-2.5 text-sm rounded-md cursor-pointer flex items-center justify-between transition-colors ${option.id === value ? 'bg-ink/5 text-ink font-bold' : 'text-subtle hover:bg-stone-50 hover:text-ink'}`}
+              >
+                <span>{option.name}</span>
+                {option.id === value && <Check size={14} className="text-ink" />}
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -182,6 +242,47 @@ export const MultiSelect: React.FC<{
     </div>
   );
 };
+
+// --- Animation Components ---
+
+export const FadeIn: React.FC<{ 
+  children: React.ReactNode; 
+  delay?: number; 
+  className?: string;
+  as?: React.ElementType;
+}> = ({ children, delay = 0, className = "", as: Component = "div" }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const domRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1, rootMargin: '50px' }
+    );
+
+    if (domRef.current) {
+      observer.observe(domRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <Component
+      ref={domRef}
+      className={`${className} transition-opacity duration-700 ${isVisible ? 'animate-fade-up opacity-100' : 'opacity-0'}`}
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      {children}
+    </Component>
+  );
+};
+
 
 // --- Admin Components ---
 

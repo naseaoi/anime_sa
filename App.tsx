@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useSearchParams, Link } from 'r
 import { LayoutGrid, Search, X, ChevronLeft, ChevronRight, ChevronDown, ThumbsUp, ArrowUpDown, Star, Grid, Loader2 } from 'lucide-react';
 import { webdav, DEFAULT_PUBLIC_DATA } from './services/webdavService';
 import { PublicData } from './types';
-import { Button, PageLoader, ImagePreview, Rating, ToastProvider } from './components/Common';
+import { Button, PageLoader, ImagePreview, Rating, ToastProvider, FadeIn } from './components/Common';
 import { PublicDetail } from './components/PublicDetail';
 import { AdminLayout } from './components/Admin';
 
@@ -82,8 +82,20 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
   // 状态：搜索词 (从 URL 初始化，以支持返回保留结果)
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   
-  // 状态：当前可见的卡片数量
-  const [visibleCount, setVisibleCount] = useState(INITIAL_LOAD_COUNT);
+  // 状态：当前可见的卡片数量 (从 SessionStorage 恢复，以支持返回时保留位置)
+  const [visibleCount, setVisibleCount] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('tat_visible_count');
+      return saved ? parseInt(saved) : INITIAL_LOAD_COUNT;
+    } catch {
+      return INITIAL_LOAD_COUNT;
+    }
+  });
+
+  // 持久化 visibleCount
+  useEffect(() => {
+    sessionStorage.setItem('tat_visible_count', visibleCount.toString());
+  }, [visibleCount]);
   
   const observerTarget = useRef<HTMLDivElement>(null);
 
@@ -136,9 +148,10 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
     return () => clearInterval(timer);
   }, [showHero, isHeroPaused, heroCards.length]);
 
-  // 当筛选条件改变时，重置显示数量，但如果是初始化加载（比如返回时），不需要重置过度
+  // 当筛选条件改变时，重置显示数量
   useEffect(() => {
     setVisibleCount(INITIAL_LOAD_COUNT);
+    sessionStorage.setItem('tat_visible_count', INITIAL_LOAD_COUNT.toString());
     setHeroIndex(0);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [activeTag, sortConfig]); // 移除 searchTerm 依赖，防止输入时频繁跳动
@@ -211,7 +224,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
     return list;
   }, [data.cards, activeTag, sortConfig, searchTerm]);
 
-  // 生成一个 Key，当分类、搜索或排序变化时，强制重新渲染网格，触发动画
+  // 生成一个 Key，当分类、搜索或排序变化时，强制重新渲染网格
   const gridKey = `${activeTag}-${searchTerm}-${sortConfig.key}-${sortConfig.order}`;
 
   return (
@@ -334,112 +347,117 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
             
             {/* --- Hero Carousel (优化版：DOM 结构分离，允许箭头外移) --- */}
             {showHero && heroCards.length > 0 && (
-              <div 
-                className="group relative sm:col-span-2 sm:row-span-2 aspect-video w-full isolate touch-pan-y animate-fade-up opacity-0"
-                style={{ animationDelay: '0ms' }}
-                onMouseEnter={() => setIsHeroPaused(true)}
-                onMouseLeave={() => setIsHeroPaused(false)}
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
+              <FadeIn 
+                className="group relative sm:col-span-2 sm:row-span-2 aspect-video w-full isolate touch-pan-y"
+                delay={0}
               >
-                {/* 内部容器：负责圆角、阴影和裁切图片 */}
-                <div className="absolute inset-0 rounded-2xl shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400 overflow-hidden" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
-                   {/* 渲染所有幻灯片，通过透明度切换 */}
-                  {heroCards.map((card, idx) => (
-                    <Link 
-                      key={card.id} 
-                      to={`/card/${card.id}`} 
-                      className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out ${idx === heroIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
-                      draggable={false}
-                    >
-                      <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full object-cover select-none" />
-                      <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
-                      
-                      <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
-                        <ThumbsUp size={24} />
-                      </div>
+                <div 
+                  className="w-full h-full"
+                  onMouseEnter={() => setIsHeroPaused(true)}
+                  onMouseLeave={() => setIsHeroPaused(false)}
+                  onTouchStart={onTouchStart}
+                  onTouchMove={onTouchMove}
+                  onTouchEnd={onTouchEnd}
+                >
+                    {/* 内部容器：负责圆角、阴影和裁切图片 */}
+                    <div className="absolute inset-0 rounded-2xl shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400 overflow-hidden" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
+                       {/* 渲染所有幻灯片，通过透明度切换 */}
+                      {heroCards.map((card, idx) => (
+                        <Link 
+                          key={card.id} 
+                          to={`/card/${card.id}`} 
+                          className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out ${idx === heroIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                          draggable={false}
+                        >
+                          <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full object-cover select-none" />
+                          <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
+                          
+                          <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
+                            <ThumbsUp size={24} />
+                          </div>
 
-                      <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5">
-                        <Star size={12} className="text-amber-400 fill-amber-400" />
-                        <span className="text-xs font-black text-ink">{card.rating.toFixed(1)}</span>
-                      </div>
+                          <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5">
+                            <Star size={12} className="text-amber-400 fill-amber-400" />
+                            <span className="text-xs font-black text-ink">{card.rating.toFixed(1)}</span>
+                          </div>
 
-                      <div className="absolute bottom-0 left-0 right-0 p-6 text-white drop-shadow-md z-20">
-                        <h3 className="text-2xl sm:text-3xl font-black leading-tight line-clamp-2 mb-2">{card.title}</h3>
-                        <p className="text-white/90 text-sm line-clamp-2 font-medium">{card.description}</p>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-
-                {/* 轮播控制 (移动端箭头外移，通过负边距实现) */}
-                {heroCards.length > 1 && (
-                  <>
-                    <button 
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev - 1 + heroCards.length) % heroCards.length); }}
-                      className="absolute -left-2 top-1/2 -translate-y-1/2 p-2 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:bg-black/20 lg:hover:bg-black/40 lg:backdrop-blur-sm lg:rounded-full drop-shadow-md lg:left-2"
-                    >
-                      <ChevronLeft size={24} />
-                    </button>
-                    <button 
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev + 1) % heroCards.length); }}
-                      className="absolute -right-2 top-1/2 -translate-y-1/2 p-2 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:bg-black/20 lg:hover:bg-black/40 lg:backdrop-blur-sm lg:rounded-full drop-shadow-md lg:right-2"
-                    >
-                      <ChevronRight size={24} />
-                    </button>
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-30 pointer-events-none">
-                       {heroCards.map((_, idx) => (
-                         <div 
-                           key={idx} 
-                           className={`h-1 rounded-full transition-all duration-300 ${idx === heroIndex ? 'w-6 bg-white' : 'w-1.5 bg-white/40'}`} 
-                         />
-                       ))}
+                          <div className="absolute bottom-0 left-0 right-0 p-6 text-white drop-shadow-md z-20">
+                            <h3 className="text-2xl sm:text-3xl font-black leading-tight line-clamp-2 mb-2">{card.title}</h3>
+                            <p className="text-white/90 text-sm line-clamp-2 font-medium">{card.description}</p>
+                          </div>
+                        </Link>
+                      ))}
                     </div>
-                  </>
-                )}
-              </div>
+
+                    {/* 轮播控制 (移动端箭头外移，通过负边距实现) */}
+                    {heroCards.length > 1 && (
+                      <>
+                        <button 
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev - 1 + heroCards.length) % heroCards.length); }}
+                          className="absolute -left-2 top-1/2 -translate-y-1/2 p-2 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:bg-black/20 lg:hover:bg-black/40 lg:backdrop-blur-sm lg:rounded-full drop-shadow-md lg:left-2"
+                        >
+                          <ChevronLeft size={24} />
+                        </button>
+                        <button 
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex(prev => (prev + 1) % heroCards.length); }}
+                          className="absolute -right-2 top-1/2 -translate-y-1/2 p-2 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:bg-black/20 lg:hover:bg-black/40 lg:backdrop-blur-sm lg:rounded-full drop-shadow-md lg:right-2"
+                        >
+                          <ChevronRight size={24} />
+                        </button>
+                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-30 pointer-events-none">
+                           {heroCards.map((_, idx) => (
+                             <div 
+                               key={idx} 
+                               className={`h-1 rounded-full transition-all duration-300 ${idx === heroIndex ? 'w-6 bg-white' : 'w-1.5 bg-white/40'}`} 
+                             />
+                           ))}
+                        </div>
+                      </>
+                    )}
+                </div>
+              </FadeIn>
             )}
 
             {/* --- 普通卡片网格 --- */}
             {filteredCards.slice(0, visibleCount).map((card, idx) => (
-              <Link 
-                to={`/card/${card.id}`}
+              <FadeIn 
                 key={card.id} 
-                className="group cursor-pointer animate-fade-up fill-mode-both opacity-0"
-                style={{ animationDelay: `${idx * 50}ms` }}
+                className="group cursor-pointer fill-mode-both"
+                delay={(idx % 12) * 50} // 仅使用 modulo delay，配合 FadeIn 的 Viewport 触发，解决长列表延迟问题
               >
-                <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full aspect-video ${card.isRecommended ? 'shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
-                  
-                  <div className="w-full h-full rounded-2xl overflow-hidden relative isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
-                    <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full transition-transform duration-1000 group-hover:scale-110" />
+                <Link to={`/card/${card.id}`}>
+                  <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full aspect-video ${card.isRecommended ? 'shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
                     
-                    <div className="absolute bottom-0 left-0 right-0 h-1/4 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
-                    
-                    {card.isRecommended && (
-                      <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
-                        <ThumbsUp size={16} />
-                      </div>
-                    )}
-
-                    <div className="absolute top-3 right-3 flex gap-2">
-                        <div className="bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5">
-                          <Star size={12} className="text-amber-400 fill-amber-400" />
-                          <span className="text-xs font-black text-ink">{card.rating.toFixed(1)}</span>
+                    <div className="w-full h-full rounded-2xl overflow-hidden relative isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
+                      <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full transition-transform duration-1000 group-hover:scale-110" />
+                      
+                      <div className="absolute bottom-0 left-0 right-0 h-1/4 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
+                      
+                      {card.isRecommended && (
+                        <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10">
+                          <ThumbsUp size={16} />
                         </div>
-                    </div>
-                    
-                    <div className="absolute bottom-0 left-0 right-0 text-white drop-shadow-md flex flex-col justify-end p-4">
-                      <h3 className="text-lg font-black leading-tight line-clamp-2 origin-bottom-left transition-transform duration-300">{card.title}</h3>
-                      <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-500 ease-out">
-                         <div className="overflow-hidden">
-                            <p className="text-white/90 pt-2 line-clamp-2 font-medium text-[10px]">{card.description}</p>
-                         </div>
+                      )}
+
+                      <div className="absolute top-3 right-3 flex gap-2">
+                          <div className="bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5">
+                            <Star size={12} className="text-amber-400 fill-amber-400" />
+                            <span className="text-xs font-black text-ink">{card.rating.toFixed(1)}</span>
+                          </div>
+                      </div>
+                      
+                      <div className="absolute bottom-0 left-0 right-0 text-white drop-shadow-md flex flex-col justify-end p-4">
+                        <h3 className="text-lg font-black leading-tight line-clamp-2 origin-bottom-left transition-transform duration-300">{card.title}</h3>
+                        <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-500 ease-out">
+                           <div className="overflow-hidden">
+                              <p className="text-white/90 pt-2 line-clamp-2 font-medium text-[10px]">{card.description}</p>
+                           </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </Link>
+                </Link>
+              </FadeIn>
             ))}
           </div>
         )}
