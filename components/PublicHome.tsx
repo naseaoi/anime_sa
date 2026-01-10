@@ -384,19 +384,33 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
                         ? 'border-2 border-white dark:border-white ring-1 ring-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)]' 
                         : 'bg-stone-200 dark:bg-zinc-900 shadow-sm'
                   }`}>
+                    {/* 
+                       Change: Moved Badges OUTSIDE the overflow-hidden container.
+                       Added -top-[2px] -left-[2px] to cover the white border in dark mode.
+                       Added rounded-tl-2xl to match the outer curve.
+                    */}
                     <div className="w-full h-full rounded-2xl overflow-hidden relative isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
                       <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full transition-transform duration-1000 group-hover:scale-110" />
                       <div className="absolute bottom-0 left-0 right-0 h-1/4 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
                       
-                      {/* 推荐图标 */}
-                      {card.isRecommended && (<div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl rounded-tl-2xl shadow-lg z-10"><ThumbsUp size={16} /></div>)}
-                      
-                      {/* 观看中角标 */}
-                      {card.isWatching && !card.isRecommended && (<div className="absolute top-0 left-0 bg-blue-500 text-white p-2.5 rounded-br-2xl rounded-tl-2xl shadow-lg z-10"><PlayCircle size={16} /></div>)}
-                      
                       <div className="absolute top-3 right-3 flex gap-2"><div className="bg-white/95 dark:bg-black/80 backdrop-blur-md border border-white/20 dark:border-white/10 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5"><Star size={12} className="text-amber-400 fill-amber-400" /><span className="text-xs font-black text-ink dark:text-zinc-200">{card.rating.toFixed(1)}</span></div></div>
                       <div className="absolute bottom-0 left-0 right-0 text-white drop-shadow-md flex flex-col justify-end p-4"><h3 className="text-lg font-black leading-tight line-clamp-2 origin-bottom-left transition-transform duration-300">{card.title}</h3><div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-500 ease-out"><div className="overflow-hidden"><p className="text-white/90 pt-2 line-clamp-2 font-medium text-[10px]">{card.description}</p></div></div></div>
                     </div>
+
+                    {/* 推荐图标 (Moved Outside) */}
+                    {card.isRecommended && (
+                      <div className="absolute -top-[2px] -left-[2px] bg-amber-400 text-white p-2.5 rounded-br-2xl rounded-tl-2xl shadow-lg z-20 pointer-events-none">
+                        <ThumbsUp size={16} />
+                      </div>
+                    )}
+                    
+                    {/* 观看中角标 (Moved Outside) */}
+                    {card.isWatching && !card.isRecommended && (
+                      <div className="absolute -top-[2px] -left-[2px] bg-blue-500 text-white p-2.5 rounded-br-2xl rounded-tl-2xl shadow-lg z-20 pointer-events-none">
+                        <PlayCircle size={16} />
+                      </div>
+                    )}
+
                   </div>
               </Link>
             ))}
