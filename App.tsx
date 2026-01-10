@@ -1,17 +1,20 @@
+
 import React, { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { webdav, DEFAULT_PUBLIC_DATA } from './services/webdavService';
 import { PublicData } from './types';
-import { PageLoader, ToastProvider } from './components/Common';
+import { PageLoader, ToastProvider, ThemeProvider } from './components/Common';
 import { PublicDetail } from './components/PublicDetail';
 import { PublicHome } from './components/PublicHome';
 import { AdminLayout } from './components/Admin';
 
 const App: React.FC = () => {
   return (
-    <ToastProvider>
-      <MainRouter />
-    </ToastProvider>
+    <ThemeProvider>
+      <ToastProvider>
+        <MainRouter />
+      </ToastProvider>
+    </ThemeProvider>
   );
 };
 

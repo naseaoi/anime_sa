@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { LayoutGrid, Search, X, ChevronLeft, ChevronRight, ThumbsUp, ArrowUpDown, Star, Grid, Loader2, Plus, PlayCircle } from 'lucide-react';
+import { LayoutGrid, Search, X, ChevronLeft, ChevronRight, ThumbsUp, ArrowUpDown, Star, Grid, Loader2, Plus, PlayCircle, Moon, Sun, Monitor } from 'lucide-react';
 import { PublicData, CardData } from '../types';
-import { ImagePreview, useToast } from './Common';
+import { ImagePreview, useToast, useTheme } from './Common';
 import { CardEditModal } from './CardEditModal';
 import { webdav } from '../services/webdavService';
 
@@ -22,6 +22,7 @@ interface PublicHomeProps {
 
 export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdmin }) => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { theme, toggleTheme } = useTheme();
   
   // 1. 状态初始化：优先从 SessionStorage 读取，保证返回时状态一致
   const [sortConfig, setSortConfig] = useState<{ key: SortKey, order: SortOrder }>(() => {
@@ -235,39 +236,57 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
 
   const gridKey = `${activeTag}-${searchTerm}-${sortConfig.key}-${sortConfig.order}`;
 
+  // Theme Icon Logic
+  const ThemeIcon = useMemo(() => {
+    if (theme === 'light') return Sun;
+    if (theme === 'dark') return Moon;
+    return Monitor;
+  }, [theme]);
+
   return (
-    <div className="min-h-screen bg-[#f8f8f7] flex flex-col lg:flex-row font-sans selection:bg-ink selection:text-white">
+    <div className="min-h-screen bg-[#f8f8f7] dark:bg-[#0c0c0c] flex flex-col lg:flex-row font-sans selection:bg-ink selection:text-white dark:selection:bg-white dark:selection:text-black transition-colors duration-300">
       {/* 侧边导航 */}
-      <aside className="hidden lg:flex lg:w-64 lg:h-screen lg:sticky lg:top-0 bg-white border-r border-stone-200 p-8 flex-col z-40">
+      <aside className="hidden lg:flex lg:w-64 lg:h-screen lg:sticky lg:top-0 bg-white dark:bg-[#18181b] border-r border-stone-200 dark:border-stone-800 p-8 flex-col z-40 transition-colors duration-300">
         <div className="flex items-center gap-3 mb-12 cursor-pointer" onClick={() => window.location.href = '/'}>
           <img src={data.settings.iconUrl} alt="Logo" className="w-8 h-8 rounded-lg shadow-sm object-cover" />
-          <h1 className="font-bold text-lg text-ink tracking-tight">{data.settings.title}</h1>
+          <h1 className="font-bold text-lg text-ink dark:text-stone-100 tracking-tight">{data.settings.title}</h1>
         </div>
 
         <nav className="flex flex-col gap-1 overflow-y-auto no-scrollbar flex-1">
-          <button onClick={() => handleTagChange('all')} className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all ${activeTag === 'all' ? 'bg-ink text-white shadow-md' : 'text-subtle hover:bg-stone-100 hover:text-ink'}`}>
+          <button onClick={() => handleTagChange('all')} className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all ${activeTag === 'all' ? 'bg-ink text-white shadow-md dark:bg-stone-100 dark:text-black' : 'text-subtle dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-ink dark:hover:text-stone-200'}`}>
             <div className="flex items-center gap-2"><LayoutGrid size={14} /><span className="text-sm font-semibold">全部展示</span></div>
             <span className="text-[10px] font-mono opacity-60">{data.cards.length}</span>
           </button>
           
-          <button onClick={() => handleTagChange('recommended')} className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all mt-1 ${activeTag === 'recommended' ? 'bg-amber-500 text-white shadow-md' : 'text-amber-600 hover:bg-amber-50'}`}>
+          <button onClick={() => handleTagChange('recommended')} className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all mt-1 ${activeTag === 'recommended' ? 'bg-amber-500 text-white shadow-md' : 'text-amber-600 dark:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20'}`}>
             <div className="flex items-center gap-2"><ThumbsUp size={14} /><span className="text-sm font-semibold">精选推荐</span></div>
             <span className="text-[10px] font-mono opacity-60">{data.cards.filter(c => c.isRecommended).length}</span>
           </button>
 
-          <button onClick={() => handleTagChange('watching')} className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all mt-1 ${activeTag === 'watching' ? 'bg-blue-500 text-white shadow-md' : 'text-blue-600 hover:bg-blue-50'}`}>
+          <button onClick={() => handleTagChange('watching')} className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all mt-1 ${activeTag === 'watching' ? 'bg-blue-500 text-white shadow-md' : 'text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20'}`}>
             <div className="flex items-center gap-2"><PlayCircle size={14} /><span className="text-sm font-semibold">正在观看</span></div>
             <span className="text-[10px] font-mono opacity-60">{data.cards.filter(c => c.isWatching).length}</span>
           </button>
 
-          <div className="h-px bg-stone-100 my-4 mx-4" />
+          <div className="h-px bg-stone-100 dark:bg-stone-800 my-4 mx-4" />
           {data.tags.map(tag => (
-            <button key={tag.id} onClick={() => handleTagChange(tag.id)} className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all ${activeTag === tag.id ? 'bg-ink text-white shadow-md' : 'text-subtle hover:bg-stone-100 hover:text-ink'}`}>
+            <button key={tag.id} onClick={() => handleTagChange(tag.id)} className={`flex items-center justify-between py-2.5 px-4 rounded-xl transition-all ${activeTag === tag.id ? 'bg-ink text-white shadow-md dark:bg-stone-100 dark:text-black' : 'text-subtle dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-ink dark:hover:text-stone-200'}`}>
               <span className="text-sm font-semibold">{tag.name}</span>
               <span className="text-[10px] font-mono opacity-60">{data.cards.filter(c => c.tagIds.includes(tag.id)).length}</span>
             </button>
           ))}
         </nav>
+
+        {/* Web端侧边栏底部的 Theme Toggle */}
+        <div className="mt-auto pt-4 border-t border-stone-100 dark:border-stone-800">
+           <button 
+             onClick={toggleTheme} 
+             className="w-10 h-10 flex items-center justify-center rounded-xl text-stone-400 hover:text-ink hover:bg-stone-100 dark:hover:bg-stone-800 dark:hover:text-stone-100 transition-colors"
+             title={`Theme: ${theme}`}
+           >
+             <ThemeIcon size={18} />
+           </button>
+        </div>
       </aside>
 
       {/* 主内容 */}
@@ -276,17 +295,17 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
         <div className="lg:hidden flex flex-col gap-4 mb-6">
           <div className="flex items-center gap-3" onClick={() => window.location.href = '/'}>
             <img src={data.settings.iconUrl} alt="Logo" className="w-8 h-8 rounded-lg shadow-sm object-cover" />
-            <h1 className="font-bold text-lg text-ink tracking-tight">{data.settings.title}</h1>
+            <h1 className="font-bold text-lg text-ink dark:text-stone-100 tracking-tight">{data.settings.title}</h1>
           </div>
           <div className="flex overflow-x-auto gap-2 no-scrollbar pb-2 mask-linear-fade">
-             <button onClick={() => handleTagChange('all')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'all' ? 'bg-ink text-white shadow-md' : 'bg-white border border-stone-200 text-subtle'}`} title="全部展示"><LayoutGrid size={18} /></button>
+             <button onClick={() => handleTagChange('all')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'all' ? 'bg-ink text-white shadow-md dark:bg-stone-100 dark:text-black' : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-subtle dark:text-stone-400'}`} title="全部展示"><LayoutGrid size={18} /></button>
              
-             <button onClick={() => handleTagChange('recommended')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'recommended' ? 'bg-amber-500 text-white shadow-md' : 'bg-white border border-stone-200 text-amber-600'}`} title="推荐"><ThumbsUp size={18} /></button>
+             <button onClick={() => handleTagChange('recommended')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'recommended' ? 'bg-amber-500 text-white shadow-md' : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-amber-600 dark:text-amber-500'}`} title="推荐"><ThumbsUp size={18} /></button>
              
-             <button onClick={() => handleTagChange('watching')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'watching' ? 'bg-blue-500 text-white shadow-md' : 'bg-white border border-stone-200 text-blue-600'}`} title="观看中"><PlayCircle size={18} /></button>
+             <button onClick={() => handleTagChange('watching')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'watching' ? 'bg-blue-500 text-white shadow-md' : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-blue-600 dark:text-blue-400'}`} title="观看中"><PlayCircle size={18} /></button>
 
              {data.tags.map(tag => (
-                <button key={tag.id} onClick={() => handleTagChange(tag.id)} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 ${activeTag === tag.id ? 'bg-ink text-white shadow-md' : 'bg-white border border-stone-200 text-subtle'}`}>{tag.name}</button>
+                <button key={tag.id} onClick={() => handleTagChange(tag.id)} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 ${activeTag === tag.id ? 'bg-ink text-white shadow-md dark:bg-stone-100 dark:text-black' : 'bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-subtle dark:text-stone-400'}`}>{tag.name}</button>
              ))}
           </div>
         </div>
@@ -295,31 +314,38 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
            <div className="flex gap-4 w-full sm:w-auto">
              <div className="relative w-full sm:w-80 group">
-               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-300 group-focus-within:text-ink transition-colors" size={16} />
-               <input type="text" placeholder="搜你想看..." value={searchTerm} onChange={handleSearchChange} className="w-full bg-white border border-stone-200 rounded-2xl py-3 pl-12 pr-10 text-sm font-bold focus:outline-none focus:border-ink focus:ring-8 focus:ring-stone-200/50 transition-all" />
-               {searchTerm && <button onClick={clearSearch} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-300 hover:text-ink"><X size={16} /></button>}
+               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-300 dark:text-stone-600 group-focus-within:text-ink dark:group-focus-within:text-stone-300 transition-colors" size={16} />
+               <input type="text" placeholder="搜你想看..." value={searchTerm} onChange={handleSearchChange} className="w-full bg-white dark:bg-[#18181b] border border-stone-200 dark:border-stone-800 rounded-2xl py-3 pl-12 pr-10 text-sm font-bold text-ink dark:text-stone-200 focus:outline-none focus:border-ink dark:focus:border-stone-500 focus:ring-8 focus:ring-stone-200/50 dark:focus:ring-stone-800/50 transition-all" />
+               {searchTerm && <button onClick={clearSearch} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-300 hover:text-ink dark:hover:text-stone-100"><X size={16} /></button>}
              </div>
              {isAdmin && (
-                <button onClick={() => setIsCreateModalOpen(true)} className="bg-white border border-stone-200 text-stone-400 hover:text-ink hover:border-ink rounded-2xl w-12 flex items-center justify-center transition-all shadow-sm active:scale-95" title="快速添加">
+                <button onClick={() => setIsCreateModalOpen(true)} className="bg-white dark:bg-[#18181b] border border-stone-200 dark:border-stone-800 text-stone-400 dark:text-stone-500 hover:text-ink dark:hover:text-stone-200 hover:border-ink dark:hover:border-stone-500 rounded-2xl w-12 flex items-center justify-center transition-all shadow-sm active:scale-95" title="快速添加">
                   <Plus size={20} />
                 </button>
              )}
            </div>
            
            <div className="flex items-center gap-2">
-             <div className="flex bg-stone-100 p-1.5 rounded-xl">
+             <div className="flex bg-stone-100 dark:bg-[#18181b] p-1.5 rounded-xl">
                {(['createdAt', 'rating', 'updatedAt'] as SortKey[]).map(key => (
-                 <button key={key} onClick={() => handleSortChange(key)} className={`px-4 py-2 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2 ${sortConfig.key === key ? 'bg-white text-ink shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}>
+                 <button key={key} onClick={() => handleSortChange(key)} className={`px-4 py-2 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2 ${sortConfig.key === key ? 'bg-white dark:bg-stone-800 text-ink dark:text-stone-200 shadow-sm' : 'text-stone-400 dark:text-stone-600 hover:text-stone-600 dark:hover:text-stone-400'}`}>
                    {key === 'createdAt' ? '创建' : key === 'rating' ? '评分' : '更新'}
                    {sortConfig.key === key && <ArrowUpDown size={10} className={sortConfig.order === 'asc' ? 'rotate-180 transition-transform' : ''} />}
                  </button>
                ))}
              </div>
+             {/* Mobile/Tablet Toggle Button (Right of Sort) */}
+             <button 
+                onClick={toggleTheme} 
+                className="lg:hidden p-3 bg-stone-100 dark:bg-[#18181b] rounded-xl text-stone-400 hover:text-ink dark:text-stone-500 dark:hover:text-stone-200 transition-colors"
+             >
+                <ThemeIcon size={18} />
+             </button>
            </div>
         </div>
 
         {filteredCards.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center py-32 opacity-20"><Grid size={64} className="mb-4 stroke-[1]" /><p className="font-bold uppercase tracking-widest">NO DATA</p></div>
+          <div className="flex-1 flex flex-col items-center justify-center py-32 opacity-20 text-ink dark:text-stone-400"><Grid size={64} className="mb-4 stroke-[1]" /><p className="font-bold uppercase tracking-widest">NO DATA</p></div>
         ) : (
           <div key={gridKey} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-8 auto-rows-min">
             {/* Hero Carousel */}
@@ -351,13 +377,12 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
             {/* Grid */}
             {filteredCards.slice(0, visibleCount).map((card) => (
               <Link key={card.id} to={`/card/${card.id}`} className="group cursor-pointer fill-mode-both">
-                  {/* 样式修改点：如果 isWatching 为真，添加蓝色虚线边框；推荐卡片使用双层边框（border-white + ring-amber） */}
                   <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full aspect-video ${
                     card.isWatching 
-                      ? 'border-2 border-dashed border-blue-400 bg-blue-50/10' // 观看中样式（优先级高）
+                      ? 'border-2 border-dashed border-blue-400 bg-blue-50/10 dark:bg-blue-900/10' // 观看中样式（优先级高）
                       : card.isRecommended 
-                        ? 'border-2 border-white ring-1 ring-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)]' 
-                        : 'bg-stone-200 shadow-sm'
+                        ? 'border-2 border-white dark:border-stone-700 ring-1 ring-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)]' 
+                        : 'bg-stone-200 dark:bg-[#1f1f1f] shadow-sm'
                   }`}>
                     <div className="w-full h-full rounded-2xl overflow-hidden relative isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
                       <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full transition-transform duration-1000 group-hover:scale-110" />
@@ -366,10 +391,10 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
                       {/* 推荐图标 */}
                       {card.isRecommended && (<div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10"><ThumbsUp size={16} /></div>)}
                       
-                      {/* 观看中角标 (如果既是推荐又是观看，则显示在推荐下方，或者根据设计调整。这里如果已经有边框了，也许不需要额外角标，但为了区分更明显，可以在右上角或标题前加指示) */}
+                      {/* 观看中角标 */}
                       {card.isWatching && !card.isRecommended && (<div className="absolute top-0 left-0 bg-blue-500 text-white p-2.5 rounded-br-2xl shadow-lg z-10"><PlayCircle size={16} /></div>)}
                       
-                      <div className="absolute top-3 right-3 flex gap-2"><div className="bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5"><Star size={12} className="text-amber-400 fill-amber-400" /><span className="text-xs font-black text-ink">{card.rating.toFixed(1)}</span></div></div>
+                      <div className="absolute top-3 right-3 flex gap-2"><div className="bg-white/95 dark:bg-black/80 backdrop-blur-md border border-white/20 dark:border-white/10 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5"><Star size={12} className="text-amber-400 fill-amber-400" /><span className="text-xs font-black text-ink dark:text-stone-200">{card.rating.toFixed(1)}</span></div></div>
                       <div className="absolute bottom-0 left-0 right-0 text-white drop-shadow-md flex flex-col justify-end p-4"><h3 className="text-lg font-black leading-tight line-clamp-2 origin-bottom-left transition-transform duration-300">{card.title}</h3><div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-500 ease-out"><div className="overflow-hidden"><p className="text-white/90 pt-2 line-clamp-2 font-medium text-[10px]">{card.description}</p></div></div></div>
                     </div>
                   </div>
@@ -382,7 +407,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
         {(hasMore || isLoadingMore) && (
           <div ref={loadRef} className="flex justify-center mt-16 pb-8 min-h-[50px]">
             {isLoadingMore && (
-              <div className="animate-pulse flex items-center gap-2 text-stone-300 text-xs font-bold uppercase tracking-widest">
+              <div className="animate-pulse flex items-center gap-2 text-stone-300 dark:text-stone-600 text-xs font-bold uppercase tracking-widest">
                  <Loader2 className="animate-spin" size={14} />
                  <span>Loading more</span>
               </div>
@@ -392,7 +417,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
         )}
 
         {!hasMore && filteredCards.length > 0 && (
-          <div className="text-center mt-16 pb-8 text-xs font-bold text-stone-300 uppercase tracking-widest">
+          <div className="text-center mt-16 pb-8 text-xs font-bold text-stone-300 dark:text-stone-700 uppercase tracking-widest">
             — End of Collection —
           </div>
         )}

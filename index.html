@@ -17,11 +17,20 @@
             if (link) link.href = settings.iconUrl;
           }
         }
+        // 立即恢复主题设置，防止闪烁
+        const theme = localStorage.getItem('tat_theme');
+        const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (theme === 'dark' || (!theme && systemDark) || (theme === 'system' && systemDark)) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
       } catch (e) { console.error('Failed to restore settings from cache', e); }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             colors: {
@@ -41,6 +50,11 @@
       body {
         background-color: #fcfcfc;
         color: #1a1a1a;
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+      html.dark body {
+        background-color: #0c0c0c;
+        color: #e5e5e5;
       }
       /* Custom scrollbar for webkit */
       ::-webkit-scrollbar {
@@ -54,8 +68,14 @@
         background: #e7e5e4;
         border-radius: 3px;
       }
+      html.dark ::-webkit-scrollbar-thumb {
+        background: #3f3f46;
+      }
       ::-webkit-scrollbar-thumb:hover {
         background: #a8a29e;
+      }
+      html.dark ::-webkit-scrollbar-thumb:hover {
+        background: #71717a;
       }
     </style>
   <script type="importmap">

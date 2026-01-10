@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { CardData, Tag } from '../types';
@@ -60,7 +61,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
                 type="checkbox" 
                 checked={!!card.isRecommended} 
                 onChange={e => setCard({...card, isRecommended: e.target.checked})} 
-                className="w-6 h-6 rounded border-stone-300 text-amber-500 focus:ring-amber-400 cursor-pointer" 
+                className="w-6 h-6 rounded border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-amber-500 focus:ring-amber-400 cursor-pointer" 
               />
             </div>
             <div className="flex flex-col items-center gap-2">
@@ -69,7 +70,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
                 type="checkbox" 
                 checked={!!card.isWatching} 
                 onChange={e => setCard({...card, isWatching: e.target.checked})} 
-                className="w-6 h-6 rounded border-stone-300 text-blue-500 focus:ring-blue-400 cursor-pointer" 
+                className="w-6 h-6 rounded border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-blue-500 focus:ring-blue-400 cursor-pointer" 
               />
             </div>
           </div>
@@ -89,17 +90,17 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
               min="0" 
               max="5" 
               step="0.5" 
-              className="flex-1 accent-ink h-2 bg-stone-100 rounded-lg appearance-none" 
+              className="flex-1 accent-ink dark:accent-white h-2 bg-stone-100 dark:bg-stone-800 rounded-lg appearance-none" 
               value={card.rating || 0} 
               onChange={e => setCard({...card, rating: parseFloat(e.target.value)})} 
             />
-            <span className="text-sm font-bold text-ink w-8">{card.rating}</span>
+            <span className="text-sm font-bold text-ink dark:text-stone-100 w-8">{card.rating}</span>
           </div>
         </div>
         
         <div className="grid grid-cols-2 gap-6">
           <Input 
-            label="开始日期" 
+            label="START DATE" 
             type="date" 
             max="9999-12-31" 
             value={card.startDate || ''} 
@@ -107,7 +108,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
             className="h-11" 
           />
           <Input 
-            label="结束日期" 
+            label="END DATE" 
             type="date" 
             max="9999-12-31" 
             value={card.endDate || ''} 
