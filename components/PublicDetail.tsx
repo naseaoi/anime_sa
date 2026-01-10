@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ThumbsUp, Calendar, Clock, RefreshCw, AlertCircle, Edit2, Loader2 } from 'lucide-react';
+import { ArrowLeft, ThumbsUp, Calendar, Clock, RefreshCw, AlertCircle, Edit2, Loader2, ChevronDown } from 'lucide-react';
 import { PublicData, CardData } from '../types';
-import { Button, ImagePreview, Rating, Modal, Input, MultiSelect, TextArea, useToast } from './Common';
+import { Button, ImagePreview, Rating, Modal, Input, TextArea, useToast } from './Common';
 import { webdav } from '../services/webdavService';
 
 interface PublicDetailProps {
@@ -216,19 +216,33 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
             <Input label="标题" value={editingCard.title || ''} onChange={e => setEditingCard({...editingCard, title: e.target.value})} className="h-11 text-base" />
             
             <div className="flex items-end gap-6">
-              <div className="flex-1"><MultiSelect label="分类" options={data.tags} value={editingCard.tagIds || []} onChange={ids => setEditingCard({...editingCard, tagIds: ids})} /></div>
+              <div className="flex-1 flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-subtle uppercase tracking-wider">分类</label>
+                  <div className="relative">
+                    <select
+                      value={editingCard.tagIds?.[0] || ''}
+                      onChange={e => setEditingCard({...editingCard, tagIds: e.target.value ? [e.target.value] : []})}
+                      className="w-full px-3 py-2 bg-white border border-border rounded-lg text-ink appearance-none focus:outline-none focus:border-ink focus:ring-4 focus:ring-stone-100 transition-all"
+                    >
+                      <option value="" disabled>选择分类...</option>
+                      {data.tags.map(tag => (
+                        <option key={tag.id} value={tag.id}>{tag.name}</option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-stone-400">
+                      <ChevronDown size={16} />
+                    </div>
+                  </div>
+              </div>
               <div className="flex flex-col items-center gap-2 pb-1">
                 <label className="text-xs font-bold text-stone-400 uppercase">推荐</label>
                 <input type="checkbox" checked={!!editingCard.isRecommended} onChange={e => setEditingCard({...editingCard, isRecommended: e.target.checked})} className="w-6 h-6 rounded border-stone-300 text-amber-500 focus:ring-amber-400" />
               </div>
             </div>
 
-            <div className="flex gap-6">
-               <div className="w-28 h-28 bg-stone-50 rounded-2xl overflow-hidden border border-stone-100 flex-shrink-0"><ImagePreview src={editingCard.coverUrl || ''} alt="Preview" className="h-full w-full" /></div>
-               <div className="flex-1 space-y-5">
-                 <Input label="封面链接 (URL)" value={editingCard.coverUrl || ''} onChange={e => setEditingCard({...editingCard, coverUrl: e.target.value})} className="h-11" />
-                 <div className="flex items-center justify-between gap-4"><label className="text-xs font-bold text-stone-400 uppercase">评分</label><input type="range" min="0" max="5" step="0.5" className="flex-1 accent-ink h-2 bg-stone-100 rounded-lg appearance-none" value={editingCard.rating || 0} onChange={e => setEditingCard({...editingCard, rating: parseFloat(e.target.value)})} /><span className="text-sm font-bold text-ink w-8">{editingCard.rating}</span></div>
-               </div>
+            <div className="space-y-5">
+              <Input label="封面链接 (URL)" value={editingCard.coverUrl || ''} onChange={e => setEditingCard({...editingCard, coverUrl: e.target.value})} className="h-11" />
+              <div className="flex items-center justify-between gap-4"><label className="text-xs font-bold text-stone-400 uppercase">评分</label><input type="range" min="0" max="5" step="0.5" className="flex-1 accent-ink h-2 bg-stone-100 rounded-lg appearance-none" value={editingCard.rating || 0} onChange={e => setEditingCard({...editingCard, rating: parseFloat(e.target.value)})} /><span className="text-sm font-bold text-ink w-8">{editingCard.rating}</span></div>
             </div>
             
             <div className="grid grid-cols-2 gap-6">

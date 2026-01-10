@@ -407,7 +407,7 @@ const PublicHome: React.FC<{ data: PublicData }> = ({ data }) => {
                 to={`/card/${card.id}`}
                 key={card.id} 
                 className="group cursor-pointer animate-fade-up fill-mode-both opacity-0"
-                style={{ animationDelay: `${(idx % 10) * 50}ms` }}
+                style={{ animationDelay: `${idx * 50}ms` }}
               >
                 <div className={`relative rounded-2xl transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-2 h-full w-full aspect-video ${card.isRecommended ? 'shadow-[0_0_15px_rgba(251,191,36,0.6)] ring-1 ring-amber-400' : 'bg-stone-200 shadow-sm'}`}>
                   
