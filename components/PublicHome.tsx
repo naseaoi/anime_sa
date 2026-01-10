@@ -277,11 +277,11 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
             <h1 className="font-bold text-lg text-ink tracking-tight">{data.settings.title}</h1>
           </div>
           <div className="flex overflow-x-auto gap-2 no-scrollbar pb-2 mask-linear-fade">
-             <button onClick={() => handleTagChange('all')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'all' ? 'bg-ink text-white shadow-md' : 'bg-white border border-stone-200 text-subtle'}`}><LayoutGrid size={12} /> 全部</button>
+             <button onClick={() => handleTagChange('all')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'all' ? 'bg-ink text-white shadow-md' : 'bg-white border border-stone-200 text-subtle'}`} title="全部展示"><LayoutGrid size={18} /></button>
              
-             <button onClick={() => handleTagChange('recommended')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'recommended' ? 'bg-amber-500 text-white shadow-md' : 'bg-white border border-stone-200 text-amber-600'}`}><ThumbsUp size={12} /> 推荐</button>
+             <button onClick={() => handleTagChange('recommended')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'recommended' ? 'bg-amber-500 text-white shadow-md' : 'bg-white border border-stone-200 text-amber-600'}`} title="推荐"><ThumbsUp size={18} /></button>
              
-             <button onClick={() => handleTagChange('watching')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'watching' ? 'bg-blue-500 text-white shadow-md' : 'bg-white border border-stone-200 text-blue-600'}`}><PlayCircle size={12} /> 观看中</button>
+             <button onClick={() => handleTagChange('watching')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 flex items-center gap-2 ${activeTag === 'watching' ? 'bg-blue-500 text-white shadow-md' : 'bg-white border border-stone-200 text-blue-600'}`} title="观看中"><PlayCircle size={18} /></button>
 
              {data.tags.map(tag => (
                 <button key={tag.id} onClick={() => handleTagChange(tag.id)} className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-bold transition-all flex-shrink-0 ${activeTag === tag.id ? 'bg-ink text-white shadow-md' : 'bg-white border border-stone-200 text-subtle'}`}>{tag.name}</button>

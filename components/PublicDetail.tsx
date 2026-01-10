@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ThumbsUp, Calendar, Clock, RefreshCw, AlertCircle, Edit2, Loader2, ChevronDown } from 'lucide-react';
+import { ArrowLeft, ThumbsUp, Calendar, Clock, RefreshCw, AlertCircle, Edit2, PlayCircle } from 'lucide-react';
 import { PublicData, CardData } from '../types';
-import { Button, ImagePreview, Rating, Modal, Input, TextArea, useToast, Select } from './Common';
+import { Button, ImagePreview, Rating, useToast } from './Common';
+import { CardEditModal } from './CardEditModal';
 import { webdav } from '../services/webdavService';
 
 interface PublicDetailProps {
@@ -16,8 +17,6 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
   const card = data.cards.find(c => c.id === id);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [editingCard, setEditingCard] = useState<Partial<CardData>>({});
-  const [saving, setSaving] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -32,8 +31,6 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
   }, [card, data.settings.title]);
 
   const handleBack = () => {
-    // 如果历史记录长度大于1，说明有上一页，可以使用 -1
-    // 否则（例如新标签页打开），直接跳转回首页
     if (window.history.length > 1) {
       navigate(-1);
     } else {
@@ -41,22 +38,15 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
     }
   };
 
-  const handleEditClick = () => {
-    if (card) {
-      setEditingCard({ ...card });
-      setIsEditing(true);
-    }
-  };
-
-  const handleSave = async () => {
-    if (!editingCard.id) return;
-    setSaving(true);
+  const handleSave = async (updatedCard: Partial<CardData>) => {
+    if (!card) return;
     
     const newCards = [...data.cards];
-    const idx = newCards.findIndex(c => c.id === editingCard.id);
+    const idx = newCards.findIndex(c => c.id === card.id);
     if (idx !== -1) {
       newCards[idx] = { 
-        ...editingCard, 
+        ...updatedCard, 
+        id: card.id, // 确保ID不被覆盖
         updatedAt: Date.now() 
       } as CardData;
     }
@@ -71,7 +61,6 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
     } else {
       showToast(`保存失败: ${result.error}`, 'error');
     }
-    setSaving(false);
   };
 
   if (!card) return <div className="h-screen flex flex-col items-center justify-center gap-4 text-subtle">
@@ -82,7 +71,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
 
   return (
     <div className="min-h-screen bg-white font-sans selection:bg-ink selection:text-white">
-      {/* 顶部导航 (修改：内部增加 max-w-7xl 容器，对齐主体内容) */}
+      {/* 顶部导航 */}
       <header className="fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-xl border-b border-stone-100 z-50">
         <div className="max-w-7xl mx-auto h-full px-6 lg:px-12 flex items-center justify-between">
           <button onClick={handleBack} className="flex items-center gap-2 text-ink hover:gap-3 transition-all font-bold text-sm">
@@ -96,18 +85,19 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
         </div>
       </header>
 
-      <main className="pt-16 pb-24">
-        <div className="max-w-7xl mx-auto px-6 lg:px-12 mt-12">
+      <main className="pt-16 pb-12 lg:pb-24">
+        {/* 间距调整：移动端 mt-6，桌面端 mt-12 */}
+        <div className="max-w-7xl mx-auto px-6 lg:px-12 mt-6 lg:mt-12">
           {/* 上半部分：图片 + 核心信息 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-12">
+          {/* 间距调整：移动端 gap-6 mb-8，桌面端 gap-12 mb-12 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12 mb-8 lg:mb-12">
             
-            {/* 封面列：移动端在下(order-last)，桌面端在左(order-first) */}
+            {/* 封面列 */}
             <div className="space-y-6 order-last lg:order-first">
-               {/* 阴影修改：未推荐时使用 shadow-md (垂直约4px)，替代 shadow-2xl */}
-               <div className={`aspect-video rounded-3xl overflow-hidden transition-all duration-300 relative ${card.isRecommended ? 'border-2 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)]' : 'border border-stone-100 shadow-md'}`}>
+               <div className={`aspect-video rounded-3xl overflow-hidden transition-all duration-300 relative ${card.isWatching ? 'border-2 border-dashed border-blue-400' : card.isRecommended ? 'border-2 border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)]' : 'border border-stone-100 shadow-md'}`}>
                  <ImagePreview src={card.coverUrl} alt={card.title} className="w-full h-full" />
                  
-                 {/* 桌面端点赞图标 (保留在左上角，保留动画) */}
+                 {/* 桌面端状态图标 */}
                  {card.isRecommended && (
                    <div className="hidden lg:block absolute top-6 left-6 z-10 animate-in zoom-in duration-500">
                       <style>{`
@@ -128,10 +118,15 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                       />
                    </div>
                  )}
+                 {card.isWatching && !card.isRecommended && (
+                    <div className="hidden lg:block absolute top-6 left-6 z-10 animate-in zoom-in duration-500">
+                       <PlayCircle size={48} className="text-blue-500 fill-white/50 drop-shadow-md" />
+                    </div>
+                 )}
                  
                  {isAdmin && (
                    <button 
-                    onClick={handleEditClick}
+                    onClick={() => setIsEditing(true)}
                     className="absolute top-6 right-6 bg-white/90 hover:bg-white text-ink p-3 rounded-2xl shadow-xl backdrop-blur transition-all hover:scale-110 z-20 group"
                    >
                      <Edit2 size={20} className="group-hover:text-blue-600 transition-colors" />
@@ -140,10 +135,11 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                </div>
             </div>
 
-            {/* 信息列：移动端在上(order-first)，桌面端在右(order-last) */}
-            <div className="flex flex-col justify-center space-y-8 order-first lg:order-last">
+            {/* 信息列 */}
+            {/* 间距调整：移动端 space-y-4，桌面端 space-y-8 */}
+            <div className="flex flex-col justify-center space-y-4 lg:space-y-8 order-first lg:order-last">
               <div className="space-y-2">
-                 <div className="flex flex-wrap gap-2 mb-4">
+                 <div className="flex flex-wrap gap-2 mb-2 lg:mb-4">
                     {card.tagIds.map(tid => (
                       <span key={tid} className="px-3 py-1 bg-stone-100 text-stone-500 text-[10px] font-bold rounded-lg uppercase tracking-wider">
                         {data.tags.find(t => t.id === tid)?.name}
@@ -152,22 +148,25 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                  </div>
                  
                  <div className="flex items-start gap-3">
-                    {/* 移动端点赞图标 (标题前方，无动画) */}
+                    {/* 移动端状态图标 */}
                     {card.isRecommended && (
                        <ThumbsUp 
-                         size={32} 
+                         size={28} 
                          className="lg:hidden text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)] fill-amber-400 shrink-0 mt-1.5" 
                          strokeWidth={3}
                          stroke="white"
                          style={{ transform: 'rotate(-10deg)' }}
                        />
                     )}
-                    <h1 className="text-4xl lg:text-5xl font-black text-ink leading-tight tracking-tight">{card.title}</h1>
+                    {card.isWatching && !card.isRecommended && (
+                       <PlayCircle size={28} className="lg:hidden text-blue-500 fill-blue-100 shrink-0 mt-1.5" />
+                    )}
+                    <h1 className="text-3xl lg:text-5xl font-black text-ink leading-tight tracking-tight">{card.title}</h1>
                  </div>
               </div>
 
-              {/* 评分与时间 (垂直排列) */}
-              <div className="flex flex-col gap-6 items-start">
+              {/* 评分与时间 */}
+              <div className="flex flex-col gap-4 lg:gap-6 items-start">
                  <div className="space-y-1">
                     <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest block">个人评分</span>
                     <div className="flex items-center gap-3">
@@ -190,12 +189,12 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
           {/* 下半部分：详细描述 */}
           <div className="bg-stone-50 p-6 rounded-3xl border border-stone-100/50">
              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest block mb-4">感想</span>
-             <div className="text-lg text-ink leading-relaxed whitespace-pre-wrap font-medium">
+             <div className="text-base lg:text-lg text-ink leading-relaxed whitespace-pre-wrap font-medium">
                {card.description || <span className="text-stone-300 italic">暂无详细描述信息。</span>}
              </div>
           </div>
 
-          {/* 底部元数据 (减少间距 mt-6) */}
+          {/* 底部元数据 */}
           <div className="mt-6 pt-0 flex flex-wrap gap-8 items-center text-[10px] font-bold text-stone-300 uppercase tracking-[0.2em]">
              <div className="flex items-center gap-2">
                 <Clock size={12} />
@@ -210,43 +209,15 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
           </div>
         </div>
 
-        {/* 编辑模态框 (仅管理员) */}
-        <Modal isOpen={isEditing} onClose={() => setIsEditing(false)} title="快速编辑记录">
-          <div className="space-y-8">
-            <Input label="标题" value={editingCard.title || ''} onChange={e => setEditingCard({...editingCard, title: e.target.value})} className="h-11 text-base" />
-            
-            <div className="flex items-end gap-6">
-              <div className="flex-1">
-                 <Select 
-                   label="分类"
-                   options={data.tags} 
-                   value={editingCard.tagIds?.[0] || ''}
-                   onChange={val => setEditingCard({...editingCard, tagIds: val ? [val] : []})}
-                   placeholder="选择分类..."
-                 />
-              </div>
-              <div className="flex flex-col items-center gap-2 pb-1">
-                <label className="text-xs font-bold text-stone-400 uppercase">推荐</label>
-                <input type="checkbox" checked={!!editingCard.isRecommended} onChange={e => setEditingCard({...editingCard, isRecommended: e.target.checked})} className="w-6 h-6 rounded border-stone-300 text-amber-500 focus:ring-amber-400" />
-              </div>
-            </div>
-
-            <div className="space-y-5">
-              <Input label="封面链接 (URL)" value={editingCard.coverUrl || ''} onChange={e => setEditingCard({...editingCard, coverUrl: e.target.value})} className="h-11" />
-              <div className="flex items-center justify-between gap-4"><label className="text-xs font-bold text-stone-400 uppercase">评分</label><input type="range" min="0" max="5" step="0.5" className="flex-1 accent-ink h-2 bg-stone-100 rounded-lg appearance-none" value={editingCard.rating || 0} onChange={e => setEditingCard({...editingCard, rating: parseFloat(e.target.value)})} /><span className="text-sm font-bold text-ink w-8">{editingCard.rating}</span></div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-6">
-              <Input label="开始日期" type="date" max="9999-12-31" value={editingCard.startDate || ''} onChange={e => { const val = e.target.value; if (val.split('-')[0].length <= 4) setEditingCard({...editingCard, startDate: val}); }} className="h-11" />
-              <Input label="结束日期" type="date" max="9999-12-31" value={editingCard.endDate || ''} onChange={e => { const val = e.target.value; if (val.split('-')[0].length <= 4) setEditingCard({...editingCard, endDate: val}); }} className="h-11" />
-            </div>
-
-            <TextArea label="详细描述" value={editingCard.description || ''} onChange={e => setEditingCard({...editingCard, description: e.target.value})} className="min-h-[120px] text-base" />
-            <Button onClick={handleSave} className="w-full h-14 rounded-2xl text-base" disabled={saving}>
-              {saving ? <Loader2 className="animate-spin" /> : '保存修改'}
-            </Button>
-          </div>
-        </Modal>
+        {/* 使用通用的编辑模态框 */}
+        <CardEditModal 
+          isOpen={isEditing}
+          onClose={() => setIsEditing(false)}
+          title="编辑记录"
+          initialCard={card}
+          tags={data.tags}
+          onSave={handleSave}
+        />
       </main>
     </div>
   );
