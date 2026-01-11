@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { LayoutGrid, Search, X, ChevronLeft, ChevronRight, ThumbsUp, ArrowUpDown, Star, Grid, Loader2, Plus, PlayCircle, Moon, Sun, Monitor } from 'lucide-react';
+import { LayoutGrid, Search, X, ChevronLeft, ChevronRight, ThumbsUp, ArrowUpDown, Star, Grid, Loader2, Plus, PlayCircle, Moon, Sun, Monitor, ArrowUp } from 'lucide-react';
 import { PublicData, CardData } from '../types';
 import { ImagePreview, useToast, useTheme } from './Common';
 import { CardEditModal } from './CardEditModal';
@@ -49,6 +49,9 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   // 状态：加载中 (用于显示底部 Spinner)
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
+  // 状态：回到顶部按钮显示
+  const [showBackToTop, setShowBackToTop] = useState(false);
+
   // 创建卡片相关状态
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const { showToast } = useToast();
@@ -61,6 +64,15 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   useEffect(() => {
     sessionStorage.setItem('tat_sort_config', JSON.stringify(sortConfig));
   }, [sortConfig]);
+
+  // 监听滚动显示回到顶部按钮
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowBackToTop(window.scrollY > 300);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
   
   // 状态：标签 (默认为 all)
   const activeTag = searchParams.get('tag') || 'all';
@@ -70,6 +82,10 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     setVisibleCount(INITIAL_LOAD_COUNT);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setIsLoadingMore(false);
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // --- Hero 轮播逻辑 ---
@@ -315,7 +331,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
            <div className="flex gap-4 w-full sm:w-auto">
              <div className="relative w-full sm:w-80 group">
                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-300 dark:text-zinc-600 group-focus-within:text-ink dark:group-focus-within:text-zinc-300 transition-colors" size={16} />
-               <input type="text" placeholder="搜你想看..." value={searchTerm} onChange={handleSearchChange} className="w-full bg-white dark:bg-[#18181b] border border-stone-200 dark:border-zinc-800 rounded-2xl py-3 pl-12 pr-10 text-sm font-bold text-ink dark:text-zinc-200 focus:outline-none focus:border-ink dark:focus:border-zinc-500 focus:ring-8 focus:ring-stone-200/50 dark:focus:ring-zinc-800/50 transition-all" />
+               <input type="text" placeholder="搜索" value={searchTerm} onChange={handleSearchChange} className="w-full bg-white dark:bg-[#18181b] border border-stone-200 dark:border-zinc-800 rounded-2xl py-3 pl-12 pr-10 text-sm font-bold text-ink dark:text-zinc-200 focus:outline-none focus:border-ink dark:focus:border-zinc-500 focus:ring-8 focus:ring-stone-200/50 dark:focus:ring-zinc-800/50 transition-all" />
                {searchTerm && <button onClick={clearSearch} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-300 hover:text-ink dark:hover:text-zinc-100"><X size={16} /></button>}
              </div>
              {isAdmin && (
@@ -359,7 +375,11 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
                           <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
                           <div className="absolute top-0 left-0 bg-amber-400 text-white p-2.5 rounded-br-2xl shadow-lg z-10"><ThumbsUp size={24} /></div>
                           <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5"><Star size={12} className="text-amber-400 fill-amber-400" /><span className="text-xs font-black text-ink">{card.rating.toFixed(1)}</span></div>
-                          <div className="absolute bottom-0 left-0 right-0 p-6 text-white drop-shadow-md z-20"><h3 className="text-2xl sm:text-3xl font-black leading-tight line-clamp-2 mb-2">{card.title}</h3><p className="text-white/90 text-sm line-clamp-2 font-medium">{card.description}</p></div>
+                          <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 text-white drop-shadow-md z-20">
+                            {/* Mobile Optimization: Smaller text, limited lines */}
+                            <h3 className="text-lg sm:text-3xl font-black leading-tight line-clamp-2 mb-1 sm:mb-2">{card.title}</h3>
+                            <p className="text-white/90 text-xs sm:text-sm line-clamp-1 sm:line-clamp-2 font-medium">{card.description}</p>
+                          </div>
                         </Link>
                       ))}
                     </div>
@@ -394,7 +414,18 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
                       <div className="absolute bottom-0 left-0 right-0 h-1/4 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
                       
                       <div className="absolute top-3 right-3 flex gap-2"><div className="bg-white/95 dark:bg-black/80 backdrop-blur-md border border-white/20 dark:border-white/10 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5"><Star size={12} className="text-amber-400 fill-amber-400" /><span className="text-xs font-black text-ink dark:text-zinc-200">{card.rating.toFixed(1)}</span></div></div>
-                      <div className="absolute bottom-0 left-0 right-0 text-white drop-shadow-md flex flex-col justify-end p-4"><h3 className="text-lg font-black leading-tight line-clamp-2 origin-bottom-left transition-transform duration-300">{card.title}</h3><div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-500 ease-out"><div className="overflow-hidden"><p className="text-white/90 pt-2 line-clamp-2 font-medium text-[10px]">{card.description}</p></div></div></div>
+                      <div className="absolute bottom-0 left-0 right-0 text-white drop-shadow-md flex flex-col justify-end p-4">
+                        <h3 className="text-lg font-black leading-tight line-clamp-2 origin-bottom-left transition-transform duration-300">{card.title}</h3>
+                        {/* 
+                           Change: grid-rows-1 by default (Mobile), lg:grid-rows-0 (Desktop default), lg:group-hover:grid-rows-1 (Desktop hover)
+                           This prioritizes showing the description on mobile.
+                        */}
+                        <div className="grid grid-rows-[1fr] lg:grid-rows-[0fr] lg:group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-500 ease-out">
+                          <div className="overflow-hidden">
+                            <p className="text-white/90 pt-2 line-clamp-2 font-medium text-[10px]">{card.description}</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
                     {/* 推荐图标 (Moved Outside) */}
@@ -435,12 +466,21 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
             — End of Collection —
           </div>
         )}
+
+        {/* 回到顶部按钮 */}
+        <button 
+          onClick={scrollToTop}
+          className={`fixed bottom-6 right-6 z-50 p-3 bg-white dark:bg-zinc-800 text-ink dark:text-zinc-200 rounded-full shadow-lg border border-stone-100 dark:border-zinc-700 transition-all duration-300 transform ${showBackToTop ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}
+        >
+          <ArrowUp size={20} />
+        </button>
+
       </main>
 
       <CardEditModal 
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        title="快速添加记录"
+        title="快速记录"
         initialCard={{ tagIds: [], rating: 0, description: '', startDate: '', endDate: '', isRecommended: false, isWatching: false }}
         tags={data.tags}
         onSave={handleCreateSave}
