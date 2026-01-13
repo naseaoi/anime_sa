@@ -1,5 +1,6 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { Buffer } from 'buffer';
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   const { VITE_WEBDAV_URL, VITE_WEBDAV_USERNAME, VITE_WEBDAV_PASSWORD, VITE_WEBDAV_PATH } = process.env;

@@ -174,7 +174,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                     <span className="text-[10px] font-bold text-stone-400 dark:text-zinc-500 uppercase tracking-widest block">个人评分</span>
                     <div className="flex items-center gap-3">
                       <Rating value={card.rating} />
-                      <span className="text-xl font-black text-amber-500">{card.rating}</span>
+                      <span className="text-xl font-black text-amber-500">{(card.rating || 0).toFixed(1)}</span>
                     </div>
                  </div>
                  

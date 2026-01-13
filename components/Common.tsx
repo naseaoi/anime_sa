@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, X, Check, ChevronDown, AlertTriangle, Info, Star, StarHalf, Menu, Camera, Moon, Sun, Monitor } from 'lucide-react';
+import { Loader2, X, Check, ChevronDown, AlertTriangle, Info, Star, Menu, Camera, Moon, Sun, Monitor } from 'lucide-react';
 
 // --- Theme System ---
 
@@ -416,16 +416,34 @@ export const PageLoader: React.FC = () => (
   </div>
 );
 
-export const Rating: React.FC<{ value: number }> = ({ value }) => (
-  <div className="flex gap-0.5">
-    {[1, 2, 3, 4, 5].map((star) => {
-       const filled = value >= star;
-       const half = value >= star - 0.5 && value < star;
-       return (
-         <span key={star} className={`text-xs ${filled || half ? 'text-amber-400' : 'text-stone-200 dark:text-zinc-700'}`}>
-           {filled ? <Star size={12} fill="currentColor" /> : half ? <StarHalf size={12} fill="currentColor" /> : <Star size={12} fill="none" stroke="currentColor" />}
-         </span>
-       );
-    })}
-  </div>
-);
+export const Rating: React.FC<{ value: number }> = ({ value }) => {
+  return (
+    <div className="flex gap-0.5" title={value.toFixed(1)}>
+      {[1, 2, 3, 4, 5].map((star) => {
+        // 计算当前星星的填充比例 (0% - 100%)
+        let percent = 0;
+        if (value >= star) {
+          percent = 100;
+        } else if (value > star - 1) {
+          percent = (value - (star - 1)) * 100;
+        }
+
+        return (
+          <div key={star} className="relative w-[12px] h-[12px]">
+             {/* Background: Empty Star */}
+             <div className="absolute inset-0 text-stone-200 dark:text-zinc-700">
+               <Star size={12} fill="none" stroke="currentColor" />
+             </div>
+             {/* Foreground: Filled Star (clipped) */}
+             <div 
+               className="absolute inset-y-0 left-0 overflow-hidden text-amber-400" 
+               style={{ width: `${percent}%` }}
+             >
+               <Star size={12} fill="currentColor" stroke="none" />
+             </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};

@@ -89,12 +89,14 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
               type="range" 
               min="0" 
               max="5" 
-              step="0.5" 
+              step="0.1" 
               className="flex-1 accent-ink dark:accent-white h-2 bg-stone-100 dark:bg-zinc-800 rounded-lg appearance-none" 
               value={card.rating || 0} 
-              onChange={e => setCard({...card, rating: parseFloat(e.target.value)})} 
+              onChange={e => setCard({...card, rating: parseFloat(parseFloat(e.target.value).toFixed(1))})} 
             />
-            <span className="text-sm font-bold text-ink dark:text-zinc-100 w-8">{card.rating}</span>
+            <span className="text-sm font-bold text-ink dark:text-zinc-100 w-8 text-right">
+              {(card.rating || 0).toFixed(1)}
+            </span>
           </div>
         </div>
         
