@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ThumbsUp, Calendar, Clock, RefreshCw, AlertCircle, Edit2, PlayCircle } from 'lucide-react';
+import { ArrowLeft, ThumbsUp, Calendar, AlertCircle, Edit2, PlayCircle } from 'lucide-react';
 import { PublicData, CardData } from '../types';
 import { Button, ImagePreview, Rating, useToast } from './Common';
 import { CardEditModal } from './CardEditModal';
@@ -195,20 +195,6 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
              <div className="text-base lg:text-lg text-ink dark:text-zinc-300 leading-relaxed whitespace-pre-wrap font-medium">
                {card.description || <span className="text-stone-300 dark:text-zinc-600 italic">暂无详细描述信息。</span>}
              </div>
-          </div>
-
-          {/* 底部元数据 */}
-          <div className="mt-6 pt-0 flex flex-wrap gap-8 items-center text-[10px] font-bold text-stone-300 dark:text-zinc-600 uppercase tracking-[0.2em]">
-             <div className="flex items-center gap-2">
-                <Clock size={12} />
-                <span>创建于 {new Date(card.createdAt).toLocaleDateString()}</span>
-             </div>
-             {card.updatedAt !== card.createdAt && (
-               <div className="flex items-center gap-2">
-                  <RefreshCw size={12} />
-                  <span>最后更新 {new Date(card.updatedAt).toLocaleDateString()}</span>
-               </div>
-             )}
           </div>
         </div>
 
