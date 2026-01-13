@@ -4,23 +4,39 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   const { VITE_WEBDAV_URL, VITE_WEBDAV_USERNAME, VITE_WEBDAV_PASSWORD, VITE_WEBDAV_PATH } = process.env;
 
-  response.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  response.setHeader('Pragma', 'no-cache');
-  response.setHeader('Expires', '0');
-
   if (!VITE_WEBDAV_URL || !VITE_WEBDAV_USERNAME || !VITE_WEBDAV_PASSWORD) {
     return response.status(500).json({ error: 'Missing WebDAV configuration' });
   }
 
   const { filename } = request.query;
+  const safeFilename = Array.isArray(filename) ? filename[0] : (filename || '');
   
+  // 智能缓存策略
+  // Smart Caching Strategy
+  const ext = safeFilename.split('.').pop()?.toLowerCase();
+  const isMedia = ext && ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico', 'avif', 'mp4', 'webm', 'mov'].includes(ext);
+
+  if (isMedia) {
+    // Media files: Cache for 30 days (2592000 seconds)
+    // public: Allows CDNs (like Vercel Edge) to cache
+    // immutable: Indicates the content won't change
+    response.setHeader('Cache-Control', 'public, max-age=2592000, s-maxage=2592000, immutable');
+    // Remove headers that might prevent caching
+    response.removeHeader('Pragma');
+    response.removeHeader('Expires');
+  } else {
+    // JSON/Data files: No cache strictly
+    response.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    response.setHeader('Pragma', 'no-cache');
+    response.setHeader('Expires', '0');
+  }
+
   // Support Method Tunneling via header
   const tunneledMethod = request.headers['x-dav-method'];
   const method = (Array.isArray(tunneledMethod) ? tunneledMethod[0] : tunneledMethod) || request.method;
 
   const cleanBaseUrl = VITE_WEBDAV_URL.replace(/\/+$/, '');
   const cleanPath = (VITE_WEBDAV_PATH || 'my-collection').replace(/^\/+|\/+$/g, '');
-  const safeFilename = Array.isArray(filename) ? filename[0] : (filename || '');
   
   let targetUrl = `${cleanBaseUrl}/${cleanPath}`;
   if (safeFilename) {
@@ -62,18 +78,20 @@ export default async function handler(request: VercelRequest, response: VercelRe
     const davResponse = await fetch(targetUrl, fetchOptions);
     response.status(davResponse.status);
     
+    // Pass specific content-type from WebDAV if available, helpful for browsers to render images correctly
+    const contentType = davResponse.headers.get('content-type');
+    if (contentType) {
+      response.setHeader('Content-Type', contentType);
+    }
+
     if (davResponse.status === 204) return response.end();
 
-    const text = await davResponse.text();
-    if (!davResponse.ok) return response.send(text);
+    const buffer = await davResponse.arrayBuffer();
+    return response.send(Buffer.from(buffer));
 
-    try {
-        const json = JSON.parse(text);
-        return response.json(json);
-    } catch {
-        return response.send(text);
-    }
   } catch (error: any) {
+    // If it's a media request error, we still want to return a proper error, 
+    // but typically fetch errors for static assets show as broken images.
     return response.status(500).json({ error: 'Proxy Error', message: error.message });
   }
 }
