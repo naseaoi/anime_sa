@@ -1,4 +1,4 @@
-# NicheCard - 精致卡片收藏站
+# anime_sa
 
 一个极简风格、卡片式布局的收藏展示网站，支持 WebDAV 和 SQLite 双重存储模式，专为个人收藏记录设计。
 
@@ -29,8 +29,8 @@
 
 2. **获取代码**
    ```bash
-   git clone https://github.com/your-repo/niche-card.git
-   cd niche-card
+   git clone https://github.com/your-repo/anime_sa.git
+   cd anime_sa
    ```
 
 3. **安装与构建**
@@ -47,7 +47,7 @@
    # 指定端口
    PORT=8080 npm start
    ```
-   *建议使用 `pm2` 等工具进行进程守护：* `pm2 start server.js --name niche-card`
+   *建议使用 `pm2` 等工具进行进程守护：* `pm2 start server.js --name anime_sa`
 
 5. **配置 WebDAV (可选)**
    如果你希望在 VPS 上使用 WebDAV 存储（而不是默认的 SQLite），请创建一个 `.env` 文件（或设置环境变量）：
