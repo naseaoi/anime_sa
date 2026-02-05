@@ -4,6 +4,21 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
 
+// Load .env manually
+const envPath = path.join(process.cwd(), '.env');
+if (fs.existsSync(envPath)) {
+  const envConfig = fs.readFileSync(envPath, 'utf-8');
+  envConfig.split('\n').forEach(line => {
+    const [key, ...values] = line.split('=');
+    if (key && values.length > 0) {
+      const val = values.join('=').trim().replace(/^['"](.*)['"]$/, '$1'); // Remove quotes
+      if (!process.env[key.trim()]) {
+        process.env[key.trim()] = val;
+      }
+    }
+  });
+}
+
 // Configuration
 const PORT = process.env.PORT || 3000;
 const DIST_DIR = path.join(process.cwd(), 'dist');
