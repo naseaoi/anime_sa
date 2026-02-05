@@ -44,9 +44,10 @@
    # 基础启动 (默认端口 3000)
    npm start
 
-   # 指定端口
-   PORT=8080 npm start
+   # 指定端口 (强制 IPv4 监听)
+   PORT=20003 npm start
    ```
+   *注意：如果遇到 404 或无法访问，请确保在 `server.js` 中监听 `0.0.0.0` (已默认配置)，并检查 VPS 防火墙规则。*
    *建议使用 `pm2` 等工具进行进程守护：* `pm2 start server.js --name anime_sa`
 
 5. **配置 WebDAV (可选)**
