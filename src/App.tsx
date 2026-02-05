@@ -1,7 +1,8 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { webdav, DEFAULT_PUBLIC_DATA } from './services/webdavService';
+import { DEFAULT_PUBLIC_DATA } from './services/webdavService';
+import { getStorage } from './services/storageFactory';
 import { PublicData } from './types';
 import { PageLoader, ToastProvider, ThemeProvider } from './components/Common';
 import { PublicDetail } from './components/PublicDetail';
@@ -34,7 +35,8 @@ const MainRouter: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const result = await webdav.getPublicData();
+    const storage = getStorage();
+    const result = await storage.getPublicData();
     setData(result);
     // 缓存最新设置到本地
     localStorage.setItem('tat_site_settings', JSON.stringify(result.settings));

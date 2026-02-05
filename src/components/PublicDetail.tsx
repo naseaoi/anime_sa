@@ -5,7 +5,7 @@ import { ArrowLeft, ThumbsUp, Calendar, AlertCircle, Edit2, PlayCircle } from 'l
 import { PublicData, CardData } from '../types';
 import { Button, ImagePreview, Rating, useToast } from './Common';
 import { CardEditModal } from './CardEditModal';
-import { webdav } from '../services/webdavService';
+import { getStorage } from '../services/storageFactory';
 
 interface PublicDetailProps {
   data: PublicData;
@@ -53,6 +53,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
     }
 
     const newData = { ...data, cards: newCards };
+    const webdav = getStorage();
     const result = await webdav.savePublicData(newData);
     
     if (result.success) {

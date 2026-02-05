@@ -3,6 +3,7 @@ import { PublicData, PrivateData } from '../types';
 const PROXY_URL = '/api/webdav';
 
 export const DEFAULT_PUBLIC_DATA: PublicData = {
+  version: 0,
   settings: {
     title: "我的收藏",
     iconUrl: "https://lucide.dev/favicon.ico"
@@ -124,7 +125,25 @@ const fetchJson = async <T>(filename: string, defaultValue: T): Promise<T> => {
       const errText = await response.text();
       throw new Error(`Proxy Error ${response.status}: ${errText}`);
     }
-    return await response.json();
+    const data = await response.json();
+    // Fix: Inject Last-Modified if updatedAt is missing, or calculate from cards
+    if (data && typeof data === 'object') {
+        if (!data.updatedAt) {
+            const lastMod = response.headers.get('last-modified');
+            if (lastMod) {
+                data.updatedAt = new Date(lastMod).getTime();
+            }
+        }
+        
+        if (!data.updatedAt && Array.isArray((data as any).cards)) {
+            const cards = (data as any).cards;
+            if (cards.length > 0) {
+                 const maxTime = cards.reduce((max: number, c: any) => Math.max(max, c.updatedAt || 0), 0);
+                 if (maxTime > 0) data.updatedAt = maxTime;
+            }
+        }
+    }
+    return data;
   } catch (error) {
     return defaultValue;
   }

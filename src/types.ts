@@ -25,6 +25,8 @@ export interface SiteSettings {
 }
 
 export interface PublicData {
+  version?: number; // Data version/timestamp
+  updatedAt?: number; // Last sync/save timestamp
   settings: SiteSettings;
   tags: Tag[];
   cards: CardData[];

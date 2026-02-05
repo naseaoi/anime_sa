@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, X, Check, ChevronDown, AlertTriangle, Info, Star, Menu, Camera, Moon, Sun, Monitor } from 'lucide-react';
+import { X, Check, ChevronDown, AlertTriangle, Info, Star, Camera } from 'lucide-react';
 
 // --- Theme System ---
 
@@ -226,11 +226,11 @@ export const Select: React.FC<{
   );
 };
 
-export const TextArea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label?: string }> = ({ 
-  label, className = '', ...props 
+export const TextArea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label?: string; wrapperClassName?: string }> = ({ 
+  label, className = '', wrapperClassName = '', ...props 
 }) => {
   return (
-    <div className="flex flex-col gap-1.5 w-full">
+    <div className={`flex flex-col gap-1.5 w-full ${wrapperClassName}`}>
       {label && <label className="text-xs font-bold text-subtle dark:text-zinc-400 uppercase tracking-wider">{label}</label>}
       <textarea 
         className={`w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-border dark:border-zinc-800 rounded-lg text-ink dark:text-zinc-100 placeholder:text-stone-300 dark:placeholder:text-zinc-700 focus:outline-none focus:border-ink dark:focus:border-zinc-400 focus:ring-4 focus:ring-stone-100 dark:focus:ring-zinc-800 transition-all min-h-[100px] resize-y ${className}`}
@@ -385,20 +385,20 @@ export const ImagePreview: React.FC<{ src: string, alt: string, className?: stri
   );
 }
 
-export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode }> = ({ 
-  isOpen, onClose, title, children 
+export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; className?: string }> = ({ 
+  isOpen, onClose, title, children, className = '' 
 }) => {
   if (!isOpen) return null;
   return createPortal(
     <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-ink/20 dark:bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-white/50 dark:border-zinc-800 animate-in zoom-in-95 slide-in-from-bottom-2 duration-200 flex flex-col">
-        <div className="px-6 py-4 border-b border-border dark:border-zinc-800 flex justify-between items-center sticky top-0 bg-white/95 dark:bg-zinc-900/95 backdrop-blur z-10">
+      <div className={`bg-white dark:bg-zinc-900 rounded-xl shadow-2xl w-full max-h-[90vh] overflow-y-auto border border-white/50 dark:border-zinc-800 animate-in zoom-in-95 slide-in-from-bottom-2 duration-200 flex flex-col ${className || 'max-w-lg'}`}>
+        <div className="px-6 py-4 border-b border-border dark:border-zinc-800 flex justify-between items-center sticky top-0 bg-white/95 dark:bg-zinc-900/95 backdrop-blur z-10 shrink-0">
           <h3 className="font-semibold text-ink dark:text-zinc-100">{title}</h3>
           <button onClick={onClose} className="p-1 hover:bg-stone-100 dark:hover:bg-zinc-800 rounded-full text-subtle dark:text-zinc-400 hover:text-ink dark:hover:text-zinc-100 transition-colors">
             <X size={20} />
           </button>
         </div>
-        <div className="p-6">
+        <div className="p-6 flex-1 flex flex-col">
           {children}
         </div>
       </div>
