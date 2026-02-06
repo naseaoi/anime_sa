@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Layout, Settings, Tags, Grid, LogOut, Plus, Edit2, Trash2, Loader2, CloudUpload, AlertCircle, Search, X, ChevronLeft, ChevronRight, ThumbsUp, Home, Menu, Check, Database, RefreshCw, Eye, EyeOff, Image as ImageIcon } from 'lucide-react';
 import { PublicData, CardData } from '../types';
-import { getStorage, webdavAdapter, sqliteAdapter } from '../services/storageFactory';
+import { getStorage, webdavAdapter, sqliteAdapter, setServerStorageMode } from '../services/storageFactory';
 import { Button, Input, PageLoader, Rating, AdminCard, useToast, ConfirmModal } from './Common';
 import { CardEditModal } from './CardEditModal';
 
@@ -419,9 +419,16 @@ const AdminSync: React.FC = () => {
   const [syncInfo, setSyncInfo] = useState<{webdav?: number, sqlite?: number} | null>(null);
   const { showToast } = useToast();
 
-  const handleModeSwitch = (mode: 'webdav' | 'sqlite') => {
+  const handleModeSwitch = async (mode: 'webdav' | 'sqlite') => {
     if (mode === currentMode) return;
-    localStorage.setItem('tat_storage_mode', mode);
+    
+    // 同步写入服务端，确保所有访客都使用新模式
+    const success = await setServerStorageMode(mode);
+    if (!success) {
+      showToast('切换模式失败，请重试', 'error');
+      return;
+    }
+    
     localStorage.removeItem('tat_expiry'); // Force re-login to update credentials context
     window.location.reload();
   };

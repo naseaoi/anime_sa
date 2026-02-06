@@ -5,20 +5,25 @@ import path from 'path'
 import fs from 'fs'
 
 // SQLite Helper Logic (Embedded for stability in dev environment)
+// 使用单例模式避免每次请求创建新连接
+let dbInstance: ReturnType<typeof Database> | null = null;
+
 const ensureDb = () => {
+  if (dbInstance) return dbInstance;
+  
   const dataDir = path.join(process.cwd(), 'data');
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
   const dbPath = path.join(dataDir, 'local.db');
-  const db = new Database(dbPath);
-  db.exec(`
+  dbInstance = new Database(dbPath);
+  dbInstance.exec(`
     CREATE TABLE IF NOT EXISTS kv_store (
       key TEXT PRIMARY KEY,
       value TEXT
     )
   `);
-  return db;
+  return dbInstance;
 };
 
 // https://vitejs.dev/config/

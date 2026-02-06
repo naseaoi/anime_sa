@@ -5,7 +5,7 @@ import { LayoutGrid, Search, X, ChevronLeft, ChevronRight, ThumbsUp, ArrowUpDown
 import { PublicData, CardData } from '../types';
 import { ImagePreview, useToast, useTheme } from './Common';
 import { CardEditModal } from './CardEditModal';
-import { webdav } from '../services/webdavService';
+import { getStorage } from '../services/storageFactory';
 
 // --- 排序类型定义 ---
 type SortKey = 'createdAt' | 'rating' | 'updatedAt';
@@ -240,7 +240,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     };
     newCards.push(newCard);
     
-    const result = await webdav.savePublicData({ ...data, cards: newCards });
+    const result = await getStorage().savePublicData({ ...data, cards: newCards });
     if (result.success) {
        await refreshData();
        setIsCreateModalOpen(false);

@@ -40,20 +40,24 @@ const MIME_TYPES = {
   '.ttf': 'font/ttf'
 };
 
-// SQLite Setup
+// SQLite Setup - 使用单例模式
+let dbInstance = null;
+
 const ensureDb = () => {
+  if (dbInstance) return dbInstance;
+  
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
   const dbPath = path.join(DATA_DIR, 'local.db');
-  const db = new Database(dbPath);
-  db.exec(`
+  dbInstance = new Database(dbPath);
+  dbInstance.exec(`
     CREATE TABLE IF NOT EXISTS kv_store (
       key TEXT PRIMARY KEY,
       value TEXT
     )
   `);
-  return db;
+  return dbInstance;
 };
 
 // WebDAV Proxy Logic

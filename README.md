@@ -9,14 +9,25 @@
 - **双模存储**：
   - **SQLite (默认)**：基于本地文件的零配置数据库，适合 VPS/NAS 部署。
   - **WebDAV**：基于 WebDAV 协议同步数据，适合 Serverless (Vercel) 部署或数据漫游。
+- **实时模式切换**：管理员在后台切换存储模式后，所有访客自动读取对应数据源，无需手动配置。
 - **响应式设计**：完美适配桌面端和移动端。
+- **深色模式**：支持浅色/深色/跟随系统三种主题。
 
 ## 项目结构说明
 
-- **`server.js`**: **生产环境服务器**。基于 Node.js 原生 API 实现，负责托管静态资源并提供 SQLite/WebDAV 的后端 API 支持。
-- **`services/webdavService.ts`**: **核心数据层**。负责与 WebDAV 服务器通信。
-- **`api/webdav.ts`**: Vercel Serverless Function (仅用于 Vercel 部署)。
-- **`data/`**: SQLite 数据库文件存放目录 (生产环境/本地开发会自动创建 `local.db`)。
+```
+├── src/
+│   ├── components/       # React 组件
+│   ├── services/
+│   │   ├── storageFactory.ts   # 存储适配器工厂（核心）
+│   │   ├── storageAdapter.ts   # 适配器接口定义
+│   │   └── webdavService.ts    # WebDAV 服务实现
+│   └── App.tsx           # 应用入口
+├── server.js             # 生产环境服务器
+├── vite.config.ts        # 开发服务器配置（含 SQLite 中间件）
+├── data/                 # SQLite 数据库目录（自动创建）
+└── api/                  # Vercel Serverless Functions
+```
 
 ## 部署说明
 
@@ -44,20 +55,19 @@
    # 基础启动 (默认端口 3000)
    npm start
 
-   # 指定端口 (强制 IPv4 监听)
+   # 指定端口
    PORT=20003 npm start
    ```
-   *注意：如果遇到 404 或无法访问，请确保在 `server.js` 中监听 `0.0.0.0` (已默认配置)，并检查 VPS 防火墙规则。*
-   *建议使用 `pm2` 等工具进行进程守护：* `pm2 start server.js --name anime_sa`
+   
+   > 建议使用 `pm2` 进行进程守护：`pm2 start server.js --name anime_sa`
 
 5. **配置 WebDAV (可选)**
-   如果你希望在 VPS 上使用 WebDAV 存储（而不是默认的 SQLite），请创建一个 `.env` 文件（或设置环境变量）：
+   如需使用 WebDAV 存储，创建 `.env` 文件：
    ```bash
    VITE_WEBDAV_URL=https://dav.jianguoyun.com/dav/
    VITE_WEBDAV_USERNAME=your_email@example.com
    VITE_WEBDAV_PASSWORD=your_password
    VITE_WEBDAV_PATH=my-collection/
-   VITE_USE_WEBDAV=true
    ```
 
 ### 方式二：部署到 Vercel (Serverless)
@@ -65,38 +75,57 @@
 Vercel 环境不支持本地 SQLite 持久化，**必须使用 WebDAV** 进行数据存储。
 
 1. **配置环境变量**
-   在 Vercel 项目设置中添加以下变量：
+   在 Vercel 项目设置中添加：
    - `VITE_WEBDAV_URL`
    - `VITE_WEBDAV_USERNAME`
    - `VITE_WEBDAV_PASSWORD`
    - `VITE_WEBDAV_PATH` (可选)
 
-2. **注意事项**
-   - 不要设置 `VITE_USE_SQLITE`。
-   - 修改环境变量后需要 Redeploy。
+2. **部署后在后台切换到 WebDAV 模式**
 
-## 首次使用与登录
+## 首次使用
 
 1. **访问后台**
-   在浏览器地址栏后添加 `/tat` (例如 `http://localhost:3000/tat`) 进入后台。
+   浏览器访问 `http://your-domain/tat`
 
 2. **默认账号**
    - 账号：`admin`
    - 密码：`password`
 
 3. **安全设置**
-   登录后请立即在后台“网站设置”中修改管理员账号密码。
+   登录后请立即在"网站设置"中修改管理员账号密码。
+
+## 存储模式说明
+
+| 特性 | SQLite | WebDAV |
+|------|--------|--------|
+| 配置复杂度 | 零配置 | 需要配置服务器信息 |
+| 数据位置 | 本地 `data/local.db` | 远程 WebDAV 服务器 |
+| 适用场景 | VPS、NAS、Docker | Vercel、多设备同步 |
+| 性能 | 极快 | 取决于网络 |
+
+**切换方式**：管理员登录后台 → 存储设置 → 点击切换模式，切换后所有访客自动生效。
 
 ## 开发指南
 
 ### 本地开发
 ```bash
-# 启动开发服务器 (支持热重载 + 内置 SQLite API 代理)
+# 启动开发服务器 (热重载 + 内置 SQLite API)
 npm run dev
 ```
 
-### 切换存储模式 (开发环境)
-项目默认使用 SQLite。如需在开发环境调试 WebDAV：
-1. 配置 `.env` 中的 WebDAV 变量。
-2. 设置 `VITE_USE_WEBDAV=true`。
-3. 或在浏览器控制台运行 `localStorage.setItem('tat_storage_mode', 'webdav')` 并刷新。
+### 构建生产版本
+```bash
+npm run build
+```
+
+### 技术栈
+- React 18 + TypeScript
+- Vite
+- Tailwind CSS
+- better-sqlite3
+- Lucide Icons
+
+## License
+
+MIT

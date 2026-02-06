@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { DEFAULT_PUBLIC_DATA } from './services/webdavService';
-import { getStorage } from './services/storageFactory';
+import { getStorageAsync } from './services/storageFactory';
 import { PublicData } from './types';
 import { PageLoader, ToastProvider, ThemeProvider } from './components/Common';
 import { PublicDetail } from './components/PublicDetail';
@@ -35,7 +35,8 @@ const MainRouter: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const storage = getStorage();
+    // 异步获取服务端配置的存储模式，确保访客读取正确的数据源
+    const storage = await getStorageAsync();
     const result = await storage.getPublicData();
     setData(result);
     // 缓存最新设置到本地

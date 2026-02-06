@@ -104,14 +104,69 @@ export const sqliteAdapter: StorageAdapter = {
 
 // Factory or Current Instance
 // You can switch this based on env vars or local storage settings
+
+// 缓存服务端模式，避免重复请求
+let cachedServerMode: 'sqlite' | 'webdav' | null = null;
+
+// 异步获取服务端配置的存储模式
+export const fetchServerStorageMode = async (): Promise<'sqlite' | 'webdav'> => {
+  if (cachedServerMode) return cachedServerMode;
+  
+  try {
+    const res = await fetch(`${SQLITE_API_URL}?key=storage_mode`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.mode === 'webdav' || data?.mode === 'sqlite') {
+        cachedServerMode = data.mode;
+        return data.mode;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to fetch storage mode:', e);
+  }
+  
+  // 默认 SQLite
+  cachedServerMode = 'sqlite';
+  return 'sqlite';
+};
+
+// 管理员切换模式时调用，同步写入服务端
+export const setServerStorageMode = async (mode: 'sqlite' | 'webdav'): Promise<boolean> => {
+  try {
+    const res = await fetch(`${SQLITE_API_URL}?key=storage_mode`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode })
+    });
+    if (res.ok) {
+      cachedServerMode = mode;
+      localStorage.setItem('tat_storage_mode', mode);
+      return true;
+    }
+  } catch (e) {
+    console.error('Failed to set storage mode:', e);
+  }
+  return false;
+};
+
+// 同步版本 - 使用缓存或 localStorage
 export const getStorage = (): StorageAdapter => {
-  // Allow runtime switching via localStorage for testing
-  // console command: localStorage.setItem('tat_storage_mode', 'sqlite')
+  // 优先使用已缓存的服务端模式
+  if (cachedServerMode) {
+    return cachedServerMode === 'webdav' ? webdavAdapter : sqliteAdapter;
+  }
+  
+  // 回退到 localStorage
   const manualOverride = localStorage.getItem('tat_storage_mode');
   if (manualOverride === 'sqlite') return sqliteAdapter;
   if (manualOverride === 'webdav') return webdavAdapter;
 
-  // Default to SQLite unless specifically disabled or VITE_USE_WEBDAV is true
-  const useWebDav = import.meta.env.VITE_USE_WEBDAV === 'true'; 
-  return useWebDav ? webdavAdapter : sqliteAdapter;
+  // 默认 SQLite
+  return sqliteAdapter;
+};
+
+// 异步版本 - 确保从服务端获取最新模式
+export const getStorageAsync = async (): Promise<StorageAdapter> => {
+  const mode = await fetchServerStorageMode();
+  return mode === 'webdav' ? webdavAdapter : sqliteAdapter;
 };
