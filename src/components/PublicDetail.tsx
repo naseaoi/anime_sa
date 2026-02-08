@@ -1,11 +1,13 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, ThumbsUp, Calendar, AlertCircle, Edit2, PlayCircle } from 'lucide-react';
 import { PublicData, CardData } from '../types';
 import { Button, ImagePreview, Rating, useToast } from './Common';
-import { CardEditModal } from './CardEditModal';
 import { getStorage, checkServerSession } from '../services/storageFactory';
+import { persistCardCover } from '../services/coverAssetService';
+
+const CardEditModal = React.lazy(() => import('./CardEditModal').then((m) => ({ default: m.CardEditModal })));
 
 interface PublicDetailProps {
   data: PublicData;
@@ -27,6 +29,12 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
 
     // Check for admin auth
     checkServerSession().then(setIsAdmin);
+
+    return () => {
+      if (data.settings.title) {
+        document.title = data.settings.title;
+      }
+    };
   }, [card, data.settings.title]);
 
   const handleBack = () => {
@@ -46,27 +54,36 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
 
   const handleSave = async (updatedCard: Partial<CardData>) => {
     if (!card) return;
-    
-    const newCards = [...data.cards];
-    const idx = newCards.findIndex(c => c.id === card.id);
-    if (idx !== -1) {
-      newCards[idx] = { 
-        ...updatedCard, 
-        id: card.id, // 确保ID不被覆盖
-        updatedAt: Date.now() 
-      } as CardData;
-    }
 
-    const newData = { ...data, cards: newCards };
-    const webdav = getStorage();
-    const result = await webdav.savePublicData(newData);
-    
-    if (result.success) {
-      if (refreshData) await refreshData();
-      showToast('更新成功', 'success');
-      setIsEditing(false);
-    } else {
-      showToast(`保存失败: ${result.error}`, 'error');
+    try {
+      const mergedCard: CardData = {
+        ...card,
+        ...updatedCard,
+        id: card.id,
+        createdAt: card.createdAt,
+        updatedAt: Date.now()
+      };
+      const nextCard = await persistCardCover(mergedCard);
+
+      const newCards = [...data.cards];
+      const idx = newCards.findIndex(c => c.id === card.id);
+      if (idx !== -1) {
+        newCards[idx] = nextCard;
+      }
+
+      const newData = { ...data, cards: newCards };
+      const webdav = getStorage();
+      const result = await webdav.savePublicData(newData);
+
+      if (result.success) {
+        if (refreshData) await refreshData();
+        showToast('更新成功', 'success');
+        setIsEditing(false);
+      } else {
+        showToast(`保存失败: ${result.error}`, 'error');
+      }
+    } catch (e: any) {
+      showToast(`封面处理失败: ${e?.message || '未知错误'}`, 'error');
     }
   };
 
@@ -176,14 +193,16 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
         </div>
       </footer>
 
-      <CardEditModal
-        isOpen={isEditing}
-        onClose={() => setIsEditing(false)}
-        title="编辑记录"
-        initialCard={card}
-        tags={data.tags}
-        onSave={handleSave}
-      />
+      <Suspense fallback={null}>
+        <CardEditModal
+          isOpen={isEditing}
+          onClose={() => setIsEditing(false)}
+          title="编辑记录"
+          initialCard={card}
+          tags={data.tags}
+          onSave={handleSave}
+        />
+      </Suspense>
     </div>
   );
 }

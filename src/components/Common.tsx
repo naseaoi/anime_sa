@@ -366,6 +366,10 @@ export const ConfirmModal: React.FC<{
 
 export const ImagePreview: React.FC<{ src: string, alt: string, className?: string }> = ({ src, alt, className }) => {
   const [error, setError] = React.useState(false);
+
+  useEffect(() => {
+    setError(false);
+  }, [src]);
   
   return (
     <div className={`relative overflow-hidden bg-stone-100 dark:bg-zinc-800 flex items-center justify-center ${className}`}>

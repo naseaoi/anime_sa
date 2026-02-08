@@ -1,15 +1,17 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { LayoutGrid, Search, X, ThumbsUp, ArrowUpDown, Grid, Loader2, Plus, PlayCircle, Moon, Sun, Monitor, ArrowUp, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { PublicData, CardData } from '../types';
 import { useToast, useTheme } from './Common';
-import { CardEditModal } from './CardEditModal';
 import { getStorage } from '../services/storageFactory';
+import { persistCardCover } from '../services/coverAssetService';
 import { PublicCardGrid } from './public/PublicCardGrid';
 import { buildCardStats } from '../utils/cardStats';
 import { getTagSlug, sectionFromCard } from '../utils/routeUtils';
 import { getTagIcon } from '../utils/tagIcons';
+
+const CardEditModal = React.lazy(() => import('./CardEditModal').then((m) => ({ default: m.CardEditModal })));
 
 // --- 排序类型定义 ---
 type SortKey = 'createdAt' | 'rating' | 'updatedAt';
@@ -151,6 +153,16 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   }, [activeTag, searchTerm, sortConfig.key, sortConfig.order]);
 
   useEffect(() => {
+    if (data.settings.title) {
+      document.title = data.settings.title;
+    }
+    if (data.settings.iconUrl) {
+      const favicon = document.getElementById('favicon') as HTMLLinkElement | null;
+      if (favicon) favicon.href = data.settings.iconUrl;
+    }
+  }, [data.settings.title, data.settings.iconUrl]);
+
+  useEffect(() => {
     if (!section) return;
     if (section === 'recommended' || section === 'watching') return;
     if (tagSlugMap.has(section)) return;
@@ -282,19 +294,24 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
 
   // --- 数据过滤 ---
   const filteredCards = useMemo(() => {
-    let list = [...data.cards];
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      list = list.filter(c => c.title.toLowerCase().includes(term) || c.description.toLowerCase().includes(term));
-    }
-    
-    // 标签筛选逻辑
-    if (activeTag === 'recommended') {
-      list = list.filter(c => c.isRecommended);
-    } else if (activeTag === 'watching') {
-      list = list.filter(c => c.isWatching);
-    } else if (activeTag !== 'all') {
-      list = list.filter(c => c.tagIds.includes(activeTag));
+    const term = searchTerm.trim().toLowerCase();
+    const hasSearch = term.length > 0;
+    const list: CardData[] = [];
+
+    for (const card of data.cards) {
+      if (hasSearch) {
+        const title = card.title.toLowerCase();
+        const description = card.description.toLowerCase();
+        if (!title.includes(term) && !description.includes(term)) {
+          continue;
+        }
+      }
+
+      if (activeTag === 'recommended' && !card.isRecommended) continue;
+      if (activeTag === 'watching' && !card.isWatching) continue;
+      if (activeTag !== 'all' && activeTag !== 'recommended' && activeTag !== 'watching' && !card.tagIds.includes(activeTag)) continue;
+
+      list.push(card);
     }
 
     list.sort((a, b) => {
@@ -302,6 +319,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
       const valB = b[sortConfig.key] || 0;
       return sortConfig.order === 'desc' ? Number(valB) - Number(valA) : Number(valA) - Number(valB);
     });
+
     return list;
   }, [data.cards, activeTag, sortConfig, searchTerm]);
 
@@ -318,17 +336,35 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     const heroArea = showHero && gridColumns >= 2 ? 4 : 0;
     const topCardsTarget = Math.max(sectionCardLimit - heroArea, 0);
 
-    const topCards = filteredCards.filter((card) => !heroIds.has(card.id)).slice(0, topCardsTarget);
+    const nonHeroCards: CardData[] = [];
+    const recommendedCards: CardData[] = [];
+    const watchingCards: CardData[] = [];
+    const cardsByTag = new Map<string, CardData[]>();
 
-    const recommendedCards = filteredCards.filter((card) => card.isRecommended);
+    data.tags.forEach((tag) => {
+      cardsByTag.set(tag.id, []);
+    });
 
-    const watchingCards = filteredCards.filter((card) => card.isWatching);
+    for (const card of filteredCards) {
+      if (!heroIds.has(card.id)) {
+        nonHeroCards.push(card);
+      }
+      if (card.isRecommended) {
+        recommendedCards.push(card);
+      }
+      if (card.isWatching) {
+        watchingCards.push(card);
+      }
 
+      for (const tagId of card.tagIds) {
+        const bucket = cardsByTag.get(tagId);
+        if (bucket) bucket.push(card);
+      }
+    }
+
+    const topCards = nonHeroCards.slice(0, topCardsTarget);
     const tagSections = data.tags
-      .map((tag) => {
-        const cards = filteredCards.filter((card) => card.tagIds.includes(tag.id));
-        return { tag, cards };
-      })
+      .map((tag) => ({ tag, cards: cardsByTag.get(tag.id) || [] }))
       .filter((section) => section.cards.length > 0);
 
     return { topCards, recommendedCards, watchingCards, tagSections };
@@ -360,32 +396,38 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
 
   // --- 创建卡片 ---
   const handleCreateSave = async (cardData: Partial<CardData>) => {
-    const newCards = [...data.cards];
-    const now = Date.now();
-    const newCard: CardData = {
-      id: now.toString(),
-      title: cardData.title || 'Untitled',
-      coverUrl: cardData.coverUrl || '',
-      coverLocalData: cardData.coverLocalData || '',
-      description: cardData.description || '',
-      startDate: cardData.startDate || '',
-      endDate: cardData.endDate || '',
-      rating: cardData.rating || 0,
-      tagIds: cardData.tagIds || [],
-      isRecommended: !!cardData.isRecommended,
-      isWatching: !!cardData.isWatching,
-      createdAt: now,
-      updatedAt: now
-    };
-    newCards.push(newCard);
-    
-    const result = await getStorage().savePublicData({ ...data, cards: newCards });
-    if (result.success) {
-       await refreshData();
-       setIsCreateModalOpen(false);
-       showToast('创建成功', 'success');
-    } else {
-       showToast(result.error || '失败', 'error');
+    try {
+      const newCards = [...data.cards];
+      const now = Date.now();
+      const draftCard: CardData = {
+        id: now.toString(),
+        title: cardData.title || 'Untitled',
+        coverUrl: cardData.coverUrl || '',
+        coverLocalData: cardData.coverLocalData || '',
+        description: cardData.description || '',
+        startDate: cardData.startDate || '',
+        endDate: cardData.endDate || '',
+        rating: cardData.rating || 0,
+        tagIds: cardData.tagIds || [],
+        isRecommended: !!cardData.isRecommended,
+        isWatching: !!cardData.isWatching,
+        createdAt: now,
+        updatedAt: now
+      };
+
+      const newCard = await persistCardCover(draftCard);
+      newCards.push(newCard);
+
+      const result = await getStorage().savePublicData({ ...data, cards: newCards });
+      if (result.success) {
+        await refreshData();
+        setIsCreateModalOpen(false);
+        showToast('创建成功', 'success');
+      } else {
+        showToast(result.error || '失败', 'error');
+      }
+    } catch (e: any) {
+      showToast(`封面处理失败: ${e?.message || '未知错误'}`, 'error');
     }
   };
 
@@ -521,7 +563,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
       </aside>
 
       {/* 主内容 */}
-      <main className="flex-1 p-5 md:p-8 lg:p-10 overflow-x-hidden flex flex-col min-h-screen">
+      <main className="flex-1 px-5 md:px-8 lg:px-10 pt-5 md:pt-8 lg:pt-10 overflow-x-hidden flex flex-col min-h-[100dvh]">
         {/* 移动端头部 */}
         <div className="lg:hidden fade-up flex flex-col gap-4 mb-6">
           <div className="flex items-center gap-3" onClick={() => window.location.href = '/'}>
@@ -780,7 +822,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
           </div>
         )}
 
-        <footer className="mt-auto pt-12 pb-6">
+        <footer className="mt-auto pt-16 pb-6">
           <div className="border-t border-[color:var(--line)] pt-6 flex flex-row items-center justify-between gap-3 text-xs text-[color:var(--text-secondary)]">
             <p className="font-semibold">{data.settings.footerLeft || `© ${new Date().getFullYear()}`}</p>
             <p>{data.settings.footerRight || data.settings.footerText || 'All rights reserved'}</p>
@@ -795,14 +837,16 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
         </button>
       </main>
 
-      <CardEditModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        title="快速记录"
-        initialCard={quickCreateInitialCard}
-        tags={data.tags}
-        onSave={handleCreateSave}
-      />
+      <Suspense fallback={null}>
+        <CardEditModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          title="快速记录"
+          initialCard={quickCreateInitialCard}
+          tags={data.tags}
+          onSave={handleCreateSave}
+        />
+      </Suspense>
     </div>
   );
 };

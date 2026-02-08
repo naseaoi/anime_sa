@@ -1,5 +1,5 @@
 
-import { PublicData, PrivateData } from '../types';
+import { AdminCredentialsUpdate, AdminProfile, PublicData, PrivateData } from '../types';
 
 export interface StorageAdapter {
   getPublicData(): Promise<PublicData>;
@@ -8,5 +8,7 @@ export interface StorageAdapter {
   savePrivateData(data: PrivateData): Promise<{ success: boolean; error?: string }>;
   testConnection(): Promise<{ success: boolean; message: string }>;
   login?(username: string, password: string, remember?: boolean): Promise<{ success: boolean; error?: string }>;
+  getAdminProfile?(): Promise<AdminProfile>;
+  updateAdminCredentials?(payload: AdminCredentialsUpdate): Promise<{ success: boolean; error?: string; requireRelogin?: boolean }>;
   type: 'webdav' | 'sqlite';
 }

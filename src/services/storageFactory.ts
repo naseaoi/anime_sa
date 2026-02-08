@@ -1,5 +1,5 @@
 
-import { PublicData, PrivateData } from '../types';
+import { AdminCredentialsUpdate, AdminProfile, AuditLogEntry, PublicData, PrivateData } from '../types';
 import { DEFAULT_PUBLIC_DATA, DEFAULT_PRIVATE_DATA, webdav as rawWebDav } from './webdavService';
 import { StorageAdapter } from './storageAdapter';
 
@@ -46,15 +46,47 @@ const sessionAuth = {
   }
 };
 
+const adminAuth = {
+  getProfile: async (): Promise<AdminProfile> => {
+    const res = await authFetch('/api/sqlite/admin-profile');
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data?.error || '获取管理员信息失败');
+    }
+    const data = await res.json();
+    return { username: String(data?.username || '') };
+  },
+  updateCredentials: async (payload: AdminCredentialsUpdate) => {
+    try {
+      const res = await authFetch('/api/sqlite/admin-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.success) {
+        return { success: false as const, error: data?.error || '保存失败' };
+      }
+      return { success: true as const, requireRelogin: !!data?.requireRelogin };
+    } catch (e: any) {
+      return { success: false as const, error: e.message };
+    }
+  }
+};
+
 export const webdavAdapter: StorageAdapter = {
   type: 'webdav',
   login: sessionAuth.login,
+  getAdminProfile: adminAuth.getProfile,
+  updateAdminCredentials: adminAuth.updateCredentials,
   ...rawWebDav
 };
 
 export const sqliteAdapter: StorageAdapter = {
   type: 'sqlite',
   login: sessionAuth.login,
+  getAdminProfile: adminAuth.getProfile,
+  updateAdminCredentials: adminAuth.updateCredentials,
   getPublicData: async () => {
     try {
       const res = await authFetch(`${SQLITE_API_URL}?key=public_data`);
@@ -188,5 +220,62 @@ export const getStorageAsync = async (): Promise<StorageAdapter> => {
   return mode === 'webdav' ? webdavAdapter : sqliteAdapter;
 };
 
+export const syncAdminCredentialsToTarget = async (target: 'sqlite' | 'webdav', payload: PrivateData) => {
+  try {
+    const res = await authFetch(`/api/sqlite/admin-credentials-sync?target=${target}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.success) {
+      return { success: false as const, error: data?.error || '同步管理员凭据失败' };
+    }
+    return { success: true as const };
+  } catch (e: any) {
+    return { success: false as const, error: e.message };
+  }
+};
+
+export const runCoverGarbageCollection = async (target: 'sqlite' | 'webdav') => {
+  return runCoverGarbageCollectionBatch(target, 100);
+};
+
+export const runCoverGarbageCollectionBatch = async (target: 'sqlite' | 'webdav', limit = 100) => {
+  try {
+    const res = await authFetch(`/api/sqlite/media-gc?target=${target}&limit=${encodeURIComponent(String(limit))}`, {
+      method: 'POST'
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.success) {
+      return { success: false as const, error: data?.error || '封面资源清理失败' };
+    }
+    return {
+      success: true as const,
+      removed: Number(data?.removed || 0),
+      checked: Number(data?.checked || 0),
+      pending: Number(data?.pending || 0),
+      hasMore: !!data?.hasMore
+    };
+  } catch (e: any) {
+    return { success: false as const, error: e.message };
+  }
+};
+
+export const getAuditLogs = async (limit = 50) => {
+  try {
+    const res = await authFetch(`/api/sqlite/audit-logs?limit=${encodeURIComponent(String(limit))}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !Array.isArray(data?.items)) {
+      return { success: false as const, error: data?.error || '读取操作日志失败' };
+    }
+    return { success: true as const, items: data.items as AuditLogEntry[] };
+  } catch (e: any) {
+    return { success: false as const, error: e.message };
+  }
+};
+
 export const checkServerSession = sessionAuth.check;
 export const logoutServerSession = sessionAuth.logout;
+export const getAdminProfile = adminAuth.getProfile;
+export const updateAdminCredentials = adminAuth.updateCredentials;

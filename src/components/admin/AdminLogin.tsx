@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { getStorage } from '../../services/storageFactory';
 import { Button, Input } from '../Common';
@@ -12,7 +12,16 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [keep, setKeep] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const key = sessionStorage.getItem('tat_relogin_notice');
+    if (key) {
+      setNotice('安全配置已更新，请使用最新账号密码重新登录。');
+      sessionStorage.removeItem('tat_relogin_notice');
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,6 +61,11 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
             />
             <label htmlFor="keep" className="text-sm font-bold text-[color:var(--text-secondary)] cursor-pointer">保持登录</label>
           </div>
+          {notice && (
+            <div className="p-4 bg-emerald-50 text-emerald-700 text-sm font-bold rounded-xl border border-emerald-100">
+              {notice}
+            </div>
+          )}
           {error && (
             <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm font-bold rounded-xl border border-red-100 dark:border-red-900/30">
               {error}

@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Edit2, Image as ImageIcon, Plus, Search, ThumbsUp, Trash2, X } from 'lucide-react';
 import { CardData, PublicData } from '../../types';
-import { Button, ConfirmModal, Rating } from '../Common';
+import { Button, ConfirmModal, Rating, useToast } from '../Common';
 import { CardEditModal } from '../CardEditModal';
+import { persistCardCover } from '../../services/coverAssetService';
 
 interface AdminCardsSectionProps {
   data: PublicData;
@@ -15,6 +16,7 @@ export const AdminCardsSection: React.FC<AdminCardsSectionProps> = ({ data, onUp
   const [search, setSearch] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const { showToast } = useToast();
   const itemsPerPage = 15;
 
   const filtered = useMemo(
@@ -27,30 +29,38 @@ export const AdminCardsSection: React.FC<AdminCardsSectionProps> = ({ data, onUp
   const paginatedCards = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleSave = async (cardData: Partial<CardData>) => {
-    const newCards = [...data.cards];
-    const now = Date.now();
-    if (cardData.id) {
-      const idx = newCards.findIndex((c) => c.id === cardData.id);
-      if (idx !== -1) newCards[idx] = { ...cardData, updatedAt: now } as CardData;
-    } else {
-      newCards.push({
-        id: now.toString(),
-        title: cardData.title || '',
-        coverUrl: cardData.coverUrl || '',
-        coverLocalData: cardData.coverLocalData || '',
-        description: cardData.description || '',
-        startDate: cardData.startDate || '',
-        endDate: cardData.endDate || '',
-        rating: cardData.rating || 0,
-        tagIds: cardData.tagIds || [],
-        isRecommended: !!cardData.isRecommended,
-        isWatching: !!cardData.isWatching,
-        createdAt: now,
-        updatedAt: now
-      } as CardData);
+    try {
+      const newCards = [...data.cards];
+      const now = Date.now();
+      if (cardData.id) {
+        const idx = newCards.findIndex((c) => c.id === cardData.id);
+        if (idx !== -1) {
+          const mergedCard = { ...newCards[idx], ...cardData, id: newCards[idx].id, updatedAt: now } as CardData;
+          newCards[idx] = await persistCardCover(mergedCard);
+        }
+      } else {
+        const draftCard = {
+          id: now.toString(),
+          title: cardData.title || '',
+          coverUrl: cardData.coverUrl || '',
+          coverLocalData: cardData.coverLocalData || '',
+          description: cardData.description || '',
+          startDate: cardData.startDate || '',
+          endDate: cardData.endDate || '',
+          rating: cardData.rating || 0,
+          tagIds: cardData.tagIds || [],
+          isRecommended: !!cardData.isRecommended,
+          isWatching: !!cardData.isWatching,
+          createdAt: now,
+          updatedAt: now
+        } as CardData;
+        newCards.push(await persistCardCover(draftCard));
+      }
+      onUpdate({ ...data, cards: newCards });
+      setIsModalOpen(false);
+    } catch (e: any) {
+      showToast(`封面处理失败: ${e?.message || '未知错误'}`, 'error');
     }
-    onUpdate({ ...data, cards: newCards });
-    setIsModalOpen(false);
   };
 
   return (

@@ -40,7 +40,27 @@ export interface PublicData {
 
 export interface PrivateData {
   username: string;
-  password: string;
+  password?: string;
+  passwordHash?: string;
+  passwordUpdatedAt?: number;
+}
+
+export interface AdminProfile {
+  username: string;
+}
+
+export interface AdminCredentialsUpdate {
+  username: string;
+  newPassword?: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  ts: number;
+  action: string;
+  status: 'success' | 'failed';
+  details?: string;
+  message?: string;
 }
 
 export interface WebDavConfig {

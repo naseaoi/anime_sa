@@ -4,6 +4,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Layout, Settings, Tags, Grid, LogOut, Loader2, CloudUpload, AlertCircle, X, Home, Menu, Database, RefreshCw } from 'lucide-react';
 import { PublicData } from '../types';
 import { getStorage, checkServerSession, logoutServerSession } from '../services/storageFactory';
+import { migrateEmbeddedCoverAssets } from '../services/coverAssetService';
 import { Button, PageLoader, useToast } from './Common';
 import { AdminNavButton } from './admin/AdminNavButton';
 import { AdminLogin } from './admin/AdminLogin';
@@ -59,21 +60,28 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
 
   const handleSync = async () => {
     setSyncing(true);
-    const webdav = getStorage();
-    const dataToSave = { ...localData, updatedAt: Date.now() };
+    try {
+      const webdav = getStorage();
+      const migrated = await migrateEmbeddedCoverAssets(localData.cards);
+      const dataToSave = { ...localData, cards: migrated.cards, updatedAt: Date.now() };
 
-    const result = await webdav.savePublicData(dataToSave);
-    if (result.success) {
-      setLocalData(dataToSave);
+      const result = await webdav.savePublicData(dataToSave);
+      if (result.success) {
+        setLocalData(dataToSave);
 
-      await refreshData();
-      localStorage.setItem('tat_site_settings', JSON.stringify(dataToSave.settings));
-      setHasChanges(false);
-      showToast(storageType === 'sqlite' ? '已保存更改' : '数据同步成功', 'success');
-    } else {
-      showToast(`${storageType === 'sqlite' ? '保存' : '同步'}失败: ${result.error}`, 'error');
+        await refreshData();
+        localStorage.setItem('tat_site_settings', JSON.stringify(dataToSave.settings));
+        setHasChanges(false);
+        if (migrated.migrated > 0) {
+          showToast(`已迁移 ${migrated.migrated} 张本地封面`, 'success');
+        }
+        showToast(storageType === 'sqlite' ? '已保存更改' : '数据同步成功', 'success');
+      } else {
+        showToast(`${storageType === 'sqlite' ? '保存' : '同步'}失败: ${result.error}`, 'error');
+      }
+    } finally {
+      setSyncing(false);
     }
-    setSyncing(false);
   };
 
   if (checking) return <PageLoader />;
