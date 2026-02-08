@@ -2,12 +2,15 @@
 export interface Tag {
   id: string;
   name: string;
+  slug?: string;
+  icon?: string;
 }
 
 export interface CardData {
   id: string;
   title: string;
   coverUrl: string;
+  coverLocalData?: string;
   description: string;
   startDate: string;
   endDate: string;
@@ -22,6 +25,9 @@ export interface CardData {
 export interface SiteSettings {
   title: string;
   iconUrl: string;
+  footerText?: string;
+  footerLeft?: string;
+  footerRight?: string;
 }
 
 export interface PublicData {

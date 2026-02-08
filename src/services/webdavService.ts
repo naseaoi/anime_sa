@@ -6,18 +6,21 @@ export const DEFAULT_PUBLIC_DATA: PublicData = {
   version: 0,
   settings: {
     title: "我的收藏",
-    iconUrl: "https://lucide.dev/favicon.ico"
+    iconUrl: "https://lucide.dev/favicon.ico",
+    footerText: "All rights reserved",
+    footerLeft: "© 2026",
+    footerRight: "All rights reserved"
   },
   tags: [
-    { id: '1', name: '番剧' },
-    { id: '2', name: '游戏' }
+    { id: '1', name: '番剧', icon: 'tv' },
+    { id: '2', name: '游戏', icon: 'gamepad' }
   ],
   cards: []
 };
 
 export const DEFAULT_PRIVATE_DATA: PrivateData = {
-  username: 'admin',
-  password: 'password'
+  username: '',
+  password: ''
 };
 
 // Helper to clean up error messages which may contain HTML/XML
@@ -53,6 +56,7 @@ const fetchProxy = async (filename: string, options: RequestInit = {}) => {
   const newOptions: RequestInit = {
     ...options,
     method: useTunnel ? 'POST' : realMethod,
+    credentials: 'include',
     headers
   };
 

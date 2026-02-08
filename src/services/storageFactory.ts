@@ -5,36 +5,59 @@ import { StorageAdapter } from './storageAdapter';
 
 const SQLITE_API_URL = '/api/sqlite';
 
-let sqliteToken = localStorage.getItem('tat_sqlite_token');
+const authFetch = (path: string, options: RequestInit = {}) => {
+  return fetch(path, {
+    credentials: 'include',
+    ...options
+  });
+};
+
+const sessionAuth = {
+  login: async (username: string, password: string, remember = false) => {
+    try {
+      const res = await authFetch('/api/sqlite/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, remember })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true as const };
+      }
+      return { success: false as const, error: data.error || 'Login failed' };
+    } catch (e: any) {
+      return { success: false as const, error: e.message };
+    }
+  },
+  logout: async () => {
+    try {
+      await authFetch('/api/sqlite/logout', { method: 'POST' });
+    } catch (e) {}
+  },
+  check: async () => {
+    try {
+      const res = await authFetch('/api/sqlite/session');
+      if (!res.ok) return false;
+      const data = await res.json();
+      return !!data?.authenticated;
+    } catch (e) {
+      return false;
+    }
+  }
+};
 
 export const webdavAdapter: StorageAdapter = {
   type: 'webdav',
+  login: sessionAuth.login,
   ...rawWebDav
 };
 
 export const sqliteAdapter: StorageAdapter = {
   type: 'sqlite',
-  login: async (username, password) => {
-    try {
-      const res = await fetch('/api/sqlite/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-      const data = await res.json();
-      if (data.success) {
-        sqliteToken = data.token;
-        localStorage.setItem('tat_sqlite_token', data.token);
-        return { success: true };
-      }
-      return { success: false, error: data.error || 'Login failed' };
-    } catch (e: any) {
-      return { success: false, error: e.message };
-    }
-  },
+  login: sessionAuth.login,
   getPublicData: async () => {
     try {
-      const res = await fetch(`${SQLITE_API_URL}?key=public_data`);
+      const res = await authFetch(`${SQLITE_API_URL}?key=public_data`);
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
       if (data && typeof data === 'object' && !data.updatedAt && Array.isArray(data.cards)) {
@@ -49,7 +72,7 @@ export const sqliteAdapter: StorageAdapter = {
   },
   savePublicData: async (data: PublicData) => {
     try {
-      const res = await fetch(`${SQLITE_API_URL}?key=public_data`, {
+      const res = await authFetch(`${SQLITE_API_URL}?key=public_data`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -62,10 +85,7 @@ export const sqliteAdapter: StorageAdapter = {
   },
   getPrivateData: async () => {
     try {
-      const headers: Record<string, string> = {};
-      if (sqliteToken) headers['Authorization'] = sqliteToken;
-      
-      const res = await fetch(`${SQLITE_API_URL}?key=private_data`, { headers });
+      const res = await authFetch(`${SQLITE_API_URL}?key=private_data`);
       if (res.status === 401) throw new Error('Unauthorized');
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
@@ -77,12 +97,9 @@ export const sqliteAdapter: StorageAdapter = {
   },
   savePrivateData: async (data: PrivateData) => {
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (sqliteToken) headers['Authorization'] = sqliteToken;
-
-      const res = await fetch(`${SQLITE_API_URL}?key=private_data`, {
+      const res = await authFetch(`${SQLITE_API_URL}?key=private_data`, {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
       if (!res.ok) throw new Error(await res.text());
@@ -93,7 +110,7 @@ export const sqliteAdapter: StorageAdapter = {
   },
   testConnection: async () => {
      try {
-       const res = await fetch(`${SQLITE_API_URL}?key=ping`);
+       const res = await authFetch(`${SQLITE_API_URL}?key=ping`);
        if (res.ok || res.status === 404) return { success: true, message: "SQLite 本地数据库连接正常" };
        return { success: false, message: "SQLite 服务无响应" };
      } catch(e: any) {
@@ -170,3 +187,6 @@ export const getStorageAsync = async (): Promise<StorageAdapter> => {
   const mode = await fetchServerStorageMode();
   return mode === 'webdav' ? webdavAdapter : sqliteAdapter;
 };
+
+export const checkServerSession = sessionAuth.check;
+export const logoutServerSession = sessionAuth.logout;

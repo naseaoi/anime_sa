@@ -158,7 +158,7 @@ export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { lab
       {label && <label className="text-xs font-bold text-subtle dark:text-zinc-400 uppercase tracking-wider">{label}</label>}
       <input 
         // 样式修改：背景改为 zinc-800 (比模态框 zinc-900 浅)
-        className={`w-full px-3 py-2 bg-white dark:bg-zinc-800 border ${error ? 'border-red-300 focus:border-red-500 dark:border-red-800' : 'border-border dark:border-zinc-800 focus:border-ink dark:focus:border-zinc-400'} rounded-lg text-ink dark:text-zinc-100 placeholder:text-stone-300 dark:placeholder:text-zinc-700 focus:outline-none focus:ring-4 focus:ring-stone-100 dark:focus:ring-zinc-800 dark:[color-scheme:dark] transition-all ${className}`}
+        className={`w-full px-3 py-2 bg-[color:var(--surface-muted)] border ${error ? 'border-red-300 focus:border-red-500 dark:border-red-800' : 'border-[color:var(--line)] focus:border-[color:var(--accent)]'} rounded-lg text-[color:var(--text-primary)] placeholder:text-[color:var(--text-secondary)]/60 focus:outline-none focus:ring-4 focus:ring-[color:var(--accent-soft)] dark:[color-scheme:dark] transition-all ${className}`}
         {...props}
       />
       {error && <span className="text-xs text-red-500">{error}</span>}
@@ -196,16 +196,16 @@ export const Select: React.FC<{
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
-        className={`w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-border dark:border-zinc-800 rounded-lg text-ink dark:text-zinc-100 flex items-center justify-between hover:border-stone-400 dark:hover:border-zinc-600 focus:outline-none focus:ring-4 focus:ring-stone-100 dark:focus:ring-zinc-800 transition-all ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${isOpen ? 'border-ink dark:border-zinc-400 ring-4 ring-stone-100 dark:ring-zinc-800' : ''}`}
+        className={`w-full px-3 py-2 bg-[color:var(--surface-muted)] border border-[color:var(--line)] rounded-lg text-[color:var(--text-primary)] flex items-center justify-between hover:border-[color:var(--accent)] focus:outline-none focus:ring-4 focus:ring-[color:var(--accent-soft)] transition-all ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'} ${isOpen ? 'border-[color:var(--accent)] ring-4 ring-[color:var(--accent-soft)]' : ''}`}
       >
-        <span className={selectedOption ? 'text-ink dark:text-zinc-100' : 'text-stone-300 dark:text-zinc-600'}>
+        <span className={selectedOption ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)]/70'}>
           {selectedOption ? selectedOption.name : placeholder}
         </span>
-        <ChevronDown size={16} className={`text-stone-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={16} className={`text-[color:var(--text-secondary)] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute top-full mt-1 left-0 right-0 bg-white dark:bg-zinc-900 border border-border dark:border-zinc-800 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto p-1 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute top-full mt-1 left-0 right-0 bg-[color:var(--surface)] border border-[color:var(--line)] rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto p-1 animate-in fade-in zoom-in-95 duration-100">
           {options.length === 0 ? (
             <div className="p-3 text-xs text-stone-400 text-center">暂无选项</div>
           ) : (
@@ -213,10 +213,10 @@ export const Select: React.FC<{
               <div 
                 key={option.id} 
                 onClick={() => { onChange(option.id); setIsOpen(false); }}
-                className={`px-3 py-2.5 text-sm rounded-md cursor-pointer flex items-center justify-between transition-colors ${option.id === value ? 'bg-ink/5 dark:bg-white/10 text-ink dark:text-white font-bold' : 'text-subtle dark:text-zinc-400 hover:bg-stone-50 dark:hover:bg-zinc-800 hover:text-ink dark:hover:text-zinc-200'}`}
+                className={`px-3 py-2.5 text-sm rounded-md cursor-pointer flex items-center justify-between transition-colors ${option.id === value ? 'bg-[color:var(--accent-soft)] text-[color:var(--text-primary)] font-bold' : 'text-[color:var(--text-secondary)] hover:bg-[color:var(--accent-soft)]/60 hover:text-[color:var(--text-primary)]'}`}
               >
                 <span>{option.name}</span>
-                {option.id === value && <Check size={14} className="text-ink dark:text-white" />}
+                {option.id === value && <Check size={14} className="text-[color:var(--text-primary)]" />}
               </div>
             ))
           )}
@@ -233,7 +233,7 @@ export const TextArea: React.FC<React.TextareaHTMLAttributes<HTMLTextAreaElement
     <div className={`flex flex-col gap-1.5 w-full ${wrapperClassName}`}>
       {label && <label className="text-xs font-bold text-subtle dark:text-zinc-400 uppercase tracking-wider">{label}</label>}
       <textarea 
-        className={`w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-border dark:border-zinc-800 rounded-lg text-ink dark:text-zinc-100 placeholder:text-stone-300 dark:placeholder:text-zinc-700 focus:outline-none focus:border-ink dark:focus:border-zinc-400 focus:ring-4 focus:ring-stone-100 dark:focus:ring-zinc-800 transition-all min-h-[100px] resize-y ${className}`}
+        className={`w-full px-3 py-2 bg-[color:var(--surface-muted)] border border-[color:var(--line)] rounded-lg text-[color:var(--text-primary)] placeholder:text-[color:var(--text-secondary)]/60 focus:outline-none focus:border-[color:var(--accent)] focus:ring-4 focus:ring-[color:var(--accent-soft)] transition-all min-h-[100px] resize-y ${className}`}
         {...props}
       />
     </div>
@@ -321,10 +321,10 @@ export const MultiSelect: React.FC<{
 // --- Admin Components ---
 
 export const AdminCard: React.FC<{ title?: string; action?: React.ReactNode; children: React.ReactNode; className?: string }> = ({ title, action, children, className = '' }) => (
-  <div className={`bg-white dark:bg-zinc-900 rounded-xl border border-border dark:border-zinc-800 shadow-sm overflow-hidden ${className}`}>
+  <div className={`bg-[color:var(--surface-muted)] rounded-xl border border-[color:var(--line)] shadow-sm overflow-hidden ${className}`}>
     {(title || action) && (
-      <div className="px-6 py-4 border-b border-border dark:border-zinc-800 flex justify-between items-center bg-stone-50/50 dark:bg-zinc-950/30">
-        {title && <h3 className="font-semibold text-ink dark:text-zinc-100">{title}</h3>}
+      <div className="px-6 py-4 border-b border-[color:var(--line)] flex justify-between items-center bg-[color:var(--surface)]/55">
+        {title && <h3 className="font-semibold text-[color:var(--text-primary)]">{title}</h3>}
         {action && <div>{action}</div>}
       </div>
     )}
@@ -388,17 +388,45 @@ export const ImagePreview: React.FC<{ src: string, alt: string, className?: stri
 export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: React.ReactNode; className?: string }> = ({ 
   isOpen, onClose, title, children, className = '' 
 }) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    const scrollY = window.scrollY;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalBodyPosition = document.body.style.position;
+    const originalBodyTop = document.body.style.top;
+    const originalBodyWidth = document.body.style.width;
+    const originalBodyTouchAction = document.body.style.touchAction;
+
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+    document.body.style.touchAction = 'none';
+
+    return () => {
+      document.documentElement.style.overflow = originalHtmlOverflow;
+      document.body.style.overflow = originalBodyOverflow;
+      document.body.style.position = originalBodyPosition;
+      document.body.style.top = originalBodyTop;
+      document.body.style.width = originalBodyWidth;
+      document.body.style.touchAction = originalBodyTouchAction;
+      window.scrollTo(0, scrollY);
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
   return createPortal(
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-ink/20 dark:bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className={`bg-white dark:bg-zinc-900 rounded-xl shadow-2xl w-full max-h-[90vh] overflow-y-auto border border-white/50 dark:border-zinc-800 animate-in zoom-in-95 slide-in-from-bottom-2 duration-200 flex flex-col ${className || 'max-w-lg'}`}>
-        <div className="px-6 py-4 border-b border-border dark:border-zinc-800 flex justify-between items-center sticky top-0 bg-white/95 dark:bg-zinc-900/95 backdrop-blur z-10 shrink-0">
-          <h3 className="font-semibold text-ink dark:text-zinc-100">{title}</h3>
-          <button onClick={onClose} className="p-1 hover:bg-stone-100 dark:hover:bg-zinc-800 rounded-full text-subtle dark:text-zinc-400 hover:text-ink dark:hover:text-zinc-100 transition-colors">
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/35 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className={`bg-[color:var(--surface)] rounded-xl shadow-2xl w-full max-h-[92vh] overflow-hidden border border-[color:var(--line)] animate-in zoom-in-95 slide-in-from-bottom-2 duration-200 flex flex-col ${className || 'max-w-lg'}`}>
+        <div className="px-6 py-4 border-b border-[color:var(--line)] flex justify-between items-center sticky top-0 bg-[color:var(--surface)]/95 backdrop-blur z-10 shrink-0">
+          <h3 className="font-semibold text-[color:var(--text-primary)]">{title}</h3>
+          <button onClick={onClose} className="p-1 hover:bg-[color:var(--accent-soft)] rounded-full text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] transition-colors">
             <X size={20} />
           </button>
         </div>
-        <div className="p-6 flex-1 flex flex-col">
+        <div className="p-5 md:p-6 flex-1 flex flex-col overflow-y-auto modal-scroll">
           {children}
         </div>
       </div>

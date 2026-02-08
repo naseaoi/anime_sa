@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { DEFAULT_PUBLIC_DATA } from './services/webdavService';
-import { getStorageAsync } from './services/storageFactory';
+import { getStorageAsync, checkServerSession } from './services/storageFactory';
 import { PublicData } from './types';
 import { PageLoader, ToastProvider, ThemeProvider } from './components/Common';
 import { PublicDetail } from './components/PublicDetail';
@@ -59,8 +59,7 @@ const MainRouter: React.FC = () => {
   // 全局检测管理员权限
   const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
-    const expiry = localStorage.getItem('tat_expiry');
-    if (expiry && new Date().getTime() < parseInt(expiry)) setIsAdmin(true);
+    checkServerSession().then(setIsAdmin);
   }, []);
 
   if (loading) return <PageLoader />;
@@ -68,9 +67,11 @@ const MainRouter: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<PublicHome data={data} refreshData={fetchData} isAdmin={isAdmin} />} />
-        <Route path="/card/:id" element={<PublicDetail data={data} refreshData={fetchData} />} />
         <Route path="/tat/*" element={<AdminLayout initialData={data} refreshData={fetchData} />} />
+        <Route path="/" element={<PublicHome data={data} refreshData={fetchData} isAdmin={isAdmin} />} />
+        <Route path="/:section" element={<PublicHome data={data} refreshData={fetchData} isAdmin={isAdmin} />} />
+        <Route path="/:section/:id" element={<PublicDetail data={data} refreshData={fetchData} />} />
+        <Route path="/card/:id" element={<PublicDetail data={data} refreshData={fetchData} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
