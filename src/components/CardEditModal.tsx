@@ -7,6 +7,7 @@ import { zhCN } from 'date-fns/locale';
 import { createPortal } from 'react-dom';
 import { CardData, Tag } from '../types';
 import { Modal, Input, Select, TextArea, Button, ImagePreview } from './Common';
+import { getCardCoverUrl } from '../utils/cardCover';
 
 interface CardEditModalProps {
   isOpen: boolean;
@@ -213,7 +214,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
     event.target.value = '';
   };
 
-  const coverPreviewSrc = card.coverLocalData || card.coverUrl || '';
+  const coverPreviewSrc = getCardCoverUrl(card, 'card');
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} className="max-w-7xl w-full">

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, PlayCircle, Star, ThumbsUp } from 'lucide-react';
 import { CardData } from '../../types';
 import { ImagePreview } from '../Common';
+import { getCardCoverUrl } from '../../utils/cardCover';
 
 interface PublicCardGridProps {
   gridKey: string;
@@ -21,7 +22,7 @@ interface PublicCardGridProps {
   staggerCards?: boolean;
 }
 
-export const PublicCardGrid: React.FC<PublicCardGridProps> = ({
+const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
   gridKey,
   filteredCards,
   visibleCount,
@@ -39,6 +40,12 @@ export const PublicCardGrid: React.FC<PublicCardGridProps> = ({
 }) => {
   const resolveHref = (card: CardData) => (getCardHref ? getCardHref(card) : `/card/${card.id}`);
   const resolveState = (card: CardData) => (getCardState ? getCardState(card) : undefined);
+  const heroLength = heroCards.length;
+  const heroNeighborIndexes = new Set<number>([
+    heroIndex,
+    (heroIndex + 1) % Math.max(heroLength, 1),
+    (heroIndex - 1 + Math.max(heroLength, 1)) % Math.max(heroLength, 1)
+  ]);
 
   return (
     <div key={gridKey} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 auto-rows-min">
@@ -48,7 +55,14 @@ export const PublicCardGrid: React.FC<PublicCardGridProps> = ({
             <div className="absolute inset-0 rounded-[1.4rem] overflow-hidden shadow-[0_28px_60px_rgba(0,0,0,0.28)] ring-1 ring-white/30 dark:ring-amber-100/20" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
               {heroCards.map((card, idx) => (
                 <Link key={card.id} to={resolveHref(card)} state={resolveState(card)} className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out ${idx === heroIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`} draggable={false}>
-                  <ImagePreview src={card.coverLocalData || card.coverUrl} alt={card.title} className="w-full h-full object-cover select-none" />
+                  <ImagePreview
+                    src={heroNeighborIndexes.has(idx) ? getCardCoverUrl(card, 'card') : ''}
+                    alt={card.title}
+                    className="w-full h-full object-cover select-none"
+                    loading={idx === heroIndex ? 'eager' : 'lazy'}
+                    fetchPriority={idx === heroIndex ? 'high' : 'low'}
+                    decoding="async"
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/10 pointer-events-none" />
                   <div className="absolute inset-0 bg-gradient-to-r from-black/25 via-transparent to-black/20 pointer-events-none" />
                   <div className="absolute top-0 left-0 bg-amber-500 text-white p-2.5 rounded-br-2xl shadow-lg z-10"><ThumbsUp size={22} /></div>
@@ -77,7 +91,7 @@ export const PublicCardGrid: React.FC<PublicCardGridProps> = ({
           key={card.id}
           to={resolveHref(card)}
           state={resolveState(card)}
-          className="group cursor-pointer fill-mode-both fade-up"
+          className="group cursor-pointer fill-mode-both fade-up card-visibility-hint"
           style={staggerCards ? { animationDelay: `${Math.min(index, 18) * 35 + (showHero ? 120 : 0)}ms` } : undefined}
         >
           <div className={`relative rounded-2xl transition-all duration-500 group-hover:scale-[1.02] h-full w-full aspect-video overflow-hidden ${
@@ -88,7 +102,14 @@ export const PublicCardGrid: React.FC<PublicCardGridProps> = ({
                 : 'border border-[color:var(--line)] bg-black/5 dark:bg-white/5 shadow-sm group-hover:shadow-2xl'
           }`}>
             <div className="w-full h-full rounded-2xl overflow-hidden relative isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
-              <ImagePreview src={card.coverLocalData || card.coverUrl} alt={card.title} className="w-full h-full transition-transform duration-1000 group-hover:scale-110" />
+              <ImagePreview
+                src={getCardCoverUrl(card, 'thumb')}
+                alt={card.title}
+                className="w-full h-full transition-transform duration-1000 group-hover:scale-110"
+                loading={index < (showHero ? 2 : 6) ? 'eager' : 'lazy'}
+                fetchPriority={index < (showHero ? 2 : 6) ? 'high' : 'auto'}
+                decoding="async"
+              />
               <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(120%_95%_at_0%_100%,rgba(0,0,0,0.80)_0%,rgba(0,0,0,0.54)_35%,rgba(0,0,0,0.16)_64%,rgba(0,0,0,0)_100%)]" />
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-r from-black/10 via-transparent to-amber-200/10 dark:to-amber-200/5" />
 
@@ -121,3 +142,6 @@ export const PublicCardGrid: React.FC<PublicCardGridProps> = ({
     </div>
   );
 };
+
+export const PublicCardGrid = React.memo(PublicCardGridInner);
+PublicCardGrid.displayName = 'PublicCardGrid';

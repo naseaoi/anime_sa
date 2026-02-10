@@ -364,7 +364,15 @@ export const ConfirmModal: React.FC<{
 
 // --- Visual Components ---
 
-export const ImagePreview: React.FC<{ src: string, alt: string, className?: string }> = ({ src, alt, className }) => {
+export const ImagePreview: React.FC<{
+  src: string;
+  alt: string;
+  className?: string;
+  imageClassName?: string;
+  loading?: 'eager' | 'lazy';
+  fetchPriority?: 'high' | 'low' | 'auto';
+  decoding?: 'async' | 'sync' | 'auto';
+}> = ({ src, alt, className, imageClassName, loading = 'lazy', fetchPriority = 'auto', decoding = 'async' }) => {
   const [error, setError] = React.useState(false);
 
   useEffect(() => {
@@ -377,7 +385,10 @@ export const ImagePreview: React.FC<{ src: string, alt: string, className?: stri
         <img 
           src={src} 
           alt={alt} 
-          className="w-full h-full object-cover"
+          className={`w-full h-full object-cover ${imageClassName || ''}`}
+          loading={loading}
+          decoding={decoding}
+          fetchPriority={fetchPriority as any}
           onError={() => setError(true)}
         />
       ) : (

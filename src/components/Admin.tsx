@@ -58,26 +58,35 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
     setHasChanges(true);
   };
 
+  const persistData = async (nextData: PublicData, successMessage?: string) => {
+    const storage = getStorage();
+    const dataToSave = { ...nextData, updatedAt: Date.now() };
+    const result = await storage.savePublicData(dataToSave);
+    if (!result.success) {
+      showToast(`${storageType === 'sqlite' ? '保存' : '同步'}失败: ${result.error}`, 'error');
+      return false;
+    }
+
+    setLocalData(dataToSave);
+    await refreshData();
+    localStorage.setItem('tat_site_settings', JSON.stringify(dataToSave.settings));
+    setHasChanges(false);
+    showToast(successMessage || (storageType === 'sqlite' ? '已保存更改' : '数据同步成功'), 'success');
+    return true;
+  };
+
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const webdav = getStorage();
       const migrated = await migrateEmbeddedCoverAssets(localData.cards);
-      const dataToSave = { ...localData, cards: migrated.cards, updatedAt: Date.now() };
-
-      const result = await webdav.savePublicData(dataToSave);
-      if (result.success) {
-        setLocalData(dataToSave);
-
-        await refreshData();
-        localStorage.setItem('tat_site_settings', JSON.stringify(dataToSave.settings));
-        setHasChanges(false);
-        if (migrated.migrated > 0) {
-          showToast(`已迁移 ${migrated.migrated} 张本地封面`, 'success');
-        }
-        showToast(storageType === 'sqlite' ? '已保存更改' : '数据同步成功', 'success');
-      } else {
-        showToast(`${storageType === 'sqlite' ? '保存' : '同步'}失败: ${result.error}`, 'error');
+      const success = await persistData(
+        { ...localData, cards: migrated.cards },
+        migrated.migrated > 0
+          ? `保存成功，并迁移 ${migrated.migrated} 张本地封面`
+          : undefined
+      );
+      if (!success) {
+        return;
       }
     } finally {
       setSyncing(false);
@@ -142,11 +151,26 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
             </Button>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10"><div className="max-w-7xl mx-auto w-full">
+        <main className="flex-1 overflow-y-auto scrollbar-stable scrollbar-thinest p-4 sm:p-6 lg:p-10"><div className="max-w-7xl mx-auto w-full">
             <Routes>
               <Route path="cards" element={<AdminCardsSection data={localData} onUpdate={(d) => handleDataChange(d)} />} />
               <Route path="tags" element={<AdminTagsSection data={localData} onUpdate={(d) => handleDataChange(d)} />} />
-              <Route path="sync" element={<AdminSyncSection />} />
+              <Route
+                path="sync"
+                element={
+                  <AdminSyncSection
+                    data={localData}
+                    onPersistData={async (nextData, successMessage) => {
+                      setSyncing(true);
+                      try {
+                        return await persistData(nextData, successMessage);
+                      } finally {
+                        setSyncing(false);
+                      }
+                    }}
+                  />
+                }
+              />
               <Route path="settings" element={<AdminSettingsSection data={localData} onUpdate={(d) => handleDataChange(d)} />} />
               <Route path="*" element={<Navigate to="cards" replace />} />
             </Routes>

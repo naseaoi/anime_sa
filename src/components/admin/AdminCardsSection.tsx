@@ -4,6 +4,7 @@ import { CardData, PublicData } from '../../types';
 import { Button, ConfirmModal, Rating, useToast } from '../Common';
 import { CardEditModal } from '../CardEditModal';
 import { persistCardCover } from '../../services/coverAssetService';
+import { getCardCoverUrl } from '../../utils/cardCover';
 
 interface AdminCardsSectionProps {
   data: PublicData;
@@ -96,7 +97,7 @@ export const AdminCardsSection: React.FC<AdminCardsSectionProps> = ({ data, onUp
         {paginatedCards.map((card) => (
           <div key={card.id} className={`bg-[color:var(--surface-muted)] rounded-xl border flex items-center p-3 gap-4 group transition-all shadow-sm ${card.isRecommended ? 'border-amber-300/70 shadow-[0_10px_26px_rgba(217,140,38,0.14)]' : 'border-[color:var(--line)] hover:border-[color:var(--accent)]/45'}`}>
             <div className="w-12 h-12 shrink-0 flex items-center justify-center rounded-lg bg-[color:var(--surface)]/70 border border-[color:var(--line)]">
-              {card.coverLocalData || card.coverUrl ? (
+              {getCardCoverUrl(card, 'thumb') ? (
                 <ImageIcon size={20} className="text-emerald-500 dark:text-emerald-400" />
               ) : (
                 <ImageIcon size={20} className="text-[color:var(--text-secondary)]/45" />
