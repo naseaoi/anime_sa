@@ -155,7 +155,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                 {(card.isRecommended || card.isWatching) && (
                   <div className="absolute top-4 left-4 rounded-xl px-3 py-2 bg-black/45 border border-white/20 backdrop-blur-md text-white flex items-center gap-2">
                     {card.isRecommended ? <ThumbsUp size={16} className="text-amber-300" /> : <PlayCircle size={16} className="text-sky-300" />}
-                    <span className="text-xs font-semibold tracking-wide">{card.isRecommended ? '推荐作品' : '正在观看'}</span>
+                    <span className="text-xs font-semibold tracking-wide">{card.isRecommended ? '推荐' : '正在观看'}</span>
                   </div>
                 )}
 
