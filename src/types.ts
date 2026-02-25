@@ -10,6 +10,11 @@ export interface CardData {
   id: string;
   title: string;
   coverUrl: string;
+  coverVariants?: {
+    thumb?: string;
+    card?: string;
+    original?: string;
+  };
   coverLocalData?: string;
   description: string;
   startDate: string;

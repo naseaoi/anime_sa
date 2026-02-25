@@ -118,7 +118,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
       }, 2000);
     };
 
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
       window.removeEventListener('scroll', handleScroll);
       if (scrollIdleTimerRef.current) {
@@ -198,7 +198,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   // --- 辅助函数：重置列表视口 ---
   const resetListView = () => {
     setVisibleCount(INITIAL_LOAD_COUNT);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'auto' });
     setIsLoadingMore(false);
   };
 
@@ -340,6 +340,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     const recommendedCards: CardData[] = [];
     const watchingCards: CardData[] = [];
     const cardsByTag = new Map<string, CardData[]>();
+    const usedCardIds = new Set<string>();
 
     data.tags.forEach((tag) => {
       cardsByTag.set(tag.id, []);
@@ -349,20 +350,45 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
       if (!heroIds.has(card.id)) {
         nonHeroCards.push(card);
       }
+    }
+
+    for (const card of nonHeroCards) {
       if (card.isRecommended) {
         recommendedCards.push(card);
-      }
-      if (card.isWatching) {
-        watchingCards.push(card);
-      }
-
-      for (const tagId of card.tagIds) {
-        const bucket = cardsByTag.get(tagId);
-        if (bucket) bucket.push(card);
+        usedCardIds.add(card.id);
       }
     }
 
-    const topCards = nonHeroCards.slice(0, topCardsTarget);
+    for (const card of nonHeroCards) {
+      if (usedCardIds.has(card.id)) continue;
+      if (card.isWatching) {
+        watchingCards.push(card);
+        usedCardIds.add(card.id);
+      }
+    }
+
+    const topCandidates = nonHeroCards.filter((card) => !usedCardIds.has(card.id));
+    const topCandidatesSorted = [...topCandidates].sort((a, b) => {
+      const aHasTag = a.tagIds.length > 0;
+      const bHasTag = b.tagIds.length > 0;
+      if (aHasTag === bHasTag) return 0;
+      return aHasTag ? 1 : -1;
+    });
+    const topCards = topCandidatesSorted.slice(0, topCardsTarget);
+    topCards.forEach((card) => usedCardIds.add(card.id));
+
+    for (const card of nonHeroCards) {
+      if (usedCardIds.has(card.id)) continue;
+      const matchedTag = data.tags.find((tag) => card.tagIds.includes(tag.id));
+      if (matchedTag) {
+        const bucket = cardsByTag.get(matchedTag.id);
+        if (bucket) {
+          bucket.push(card);
+          usedCardIds.add(card.id);
+        }
+      }
+    }
+
     const tagSections = data.tags
       .map((tag) => ({ tag, cards: cardsByTag.get(tag.id) || [] }))
       .filter((section) => section.cards.length > 0);
@@ -592,18 +618,18 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
             <div className="flex gap-3 w-full sm:w-auto">
               <div className="relative w-full sm:w-96 group">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--text-secondary)] group-focus-within:text-[color:var(--text-primary)] transition-colors" size={16} />
-                <input type="text" placeholder="搜索标题或简介" value={searchTerm} onChange={handleSearchChange} className="w-full bg-[color:var(--surface-muted)] border border-[color:var(--line)] rounded-2xl py-3 pl-12 pr-10 text-sm font-semibold text-[color:var(--text-primary)] placeholder:text-[color:var(--text-secondary)]/70 focus:outline-none focus:border-[color:var(--accent)] focus:ring-4 focus:ring-[color:var(--accent-soft)] transition-all" />
+                <input type="text" placeholder="搜索标题或简介" value={searchTerm} onChange={handleSearchChange} className="w-full bg-[color:var(--surface)] border border-[color:var(--line)] rounded-2xl py-3 pl-12 pr-10 text-sm font-semibold text-[color:var(--text-primary)] placeholder:text-[color:var(--text-secondary)]/70 focus:outline-none focus:border-[color:var(--accent)] focus:ring-4 focus:ring-[color:var(--accent-soft)] transition-all" />
                 {searchTerm && <button onClick={clearSearch} className="absolute right-4 top-1/2 -translate-y-1/2 text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]"><X size={16} /></button>}
               </div>
               {isAdmin && (
-                <button onClick={() => setIsCreateModalOpen(true)} className="bg-[color:var(--surface-muted)] border border-[color:var(--line)] text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:border-[color:var(--accent)] rounded-2xl w-12 flex items-center justify-center transition-all shadow-sm active:scale-95" title="快速添加">
+                <button onClick={() => setIsCreateModalOpen(true)} className="bg-[color:var(--surface)] border border-[color:var(--line)] text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:border-[color:var(--accent)] rounded-2xl w-12 flex items-center justify-center transition-all shadow-sm active:scale-95" title="快速添加">
                   <Plus size={20} />
                 </button>
               )}
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-              <div className="flex bg-[color:var(--surface-muted)] border border-[color:var(--line)] p-1 rounded-xl">
+              <div className="flex bg-[color:var(--surface)] border border-[color:var(--line)] p-1 rounded-xl">
                 {(['createdAt', 'rating', 'updatedAt'] as SortKey[]).map(key => (
                   <button key={key} onClick={() => handleSortChange(key)} className={`px-3.5 py-2 rounded-lg text-[11px] font-bold transition-all flex items-center gap-2 ${sortConfig.key === key ? 'bg-[color:var(--accent-soft)] text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]'}`}>
                     {key === 'createdAt' ? '创建' : key === 'rating' ? '评分' : '更新'}
@@ -611,7 +637,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
                   </button>
                 ))}
               </div>
-              <button onClick={toggleTheme} className="lg:hidden p-3 bg-[color:var(--surface-muted)] border border-[color:var(--line)] rounded-xl text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] transition-colors">
+              <button onClick={toggleTheme} className="lg:hidden p-3 bg-[color:var(--surface)] border border-[color:var(--line)] rounded-xl text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] transition-colors">
                 <ThemeIcon size={18} />
               </button>
             </div>
@@ -626,7 +652,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
           </div>
         ) : isStructuredHome && structuredHomeSections ? (
           <div key={`sections-${gridKey}`} className="space-y-12">
-            <section className="fade-up" style={{ animationDelay: '0.02s' }}>
+            <section className="fade-up home-section-visibility" style={{ animationDelay: '0.02s' }}>
               <PublicCardGrid
                 gridKey={`${gridKey}-hero-block`}
                 filteredCards={structuredHomeSections.topCards}
@@ -646,7 +672,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
             </section>
 
             {structuredHomeSections.recommendedCards.length > 0 && (
-              <section className="space-y-4 fade-up" style={{ animationDelay: '0.08s' }}>
+              <section className="space-y-4 fade-up home-section-visibility" style={{ animationDelay: '0.08s' }}>
                 <div className="flex items-center justify-between gap-3 fade-up" style={{ animationDelay: '0.1s' }}>
                   <div className="flex items-center gap-2">
                     <span className="w-6 h-6 inline-flex items-center justify-center text-amber-500"><ThumbsUp size={24} /></span>
@@ -688,7 +714,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
             )}
 
             {structuredHomeSections.watchingCards.length > 0 && (
-              <section className="space-y-4 fade-up" style={{ animationDelay: '0.12s' }}>
+              <section className="space-y-4 fade-up home-section-visibility" style={{ animationDelay: '0.12s' }}>
                 <div className="flex items-center justify-between gap-3 fade-up" style={{ animationDelay: '0.14s' }}>
                   <div className="flex items-center gap-2">
                     <span className="w-6 h-6 inline-flex items-center justify-center text-sky-500"><PlayCircle size={24} /></span>
@@ -730,7 +756,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
             )}
 
             {structuredHomeSections.tagSections.map((section, index) => (
-              <section key={section.tag.id} className="space-y-5 fade-up" style={{ animationDelay: `${0.18 + index * 0.04}s` }}>
+              <section key={section.tag.id} className="space-y-5 fade-up home-section-visibility" style={{ animationDelay: `${0.18 + index * 0.04}s` }}>
                 <div className="relative flex items-center justify-between py-1.5 fade-up" style={{ animationDelay: `${0.2 + index * 0.04}s` }}>
                   <div className="flex items-center gap-3">
                     <h3 className="font-display text-2xl text-[color:var(--text-primary)] inline-flex items-center gap-2">

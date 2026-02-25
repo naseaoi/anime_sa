@@ -1,11 +1,12 @@
 
 import React, { useEffect, useState, Suspense } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, ThumbsUp, Calendar, AlertCircle, Edit2, PlayCircle } from 'lucide-react';
+import { ArrowLeft, ThumbsUp, Calendar, AlertCircle, Edit2, PlayCircle, Maximize2 } from 'lucide-react';
 import { PublicData, CardData } from '../types';
 import { Button, ImagePreview, Rating, useToast } from './Common';
 import { getStorage, checkServerSession } from '../services/storageFactory';
 import { persistCardCover } from '../services/coverAssetService';
+import { getCardCoverUrl } from '../utils/cardCover';
 
 const CardEditModal = React.lazy(() => import('./CardEditModal').then((m) => ({ default: m.CardEditModal })));
 
@@ -21,6 +22,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
   const card = data.cards.find(c => c.id === id);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isOriginalPreviewOpen, setIsOriginalPreviewOpen] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -129,30 +131,44 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
 
             <section className="order-2 lg:order-none lg:col-start-1 lg:row-span-2">
               <div className={`relative aspect-video rounded-[1.8rem] overflow-hidden border ${card.isWatching ? 'border-sky-300/80 dark:border-sky-400/30 shadow-[0_14px_42px_rgba(56,189,248,0.18)]' : card.isRecommended ? 'border-amber-300/90 dark:border-amber-400/35 shadow-[0_14px_42px_rgba(217,140,38,0.24)]' : 'border-[color:var(--line)] shadow-[0_20px_48px_rgba(0,0,0,0.16)]'}`}>
-                <ImagePreview src={card.coverLocalData || card.coverUrl} alt={card.title} className="w-full h-full" />
+                <ImagePreview
+                  src={getCardCoverUrl(card, 'card')}
+                  alt={card.title}
+                  className="w-full h-full"
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="async"
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/86 via-black/25 to-transparent pointer-events-none" />
+
+                {getCardCoverUrl(card, 'original') && (
+                  <button
+                    type="button"
+                    onClick={() => setIsOriginalPreviewOpen(true)}
+                    className="absolute right-4 bottom-4 z-20 w-8 h-8 rounded-lg bg-[rgba(0,0,0,0.32)] hover:bg-[rgba(0,0,0,0.46)] border border-white/20 text-white inline-flex items-center justify-center transition-colors"
+                    title="查看原图"
+                  >
+                    <Maximize2 size={13} />
+                  </button>
+                )}
 
                 {(card.isRecommended || card.isWatching) && (
                   <div className="absolute top-4 left-4 rounded-xl px-3 py-2 bg-black/45 border border-white/20 backdrop-blur-md text-white flex items-center gap-2">
                     {card.isRecommended ? <ThumbsUp size={16} className="text-amber-300" /> : <PlayCircle size={16} className="text-sky-300" />}
-                    <span className="text-xs font-semibold tracking-wide">{card.isRecommended ? '推荐作品' : '正在观看'}</span>
+                    <span className="text-xs font-semibold tracking-wide">{card.isRecommended ? '推荐' : '正在观看'}</span>
                   </div>
                 )}
 
                 {isAdmin && (
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="absolute top-4 right-4 bg-black/55 hover:bg-black/70 text-white p-2.5 rounded-xl border border-white/20 shadow-lg backdrop-blur transition-all z-20 group"
+                    className="absolute top-4 right-4 z-20 w-8 h-8 rounded-lg bg-[rgba(0,0,0,0.32)] hover:bg-[rgba(0,0,0,0.46)] border border-white/20 text-white inline-flex items-center justify-center transition-colors"
                     title="编辑此卡片"
                   >
-                    <Edit2 size={18} className="group-hover:rotate-12 transition-transform" />
+                    <Edit2 size={13} />
                   </button>
                 )}
 
-                <div className="absolute right-4 bottom-4 bg-black/50 backdrop-blur-md border border-white/20 px-3 py-1.5 rounded-lg flex items-center gap-2 text-white">
-                  <span className="text-[11px] uppercase tracking-[0.14em] opacity-80">Score</span>
-                  <span className="text-sm font-semibold">{(card.rating || 0).toFixed(1)}</span>
-                </div>
               </div>
             </section>
 
@@ -192,6 +208,37 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
           <p className="font-semibold text-center">{data.settings.footerLeft || `© ${new Date().getFullYear()}`}</p>
         </div>
       </footer>
+
+      {isOriginalPreviewOpen && (
+        <div
+          className="fixed inset-0 z-[2300] bg-black/75 backdrop-blur-sm p-4 md:p-8 flex items-center justify-center"
+          onClick={() => setIsOriginalPreviewOpen(false)}
+        >
+          <div className="w-full max-w-6xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between text-white">
+              <p className="text-xs tracking-[0.18em] uppercase">原图预览</p>
+              <button
+                type="button"
+                onClick={() => setIsOriginalPreviewOpen(false)}
+                className="px-3 py-1.5 rounded-md bg-white/15 hover:bg-white/25 text-xs font-semibold"
+              >
+                关闭
+              </button>
+            </div>
+            <div className="rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-black/30 max-h-[82vh]">
+              <ImagePreview
+                src={getCardCoverUrl(card, 'original')}
+                alt={`${card.title} 原图`}
+                className="w-full h-full object-contain"
+                imageClassName="object-contain"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <Suspense fallback={null}>
         <CardEditModal

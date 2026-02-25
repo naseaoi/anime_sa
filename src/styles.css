@@ -33,8 +33,10 @@
   }
 
   html {
-    scrollbar-gutter: stable both-edges;
-    overflow-y: scroll;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: #a8a29e transparent;
+    overflow-y: auto;
     background-color: var(--bg);
     background-image:
       radial-gradient(circle at 10% 10%, rgba(238, 214, 168, 0.2) 0%, transparent 36%),
@@ -43,6 +45,7 @@
   }
 
   html.dark {
+    scrollbar-color: #71717a transparent;
     background-image:
       radial-gradient(circle at 10% 10%, rgba(98, 84, 58, 0.2) 0%, transparent 32%),
       radial-gradient(circle at 88% 0%, rgba(76, 62, 39, 0.22) 0%, transparent 34%),
@@ -72,12 +75,26 @@
   }
 
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
   }
 
   ::-webkit-scrollbar-track {
-    background: var(--bg-soft);
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-track-piece {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-button {
+    width: 0;
+    height: 0;
+    display: none;
   }
 
   ::-webkit-scrollbar-thumb {
@@ -112,6 +129,33 @@
     scrollbar-gutter: stable;
     scrollbar-width: thin;
     scrollbar-color: color-mix(in srgb, var(--text-secondary) 55%, transparent) transparent;
+  }
+
+  .scrollbar-stable {
+    scrollbar-gutter: stable;
+  }
+
+  .scrollbar-thinest {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--text-secondary) 45%, transparent) transparent;
+  }
+
+  .scrollbar-thinest::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+  }
+
+  .scrollbar-thinest::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thinest::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-secondary) 42%, transparent);
+    border-radius: 999px;
+  }
+
+  .scrollbar-thinest::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--text-secondary) 65%, transparent);
   }
 
   .modal-scroll::-webkit-scrollbar {
@@ -152,8 +196,8 @@
   }
 
   .mask-linear-fade {
-    -webkit-mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
-    mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
+    -webkit-mask-image: linear-gradient(to right, black 0, black calc(100% - 16px), transparent);
+    mask-image: linear-gradient(to right, black 0, black calc(100% - 16px), transparent);
   }
 
   .font-display {
@@ -170,6 +214,16 @@
   .cinematic-surface {
     background: color-mix(in srgb, var(--surface) 88%, transparent);
     border: 1px solid var(--line);
+  }
+
+  .home-section-visibility {
+    content-visibility: auto;
+    contain-intrinsic-size: 860px;
+  }
+
+  .card-visibility-hint {
+    content-visibility: auto;
+    contain-intrinsic-size: 240px;
   }
 
   .fade-up {

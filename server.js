@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import zlib from 'zlib';
+import net from 'net';
 import Database from 'better-sqlite3';
 import {
   timingSafeEqualText,
@@ -36,6 +37,46 @@ const API_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const API_RATE_LIMIT_MAX = 600;
 const LOGIN_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const LOGIN_RATE_LIMIT_MAX = 20;
+
+const isPrivateIpv4Address = (host) => {
+  const parts = host.split('.').map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return false;
+  }
+  if (parts[0] === 10) return true;
+  if (parts[0] === 127) return true;
+  if (parts[0] === 169 && parts[1] === 254) return true;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  if (parts[0] === 192 && parts[1] === 168) return true;
+  return false;
+};
+
+const isPrivateIpv6Address = (host) => {
+  const value = host.toLowerCase();
+  if (value === '::1') return true;
+  if (value.startsWith('fe80:')) return true;
+  if (value.startsWith('fc') || value.startsWith('fd')) return true;
+  return false;
+};
+
+const isBlockedRemoteHost = (hostname) => {
+  const value = String(hostname || '').trim().replace(/\.$/, '').toLowerCase();
+  if (!value) return true;
+
+  if (value === 'localhost' || value.endsWith('.localhost') || value.endsWith('.local')) {
+    return true;
+  }
+
+  const ipVersion = net.isIP(value);
+  if (ipVersion === 4) {
+    return isPrivateIpv4Address(value);
+  }
+  if (ipVersion === 6) {
+    return isPrivateIpv6Address(value);
+  }
+
+  return false;
+};
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -381,15 +422,15 @@ const parseCoverReferenceSets = (publicData) => {
   const webdavNames = new Set();
   const cards = Array.isArray(publicData?.cards) ? publicData.cards : [];
 
-  for (const card of cards) {
-    const raw = String(card?.coverUrl || '');
-    if (!raw) continue;
+  const collectFromUrl = (rawUrl) => {
+    const raw = String(rawUrl || '');
+    if (!raw) return;
 
     let parsed;
     try {
       parsed = new URL(raw, 'http://local');
     } catch (e) {
-      continue;
+      return;
     }
 
     if (parsed.pathname === '/api/sqlite/media') {
@@ -404,6 +445,13 @@ const parseCoverReferenceSets = (publicData) => {
         if (name) webdavNames.add(name);
       }
     }
+  };
+
+  for (const card of cards) {
+    collectFromUrl(card?.coverUrl);
+    collectFromUrl(card?.coverVariants?.thumb);
+    collectFromUrl(card?.coverVariants?.card);
+    collectFromUrl(card?.coverVariants?.original);
   }
 
   return { sqliteNames, webdavNames };
@@ -689,6 +737,80 @@ const handleSqlite = async (req, res) => {
   try {
     setSecurityHeaders(res);
     const url = new URL(req.url, `http://${req.headers.host}`);
+
+    if (url.pathname.endsWith('/remote-image')) {
+      if (req.method !== 'GET') {
+        res.statusCode = 405;
+        res.end();
+        return;
+      }
+      if (!requireAuth(req, res, db)) return;
+
+      const rawTarget = String(url.searchParams.get('url') || '').trim();
+      if (!rawTarget) {
+        return jsonResponse(res, 400, { error: 'Missing url parameter' });
+      }
+
+      let target;
+      try {
+        target = new URL(rawTarget);
+      } catch {
+        return jsonResponse(res, 400, { error: 'Invalid remote image url' });
+      }
+
+      if (!['http:', 'https:'].includes(target.protocol)) {
+        return jsonResponse(res, 400, { error: 'Only http/https urls are allowed' });
+      }
+
+      if (isBlockedRemoteHost(target.hostname)) {
+        return jsonResponse(res, 403, { error: 'Remote host is not allowed' });
+      }
+
+      const upstream = await fetch(target.toString(), {
+        method: 'GET',
+        redirect: 'follow',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Node.js) NicheCard/1.0',
+          Accept: 'image/*,*/*;q=0.8'
+        }
+      });
+
+      let finalUrl = null;
+      try {
+        finalUrl = upstream.url ? new URL(upstream.url) : null;
+      } catch {
+        finalUrl = null;
+      }
+      if (finalUrl && isBlockedRemoteHost(finalUrl.hostname)) {
+        return jsonResponse(res, 403, { error: 'Redirected host is not allowed' });
+      }
+
+      if (!upstream.ok) {
+        return jsonResponse(res, 502, { error: `Remote fetch failed (${upstream.status})` });
+      }
+
+      const contentType = String(upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+      if (!contentType.startsWith('image/')) {
+        return jsonResponse(res, 415, { error: 'Remote resource is not an image' });
+      }
+
+      const contentLength = Number(upstream.headers.get('content-length') || '0');
+      if (Number.isFinite(contentLength) && contentLength > MEDIA_BODY_LIMIT_BYTES) {
+        return jsonResponse(res, 413, { error: 'Remote image too large' });
+      }
+
+      const bytes = Buffer.from(await upstream.arrayBuffer());
+      if (bytes.length > MEDIA_BODY_LIMIT_BYTES) {
+        return jsonResponse(res, 413, { error: 'Remote image too large' });
+      }
+
+      res.statusCode = 200;
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Length', bytes.length);
+      res.end(bytes);
+      return;
+    }
 
     if (url.pathname.endsWith('/login')) {
       if (req.method !== 'POST') {
