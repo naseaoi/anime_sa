@@ -1,77 +1,86 @@
 # 维护与运维手册
 
-本文面向项目维护者，补充 README 中不适合展开的运行与排障细节。
+## 存储模式
 
-## 1. 存储模式与数据位置
+项目支持 SQLite 和 WebDAV 两种存储模式，可在后台 `/tat` → 数据同步 中切换。
 
-- SQLite：
-  - 主数据：`kv_store` 中 `public_data` / `private_data`
-  - 封面：`kv_store` 中 `media:*`
-- WebDAV：
-  - 主数据：`public_data.json` / `private_data.json`
-  - 封面：`covers/` 目录
+| 数据 | SQLite | WebDAV |
+|---|---|---|
+| 公开数据 | `kv_store` key: `public_data` | `public_data.json` |
+| 私有数据 | `kv_store` key: `private_data` | `private_data.json` |
+| 封面 | `kv_store` key: `media:*` | `covers/` 目录 |
 
-切换路径：后台 `/tat` -> 数据同步。
+SQLite 数据库路径：`data/local.db`（运行时自动创建）。
 
-## 2. 管理员凭据机制
+## API 接口
 
-- 密码统一使用哈希存储（`scrypt`）。
-- 历史明文凭据会在登录/保存流程中迁移。
-- 凭据更新走专用接口：
-  - `GET /api/sqlite/admin-profile`
-  - `POST /api/sqlite/admin-credentials`
-  - `POST /api/sqlite/admin-credentials-sync?target=sqlite|webdav`
-- 账号或密码发生变更时，会话会被清理并要求重新登录。
+### 认证
 
-## 3. 封面资源清理（GC）
+| 接口 | 方法 | 认证 | 说明 |
+|---|---|---|---|
+| `/api/sqlite/login` | POST | 无 | 登录，支持 `remember` 参数 |
+| `/api/sqlite/logout` | POST | 无 | 登出，清除 Session |
+| `/api/sqlite/session` | GET | 无 | 检查 Session 有效性 |
 
-- 接口：`POST /api/sqlite/media-gc?target=sqlite|webdav&limit=80`
-- 返回：`removed` / `checked` / `pending` / `hasMore`
-- 建议：通过后台“封面资源清理”按钮按批次执行，避免一次清理阻塞。
+### 管理（需认证）
 
-## 4. 封面多规格与加载策略
+| 接口 | 方法 | 说明 |
+|---|---|---|
+| `/api/sqlite/admin-profile` | GET | 获取管理员用户名 |
+| `/api/sqlite/admin-credentials` | POST | 修改管理员账号/密码 |
+| `/api/sqlite/admin-credentials-sync?target=sqlite\|webdav` | POST | 跨存储同步凭据 |
+| `/api/sqlite/media-gc?target=sqlite\|webdav&limit=100` | POST | 清理未引用封面（默认 limit=100，范围 1-500） |
+| `/api/sqlite/audit-logs?limit=50` | GET | 查询审计日志（默认 limit=50，范围 1-200） |
+| `/api/sqlite/media?name=xxx` | GET/POST/DELETE | 封面 CRUD（POST/DELETE 需认证） |
+| `/api/sqlite?key=xxx` | GET/POST | KV 读写（写操作及 private_data 读取需认证） |
+| `/api/webdav` | * | WebDAV 代理（写操作及 private_data 需认证） |
 
-### 4.1 数据结构
+## 安全机制
 
-- `CardData` 新增 `coverVariants` 字段：
-  - `thumb`：卡片列表/分区默认使用（小图）
-  - `card`：详情页主封面默认使用（中图）
-  - `original`：详情页“查看原图”使用
-- `coverUrl` 仍保留，用于兼容历史数据与回退（等价于 `original`）。
+### 密码
 
-### 4.2 上传与生成
+- 算法：scrypt（N=16384, r=8, p=1, keylen=64）
+- 格式：`scrypt$N$r$p$salt$derived`
+- 历史明文凭据在登录流程中自动迁移为哈希
+- 凭据变更后所有 Session 自动清除，要求重新登录
 
-- 新上传本地封面时会自动生成并上传三种规格：
-  - `thumb`：约 480px 宽
-  - `card`：约 960px 宽
-  - `original`：原图
-- GIF / SVG 不做 Canvas 重采样，直接复用原图。
+### Session
 
-### 4.3 前端读取规则
+- Cookie 名：`tat_session`
+- Token：32 字节随机（64 字符 hex）
+- 过期：记住登录 30 天，否则 1 天
+- 属性：`HttpOnly; SameSite=Lax`，生产环境加 `Secure`
 
-- 首页/分区/搜索等卡片位：优先 `thumb`。
-- Hero 与详情主封面：优先 `card`。
-- 详情页点击封面右上角放大图标：按需加载 `original`。
+### 限流
 
-### 4.4 历史数据批量优化
+| 范围 | 限制 | 窗口 |
+|---|---|---|
+| 通用 API | 600 次/IP | 1 分钟 |
+| 登录接口 | 20 次/IP | 10 分钟 |
 
-- 路径：后台 `/tat` -> 数据同步 -> “封面缩略图优化” -> “一键优化已有封面”。
-- 作用：对缺少 `thumb/card/original` 的历史卡片批量补齐，无需逐条编辑保存。
-- 注意：仅同源可访问的原图可自动补齐；跨域不可读资源会跳过并计入失败数。
+超限返回 429 + `Retry-After` 头。
 
-## 5. 操作日志
+### 请求体限制
 
-- 查询接口：`GET /api/sqlite/audit-logs?limit=20`
-- 日志保留：最新 200 条（环形裁剪）
-- 典型动作：
-  - `update_admin_credentials`
-  - `sync_admin_credentials`
-  - `run_media_gc`
-  - `write_public_data`
-  - `write_storage_mode`
-  - `write_private_data`
+- 通用：1 MB
+- 媒体上传：10 MB
 
-## 6. 发布与回归建议
+## 审计日志
+
+保留最新 200 条（环形裁剪）。
+
+action 类型：
+
+| action | 触发场景 |
+|---|---|
+| `update_admin_credentials` | 修改管理员账号或密码 |
+| `sync_admin_credentials` | 跨存储同步凭据 |
+| `run_media_gc` | 执行封面清理 |
+| `write_public_data` | 写入公开数据 |
+| `write_private_data` | 写入私有数据 |
+| `write_storage_mode` | 切换存储模式 |
+
+## 发布检查
 
 发布前：
 
@@ -81,25 +90,24 @@ npm run test
 npm run build
 ```
 
-上线后最小验收：
+上线验收：
 
-1. 后台登录与退出正常。
-2. 卡片新增/编辑/同步正常。
-3. 安全选项改账号或密码后能重新登录。
-4. 封面清理可执行并有进度。
-5. 操作日志可查看并能刷新。
+1. 后台登录与退出正常
+2. 卡片新增/编辑/同步正常
+3. 修改账号或密码后能重新登录
+4. 封面清理可执行并有进度
+5. 审计日志可查看
 
-## 7. 常见故障
+## 常见故障
 
-- 登录失败：
-  - 检查 `.env` 的 `ADMIN_*` 是否正确。
-  - 检查 `private_data` 是否被非法结构覆盖。
-- WebDAV 同步失败：
-  - 检查 `VITE_WEBDAV_*` 配置。
-  - 检查服务端是否支持 `PROPFIND/PUT/DELETE`。
-- 清理失败：
-  - 先在日志里查看 `run_media_gc` 失败记录。
-  - WebDAV 失败时优先排查目录权限与方法限制。
-- 缩略图优化失败：
-  - 先确认原图 URL 可在浏览器直接访问。
-  - 若为跨域资源且目标源未允许读取，系统会跳过该卡片（不会阻塞其余卡片）。
+**登录失败**
+- 检查 `.env` 中 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 是否正确
+- 检查 `private_data` 是否被非法结构覆盖
+
+**WebDAV 同步失败**
+- 检查 `VITE_WEBDAV_*` 环境变量配置
+- 确认 WebDAV 服务端支持 `PROPFIND` / `PUT` / `DELETE` 方法
+
+**封面清理失败**
+- 查看审计日志中 `run_media_gc` 的失败记录
+- WebDAV 模式下优先排查目录权限与方法限制
