@@ -91,10 +91,10 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
           key={card.id}
           to={resolveHref(card)}
           state={resolveState(card)}
-          className="group cursor-pointer fill-mode-both fade-up card-visibility-hint"
+          className="group cursor-pointer fill-mode-both fade-up card-visibility-hint transition-transform duration-500 hover:scale-[1.02]"
           style={staggerCards ? { animationDelay: `${Math.min(index, 18) * 35 + (showHero ? 120 : 0)}ms` } : undefined}
         >
-          <div className={`relative rounded-2xl transition-all duration-500 group-hover:scale-[1.02] h-full w-full aspect-video overflow-hidden ${
+          <div className={`relative rounded-2xl transition-all duration-500 h-full w-full aspect-video overflow-hidden ${
             card.isWatching
               ? 'border border-sky-300/80 dark:border-sky-400/30 shadow-[0_10px_30px_rgba(56,189,248,0.18)] group-hover:shadow-[0_20px_44px_rgba(56,189,248,0.36)]'
               : card.isRecommended

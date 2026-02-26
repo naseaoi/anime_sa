@@ -560,31 +560,30 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
           ))}
         </nav>
 
-        <div className="fade-up-delay-2 mt-auto pt-5 border-t border-[color:var(--line)]/70">
-          <div className={`relative transition-[height] duration-[680ms] ease-in-out ${sidebarCollapsed ? 'h-24' : 'h-11'}`}>
-            <button
-              onClick={toggleTheme}
-              className={`absolute w-11 h-11 flex items-center justify-center rounded-xl text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--accent-soft)] transition-all duration-[680ms] ease-in-out ${sidebarCollapsed ? 'left-1/2 top-0 -translate-x-1/2' : 'left-0 top-0 translate-x-0'}`}
-              title={`Theme: ${theme}`}
-            >
-              <ThemeIcon size={18} />
-            </button>
+        <div className="fade-up-delay-2 mt-auto pt-5 flex flex-col gap-1.5">
+          <div className="h-px mb-1.5 bg-gradient-to-r from-transparent via-[color:var(--line)] to-transparent" />
+          <button
+            onClick={toggleTheme}
+            className="group relative flex items-center px-3 py-2.5 rounded-xl border border-transparent text-[color:var(--text-secondary)] hover:bg-[color:var(--surface)]/78 hover:border-[color:var(--line)] hover:text-[color:var(--text-primary)] transition-all"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className={`transition-transform duration-300 ${sidebarCollapsed ? 'translate-x-1.5' : 'translate-x-0'}`}><ThemeIcon size={14} /></span>
+              <span className={`text-sm font-semibold whitespace-nowrap overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'max-w-0 opacity-0 -translate-x-1' : 'max-w-[120px] opacity-100 translate-x-0'}`}>主题</span>
+            </div>
+          </button>
 
-            <button
-              onClick={() => setSidebarCollapsed((prev) => !prev)}
-              className={`absolute w-11 h-11 flex items-center justify-center rounded-xl text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--accent-soft)] transition-all duration-[680ms] ease-in-out ${sidebarCollapsed ? 'left-1/2 top-12 -translate-x-1/2' : 'right-0 top-0 translate-x-0'}`}
-              title={sidebarCollapsed ? '展开侧栏' : '收起侧栏'}
-            >
-              <span className="relative w-[18px] h-[18px]">
-                <span className={`absolute inset-0 flex items-center justify-center transition-all duration-[460ms] ease-in-out ${sidebarCollapsed ? 'opacity-0 -translate-x-0.5 scale-95' : 'opacity-100 translate-x-0 scale-100'}`}>
-                  <ChevronsLeft size={18} />
-                </span>
-                <span className={`absolute inset-0 flex items-center justify-center transition-all duration-[460ms] ease-in-out ${sidebarCollapsed ? 'opacity-100 translate-x-0 scale-100' : 'opacity-0 translate-x-0.5 scale-95'}`}>
-                  <ChevronsRight size={18} />
-                </span>
+          <button
+            onClick={() => setSidebarCollapsed((prev) => !prev)}
+            className="group relative flex items-center px-3 py-2.5 rounded-xl border border-transparent text-[color:var(--text-secondary)] hover:bg-[color:var(--surface)]/78 hover:border-[color:var(--line)] hover:text-[color:var(--text-primary)] transition-all"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <span className={`relative w-3.5 h-3.5 transition-transform duration-300 ${sidebarCollapsed ? 'translate-x-1.5' : 'translate-x-0'}`}>
+                <span className={`absolute inset-0 flex items-center justify-center transition-all duration-[460ms] ease-in-out ${sidebarCollapsed ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}><ChevronsLeft size={14} /></span>
+                <span className={`absolute inset-0 flex items-center justify-center transition-all duration-[460ms] ease-in-out ${sidebarCollapsed ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}><ChevronsRight size={14} /></span>
               </span>
-            </button>
-          </div>
+              <span className={`text-sm font-semibold whitespace-nowrap overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'max-w-0 opacity-0 -translate-x-1' : 'max-w-[120px] opacity-100 translate-x-0'}`}>{sidebarCollapsed ? '展开' : '折叠'}</span>
+            </div>
+          </button>
         </div>
       </aside>
 
@@ -849,7 +848,8 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
         )}
 
         <footer className="mt-auto pt-16 pb-6">
-          <div className="border-t border-[color:var(--line)] pt-6 flex flex-row items-center justify-between gap-3 text-xs text-[color:var(--text-secondary)]">
+          <div className="h-px bg-gradient-to-r from-transparent via-[color:var(--line)] to-transparent" />
+          <div className="pt-6 flex flex-col items-center gap-1.5 text-xs text-[color:var(--text-secondary)]">
             <p className="font-semibold">{data.settings.footerLeft || `© ${new Date().getFullYear()}`}</p>
             <p>{data.settings.footerRight || data.settings.footerText || 'All rights reserved'}</p>
           </div>
