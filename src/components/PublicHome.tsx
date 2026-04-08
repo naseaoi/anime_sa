@@ -352,7 +352,8 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
       }
     }
 
-    for (const card of nonHeroCards) {
+    // 精选推荐区需要严格沿用当前排序，不能因为 Hero 轮播抽走卡片而打乱顺序。
+    for (const card of filteredCards) {
       if (card.isRecommended) {
         recommendedCards.push(card);
         usedCardIds.add(card.id);
