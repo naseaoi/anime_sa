@@ -226,6 +226,71 @@ describe('coverAssetService', () => {
     expect(result.coverVariants?.card).toContain('.webp');
   });
 
+  it('persistCardCover rebuilds cross-origin .webp cover to local variants', async () => {
+    getStorageMock.mockReturnValue({ type: 'sqlite' } as any);
+
+    class MockImage {
+      onload: null | (() => void) = null;
+      onerror: null | (() => void) = null;
+      naturalWidth = 1600;
+      naturalHeight = 900;
+
+      set src(_value: string) {
+        this.onload?.();
+      }
+    }
+
+    const createElementMock = vi.fn((tag: string) => {
+      if (tag !== 'canvas') throw new Error(`unexpected element ${tag}`);
+      return {
+        width: 0,
+        height: 0,
+        getContext: vi.fn(() => ({ drawImage: vi.fn() })),
+        toBlob: vi.fn((cb: (blob: Blob | null) => void, mime?: string) => {
+          cb(new Blob([new Uint8Array([9, 9, 9])], { type: mime || 'image/webp' }));
+        })
+      };
+    });
+
+    vi.stubGlobal('window', { location: { origin: 'http://localhost' } });
+    vi.stubGlobal('document', { createElement: createElementMock });
+    vi.stubGlobal('Image', MockImage as any);
+    const UrlCtor = URL;
+    vi.stubGlobal('URL', Object.assign(UrlCtor, {
+      createObjectURL: vi.fn(() => 'blob:mock'),
+      revokeObjectURL: vi.fn()
+    }));
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 1, 1]), {
+          status: 200,
+          headers: { 'Content-Type': 'image/webp' }
+        })
+      )
+      .mockResolvedValueOnce(new Response('', { status: 200 }))
+      .mockResolvedValueOnce(new Response('', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    // 图床 URL 即使后缀是 .webp,也应被识别为未处理,触发 backfill
+    const result = await persistCardCover({
+      id: 'card-cdn-webp',
+      coverUrl: 'https://cdn.example.com/cover.webp',
+      coverLocalData: '',
+      coverVariants: {
+        original: 'https://cdn.example.com/cover.webp',
+        thumb: 'https://cdn.example.com/cover.webp',
+        card: 'https://cdn.example.com/cover.webp'
+      }
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/api/sqlite/remote-image?url=');
+    expect(result.coverVariants?.thumb).toContain('/api/sqlite/media?name=');
+    expect(result.coverVariants?.card).toContain('/api/sqlite/media?name=');
+  });
+
   it('persistCardCover uploads embedded image in sqlite mode', async () => {
     getStorageMock.mockReturnValue({ type: 'sqlite' } as any);
     const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 200 }));

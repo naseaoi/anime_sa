@@ -5,13 +5,15 @@ import { Camera, Star } from 'lucide-react';
 
 export const ImagePreview: React.FC<{
   src: string;
+  srcSet?: string;
+  sizes?: string;
   alt: string;
   className?: string;
   imageClassName?: string;
   loading?: 'eager' | 'lazy';
   fetchPriority?: 'high' | 'low' | 'auto';
   decoding?: 'async' | 'sync' | 'auto';
-}> = ({ src, alt, className, imageClassName, loading = 'lazy', fetchPriority = 'auto', decoding = 'async' }) => {
+}> = ({ src, srcSet, sizes, alt, className, imageClassName, loading = 'lazy', fetchPriority = 'auto', decoding = 'async' }) => {
   const [error, setError] = React.useState(false);
 
   useEffect(() => {
@@ -23,6 +25,8 @@ export const ImagePreview: React.FC<{
       {src && !error ? (
         <img
           src={src}
+          srcSet={srcSet}
+          sizes={sizes}
           alt={alt}
           className={`w-full h-full object-cover ${imageClassName || ''}`}
           loading={loading}

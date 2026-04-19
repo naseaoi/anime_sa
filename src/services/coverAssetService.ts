@@ -29,8 +29,8 @@ const extensionByMime: Record<string, string> = {
 };
 
 const COVER_OUTPUTS: Array<{ key: 'thumb' | 'card'; maxWidth: number; quality: number }> = [
-  { key: 'thumb', maxWidth: 480, quality: 0.66 },
-  { key: 'card', maxWidth: 960, quality: 0.76 }
+  { key: 'thumb', maxWidth: 640, quality: 0.72 },
+  { key: 'card', maxWidth: 1280, quality: 0.80 }
 ];
 
 const WEBP_MIME = 'image/webp';
@@ -163,7 +163,8 @@ const buildCoverRenditions = async (mime: string, bytes: Uint8Array) => {
       continue;
     }
 
-    ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+    // 多级半采样：>2x 的一次性 bilinear 会出现明显锯齿/锐化，逐级 0.5x 可近似 Lanczos 效果
+    drawWithHighQualityDownscale(ctx, image, sourceWidth, sourceHeight, targetWidth, targetHeight);
 
     try {
       let encoded = await canvasToBytes(canvas, WEBP_MIME, spec.quality);
@@ -177,6 +178,40 @@ const buildCoverRenditions = async (mime: string, bytes: Uint8Array) => {
   }
 
   return renditions;
+};
+
+// 高质量下采样：源尺寸与目标 >2x 时逐级 0.5x 缩小，最后一步到目标尺寸
+const drawWithHighQualityDownscale = (
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  sourceWidth: number,
+  sourceHeight: number,
+  targetWidth: number,
+  targetHeight: number
+) => {
+  let currentSource: CanvasImageSource = image;
+  let currentWidth = sourceWidth;
+  let currentHeight = sourceHeight;
+
+  while (currentWidth / targetWidth > 2) {
+    const nextWidth = Math.max(targetWidth, Math.round(currentWidth / 2));
+    const nextHeight = Math.max(targetHeight, Math.round(currentHeight / 2));
+    const stepCanvas = document.createElement('canvas');
+    stepCanvas.width = nextWidth;
+    stepCanvas.height = nextHeight;
+    const stepCtx = stepCanvas.getContext('2d');
+    if (!stepCtx) break;
+    stepCtx.imageSmoothingEnabled = true;
+    stepCtx.imageSmoothingQuality = 'high';
+    stepCtx.drawImage(currentSource, 0, 0, nextWidth, nextHeight);
+    currentSource = stepCanvas;
+    currentWidth = nextWidth;
+    currentHeight = nextHeight;
+  }
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(currentSource, 0, 0, targetWidth, targetHeight);
 };
 
 const fetchImageBytesFromUrl = async (url: string) => {
@@ -263,9 +298,27 @@ const isWebpVariantUrl = (value?: string) => {
   }
 };
 
+// 仅匹配本站媒体端点,图床/CDN 等外链一律不算"已处理"
+const isLocalMediaUrl = (value?: string) => {
+  const raw = String(value || '').trim();
+  if (!raw) return false;
+
+  try {
+    const parsed = new URL(raw, 'http://localhost');
+    return /^\/api\/(sqlite\/media|webdav)(\/|$)/i.test(parsed.pathname);
+  } catch {
+    return /^\/api\/(sqlite\/media|webdav)(\/|$)/i.test(raw);
+  }
+};
+
+// 已处理变体 = 本地存储 + .webp 后缀,二者缺一均需重建
+const isProcessedVariantUrl = (value?: string) => {
+  return isLocalMediaUrl(value) && isWebpVariantUrl(value);
+};
+
 const needVariantUpgradeToWebp = (normalized: { thumb?: string; card?: string; original?: string }) => {
   if (!normalized.thumb || !normalized.card || !normalized.original) return true;
-  return !isWebpVariantUrl(normalized.thumb) || !isWebpVariantUrl(normalized.card);
+  return !isProcessedVariantUrl(normalized.thumb) || !isProcessedVariantUrl(normalized.card);
 };
 
 const needCoverVariantBackfill = (card: Partial<CardData>) => {

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, PlayCircle, Star, ThumbsUp } from 'lucide-react';
 import { CardData } from '../../types';
 import { ImagePreview } from '../Common';
-import { getCardCoverUrl } from '../../utils/cardCover';
+import { getCardCoverSourceSet } from '../../utils/cardCover';
 
 interface PublicCardGridProps {
   gridKey: string;
@@ -53,10 +53,15 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
         <div className="group relative sm:col-span-2 sm:row-span-2 aspect-[1.72/1] w-full isolate touch-pan-y hero-standalone-intro">
           <div className="w-full h-full" onMouseEnter={() => setIsHeroPaused(true)} onMouseLeave={() => setIsHeroPaused(false)} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
             <div className="absolute inset-0 rounded-[1.4rem] overflow-hidden shadow-[0_28px_60px_rgba(0,0,0,0.28)] ring-1 ring-white/30 dark:ring-amber-100/20" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
-              {heroCards.map((card, idx) => (
+              {heroCards.map((card, idx) => {
+                const coverSource = getCardCoverSourceSet(card);
+                const showCover = heroNeighborIndexes.has(idx);
+                return (
                 <Link key={card.id} to={resolveHref(card)} state={resolveState(card)} className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out ${idx === heroIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`} draggable={false}>
                   <ImagePreview
-                    src={heroNeighborIndexes.has(idx) ? getCardCoverUrl(card, 'card') : ''}
+                    src={showCover ? coverSource.src : ''}
+                    srcSet={showCover ? coverSource.srcSet : undefined}
+                    sizes="(max-width: 1023px) 100vw, (max-width: 1279px) 67vw, (max-width: 1535px) 50vw, 40vw"
                     alt={card.title}
                     className="w-full h-full object-cover select-none"
                     loading={idx === heroIndex ? 'eager' : 'lazy'}
@@ -73,7 +78,8 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
                     <p className="text-white/85 text-xs sm:text-sm line-clamp-1 sm:line-clamp-2 font-medium">{card.description}</p>
                   </div>
                 </Link>
-              ))}
+                );
+              })}
             </div>
             {heroCards.length > 1 && (
               <>
@@ -86,7 +92,9 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
         </div>
       )}
 
-      {filteredCards.slice(0, visibleCount).map((card, index) => (
+      {filteredCards.slice(0, visibleCount).map((card, index) => {
+        const coverSource = getCardCoverSourceSet(card);
+        return (
         <Link
           key={card.id}
           to={resolveHref(card)}
@@ -103,7 +111,9 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
           }`}>
             <div className="w-full h-full rounded-2xl overflow-hidden relative isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
               <ImagePreview
-                src={getCardCoverUrl(card, 'thumb')}
+                src={coverSource.src}
+                srcSet={coverSource.srcSet}
+                sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, (max-width: 1279px) 33vw, (max-width: 1535px) 25vw, 20vw"
                 alt={card.title}
                 className="w-full h-full transition-transform duration-1000 group-hover:scale-110"
                 loading={index < (showHero ? 2 : 6) ? 'eager' : 'lazy'}
@@ -138,7 +148,8 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
             )}
           </div>
         </Link>
-      ))}
+        );
+      })}
     </div>
   );
 };
