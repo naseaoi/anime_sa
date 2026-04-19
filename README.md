@@ -35,10 +35,10 @@ ADMIN_PASSWORD=your_password
 PORT=3000
 
 # WebDAV（可选，不使用 WebDAV 模式可忽略）
-VITE_WEBDAV_URL=https://dav.example.com/dav/
-VITE_WEBDAV_USERNAME=your_username
-VITE_WEBDAV_PASSWORD=your_password
-VITE_WEBDAV_PATH=my-collection/
+WEBDAV_URL=https://dav.example.com/dav/
+WEBDAV_USERNAME=your_username
+WEBDAV_PASSWORD=your_password
+WEBDAV_PATH=my-collection/
 ```
 
 ## 生产部署

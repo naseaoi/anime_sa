@@ -3,9 +3,9 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Buffer } from 'buffer';
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
-  const { VITE_WEBDAV_URL, VITE_WEBDAV_USERNAME, VITE_WEBDAV_PASSWORD, VITE_WEBDAV_PATH } = process.env;
+  const { WEBDAV_URL, WEBDAV_USERNAME, WEBDAV_PASSWORD, WEBDAV_PATH } = process.env;
 
-  if (!VITE_WEBDAV_URL || !VITE_WEBDAV_USERNAME || !VITE_WEBDAV_PASSWORD) {
+  if (!WEBDAV_URL || !WEBDAV_USERNAME || !WEBDAV_PASSWORD) {
     return response.status(500).json({ error: 'Missing WebDAV configuration' });
   }
 
@@ -36,8 +36,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
   const tunneledMethod = request.headers['x-dav-method'];
   const method = (Array.isArray(tunneledMethod) ? tunneledMethod[0] : tunneledMethod) || request.method;
 
-  const cleanBaseUrl = VITE_WEBDAV_URL.replace(/\/+$/, '');
-  const cleanPath = (VITE_WEBDAV_PATH || 'my-collection').replace(/^\/+|\/+$/g, '');
+  const cleanBaseUrl = WEBDAV_URL.replace(/\/+$/, '');
+  const cleanPath = (WEBDAV_PATH || 'my-collection').replace(/^\/+|\/+$/g, '');
   
   let targetUrl = `${cleanBaseUrl}/${cleanPath}`;
   if (safeFilename) {
@@ -47,7 +47,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
   }
 
   // Use btoa instead of Buffer to avoid TypeScript "Cannot find name 'Buffer'" error in serverless environment
-  const authHeader = 'Basic ' + btoa(`${VITE_WEBDAV_USERNAME}:${VITE_WEBDAV_PASSWORD}`);
+  const authHeader = 'Basic ' + btoa(`${WEBDAV_USERNAME}:${WEBDAV_PASSWORD}`);
   
   // Use a high-trust desktop User-Agent for all outgoing requests
   const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';

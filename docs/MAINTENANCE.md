@@ -105,7 +105,7 @@ npm run build
 - 检查 `private_data` 是否被非法结构覆盖
 
 **WebDAV 同步失败**
-- 检查 `VITE_WEBDAV_*` 环境变量配置
+- 检查 `WEBDAV_*` 环境变量配置
 - 确认 WebDAV 服务端支持 `PROPFIND` / `PUT` / `DELETE` 方法
 
 **封面清理失败**
