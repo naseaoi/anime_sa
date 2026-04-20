@@ -216,13 +216,15 @@
     border: 1px solid var(--line);
   }
 
+  /* 说明：content-visibility: auto 会在元素上启用 paint containment，
+     导致子元素（如卡片的彩色阴影）在元素边界被直角裁切，在“推荐/观看中”
+     这类带较大彩色阴影的卡片上会表现为底部一条直角半透明层。
+     这里只保留 contain-intrinsic-size 作为布局尺寸提示，避免裁切视觉伪影。 */
   .home-section-visibility {
-    content-visibility: auto;
     contain-intrinsic-size: 860px;
   }
 
   .card-visibility-hint {
-    content-visibility: auto;
     contain-intrinsic-size: 240px;
   }
 
