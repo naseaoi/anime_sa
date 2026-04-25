@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, Suspense } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ThumbsUp, PlayCircle, Grid, Loader2, ArrowUp } from 'lucide-react';
 import { PublicData, CardData } from '../types';
@@ -76,6 +76,54 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   useEffect(() => { sessionStorage.setItem('tat_visible_count', visibleCount.toString()); }, [visibleCount]);
   useEffect(() => { sessionStorage.setItem('tat_sort_config', JSON.stringify(sortConfig)); }, [sortConfig]);
   useEffect(() => { localStorage.setItem('tat_public_sidebar_collapsed', sidebarCollapsed ? '1' : '0'); }, [sidebarCollapsed]);
+
+  // 瀑布流滚动位置记忆：按当前路径+查询作 key 区分，避免不同列表互相串扰
+  const scrollStorageKey = `tat_home_scroll:${location.pathname}${location.search}`;
+  const hasRestoredScrollRef = useRef(false);
+
+  // 接管历史滚动恢复，确保由我们在 DOM 渲染后精确还原
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('scrollRestoration' in window.history)) return;
+    const prev = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    return () => { window.history.scrollRestoration = prev; };
+  }, []);
+
+  // 瀑布流滚动位置记忆：
+  // 关键问题：React 18 下，新页面 mount 的 scrollTo(0,0) 可能先于本组件 cleanup 运行，
+  // 仅监听 'scroll' 事件会把这个 0 也写入 storage，覆盖掉用户的真实位置。
+  // 方案：① 仅监听用户主动滚动事件（wheel/touchmove/keydown），编程式 scrollTo 不会触发；
+  //       ② 用 click 捕获在导航发生前用真实 scrollY 同步落盘，规避 effect 顺序不确定。
+  useEffect(() => {
+    const save = () => sessionStorage.setItem(scrollStorageKey, String(window.scrollY));
+    let rafId: number | null = null;
+    const onUserScroll = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        save();
+        rafId = null;
+      });
+    };
+    // 用户点击（包括卡片链接、侧边栏标签按钮等可能触发导航的元素）时立刻落盘
+    const onClickCapture = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      save();
+    };
+    window.addEventListener('wheel', onUserScroll, { passive: true });
+    window.addEventListener('touchmove', onUserScroll, { passive: true });
+    window.addEventListener('keydown', onUserScroll, { passive: true });
+    document.addEventListener('click', onClickCapture, true);
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      window.removeEventListener('wheel', onUserScroll);
+      window.removeEventListener('touchmove', onUserScroll);
+      window.removeEventListener('keydown', onUserScroll);
+      document.removeEventListener('click', onClickCapture, true);
+    };
+  }, [scrollStorageKey]);
 
   const tagSlugMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -242,6 +290,33 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   }, [data.cards, activeTag, sortConfig, searchTerm]);
 
   const cardStats = useMemo(() => buildCardStats(data.cards), [data.cards]);
+
+  // 首次卡片渲染后，按 sessionStorage 中的位置恢复滚动（仅恢复一次）。
+  // useLayoutEffect 在 paint 前执行，避免出现"先到顶部再跳到记忆位置"的闪烁
+  useLayoutEffect(() => {
+    if (hasRestoredScrollRef.current) return;
+    if (filteredCards.length === 0) return;
+
+    const saved = sessionStorage.getItem(scrollStorageKey);
+    hasRestoredScrollRef.current = true;
+    if (!saved) return;
+
+    const y = parseInt(saved, 10);
+    if (!Number.isFinite(y) || y <= 0) return;
+
+    // 多帧重试：等卡片网格布局完成后再恢复，防止页面高度尚未撑起导致 scrollTo 被夹紧
+    let attempts = 0;
+    const tryScroll = () => {
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      if (maxScroll >= y || attempts >= 30) {
+        window.scrollTo({ top: y, behavior: 'auto' });
+        return;
+      }
+      attempts += 1;
+      requestAnimationFrame(tryScroll);
+    };
+    tryScroll();
+  }, [filteredCards.length, scrollStorageKey]);
 
   const isStructuredHome = activeTag === 'all' && !searchTerm;
   const sectionCardLimit = Math.max(gridColumns * 2, 2);

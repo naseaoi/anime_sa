@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Search, X, Plus, ArrowUpDown, Sun, Moon, Monitor } from 'lucide-react';
 
 export type SortKey = 'createdAt' | 'rating' | 'updatedAt';
@@ -28,6 +28,13 @@ export const PublicToolbar: React.FC<PublicToolbarProps> = ({
     return Monitor;
   }, [theme]);
 
+  // 每次点击排序按钮累加，叠加到旋转角度上，保证连点同键也能持续触发旋转动画
+  const [spinTick, setSpinTick] = useState(0);
+  const handleSortClick = (key: SortKey) => {
+    setSpinTick((t) => t + 1);
+    onSortChange(key);
+  };
+
   return (
     <div className="sticky top-3 z-30 mb-8 fade-up-delay-1">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -46,12 +53,35 @@ export const PublicToolbar: React.FC<PublicToolbarProps> = ({
 
         <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
           <div className="flex bg-[color:var(--surface)] border border-[color:var(--line)] p-1 rounded-xl">
-            {(['createdAt', 'rating', 'updatedAt'] as SortKey[]).map(key => (
-              <button key={key} onClick={() => onSortChange(key)} className={`px-3.5 py-2 rounded-lg text-[11px] font-bold transition-all flex items-center gap-2 ${sortKey === key ? 'bg-[color:var(--accent-soft)] text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]'}`}>
-                {key === 'createdAt' ? '创建' : key === 'rating' ? '评分' : '更新'}
-                {sortKey === key && <ArrowUpDown size={10} className={sortOrder === 'asc' ? 'rotate-180 transition-transform' : ''} />}
-              </button>
-            ))}
+            {(['createdAt', 'rating', 'updatedAt'] as SortKey[]).map((key) => {
+              const active = sortKey === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => handleSortClick(key)}
+                  className={`px-3.5 py-2 rounded-lg text-[11px] font-bold transition-all flex items-center ${active ? 'bg-[color:var(--accent-soft)] text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]'}`}
+                >
+                  <span>{key === 'createdAt' ? '创建' : key === 'rating' ? '评分' : '更新'}</span>
+                  {/* 外层 span 控制显隐过渡，内层图标基于 spinTick 持续旋转，
+                      保证点击同键切换升降 / 切换不同键都有旋转反馈 */}
+                  <span
+                    aria-hidden
+                    className="inline-flex items-center overflow-hidden transition-[width,margin,opacity] duration-300 ease-out"
+                    style={{
+                      width: active ? 10 : 0,
+                      marginLeft: active ? 8 : 0,
+                      opacity: active ? 1 : 0,
+                    }}
+                  >
+                    <ArrowUpDown
+                      size={10}
+                      className="shrink-0 transition-transform duration-300 ease-out"
+                      style={{ transform: `rotate(${spinTick * 360 + (sortOrder === 'asc' ? 180 : 0)}deg)` }}
+                    />
+                  </span>
+                </button>
+              );
+            })}
           </div>
           <button onClick={toggleTheme} className="lg:hidden p-3 bg-[color:var(--surface)] border border-[color:var(--line)] rounded-xl text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] transition-colors">
             <ThemeIcon size={18} />
