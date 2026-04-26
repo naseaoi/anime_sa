@@ -188,11 +188,11 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
           </div>
         </div>
 
-        {/* 右侧：详细描述 + 保存按钮 */}
+        {/* 右侧：观后感 + 保存按钮 */}
         <div className="flex-1 flex flex-col gap-4 glass-panel rounded-2xl p-4 md:p-5">
           <div className="flex-1 flex flex-col h-full">
             <TextArea
-              label="详细描述"
+              label="观后感"
               value={card.description || ''}
               onChange={e => setCard({...card, description: e.target.value})}
               className="flex-1 min-h-[260px] md:min-h-[320px] text-base !resize-none"

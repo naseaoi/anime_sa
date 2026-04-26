@@ -5,8 +5,10 @@ import { CardData, Tag } from '../../types';
 import { ImagePreview } from '../Common';
 import { getCardCoverSourceSet } from '../../utils/cardCover';
 
-// 卡片白色文字在亮色封面上的多层阴影：近距描边 + 远距扩散，保证可读
-const COVER_TEXT_SHADOW = '[text-shadow:0_0_3px_rgba(0,0,0,0.85),0_2px_6px_rgba(0,0,0,0.5)]';
+// 卡片白色文字在亮/暗封面上的可读性增强：纯文字阴影方案
+// 双层均匀辐射：2px 紧贴硬阴影（提供对比） + 6px 远距软阴影（提供柔和氛围光）
+// 总外扩 ≤6px，配合简介 <p> 的 py-1.5 留出 6px+line-box 余量，规避 overflow-hidden 截断
+const COVER_TEXT_SHADOW = '[text-shadow:0_0_2px_rgba(0,0,0,1),0_0_6px_rgba(0,0,0,0.65)]';
 
 interface PublicCardGridProps {
   gridKey: string;
@@ -120,7 +122,9 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
                 ? 'border border-amber-300/90 dark:border-amber-400/35 shadow-[0_12px_32px_rgba(217,140,38,0.24)] group-hover:shadow-[0_20px_44px_rgba(217,140,38,0.38)]'
                 : 'border border-[color:var(--line)] bg-black/5 dark:bg-white/5 shadow-sm group-hover:shadow-2xl'
           }`}>
-            <div className="w-full h-full rounded-2xl overflow-hidden relative isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
+            {/* mask 子层：仅包裹图片 + hover 蒙层。文字层不进入此容器，
+                避免 webkit-mask 边缘渐隐把贴近左/底的文字阴影衰减成"截断" */}
+            <div className="absolute inset-0 rounded-2xl overflow-hidden isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
               <ImagePreview
                 src={coverSource.src}
                 srcSet={coverSource.srcSet}
@@ -132,31 +136,35 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
                 decoding="async"
               />
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-r from-black/10 via-transparent to-amber-200/10 dark:to-amber-200/5" />
+            </div>
 
-              <div className="absolute bottom-0 left-0 right-0 text-white flex flex-col justify-end p-4">
-                {/* 第一行：评分 + 分类标签——统一像素级样式（同字号/padding/圆角），单行水平排列，溢出裁切 */}
-                <div className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/55 border border-white/15 backdrop-blur-sm text-[10px] font-semibold leading-none flex-shrink-0">
-                    <Star size={10} className="text-amber-300 fill-amber-300" />
-                    {card.rating.toFixed(1)}
-                  </span>
-                  {card.tagIds.map((tid) => {
-                    const name = tagNameById.get(tid);
-                    if (!name) return null;
-                    return (
-                      <span key={tid} className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-black/55 border border-white/15 backdrop-blur-sm text-[10px] font-semibold leading-none flex-shrink-0">
-                        {name}
-                      </span>
-                    );
-                  })}
-                </div>
-                {/* 第二行：标题 */}
-                <h3 className={`mt-1 font-display text-xl leading-tight line-clamp-1 origin-bottom-left transition-transform duration-300 ${COVER_TEXT_SHADOW}`}>{card.title}</h3>
-                {/* 第三行：简介，默认折叠（grid-rows 0fr），仅桌面端 hover 展开为单行 */}
-                <div className="hidden md:grid grid-rows-[0fr] md:group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-400 ease-out">
-                  <div className="overflow-hidden">
-                    <p className={`text-white/85 pt-1 line-clamp-1 font-medium text-[11px] ${COVER_TEXT_SHADOW}`}>{card.description}</p>
-                  </div>
+            {/* 文字层在 mask 之外，仅受外层 overflow-hidden 直角裁切，阴影完整保留 */}
+            <div className="absolute bottom-0 left-0 right-0 text-white flex flex-col justify-end p-4 z-10">
+              {/* 第一行：评分 + 分类标签——统一像素级样式（同字号/padding/圆角），单行水平排列，溢出裁切 */}
+              <div className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/40 border border-white/15 backdrop-blur-sm text-[10px] font-semibold leading-none flex-shrink-0">
+                  <Star size={10} className="text-amber-300 fill-amber-300" />
+                  {card.rating.toFixed(1)}
+                </span>
+                {card.tagIds.map((tid) => {
+                  const name = tagNameById.get(tid);
+                  if (!name) return null;
+                  return (
+                    <span key={tid} className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-black/40 border border-white/15 backdrop-blur-sm text-[10px] font-semibold leading-none flex-shrink-0">
+                      {name}
+                    </span>
+                  );
+                })}
+              </div>
+              {/* 第二行：标题。-mx-2 px-2 自抵消左右 padding：阴影向左右扩散 6px 留在 px-2 内部，不被 line-clamp 自身的 overflow:hidden 切 */}
+              <h3 className={`mt-1 -mx-2 px-2 font-display text-xl leading-tight line-clamp-1 origin-bottom-left transition-transform duration-300 ${COVER_TEXT_SHADOW}`}>{card.title}</h3>
+              {/* 第三行：简介，默认折叠（grid-rows 0fr），仅桌面端 hover 展开为单行
+                  grid 容器 -mx-2 让 inner div 向外扩 8px，配合 <p> 的 px-2 抵消位置；
+                  truncate 替代 line-clamp-1 规避 webkit-box+padding 的 1.5 行渲染 bug；
+                  py-1.5 给阴影留上下空间 */}
+              <div className="hidden md:grid grid-rows-[0fr] md:group-hover:grid-rows-[1fr] -mx-2 transition-[grid-template-rows] duration-400 ease-out">
+                <div className="overflow-hidden">
+                  <p className={`text-white px-2 py-1.5 truncate font-medium text-[11px] ${COVER_TEXT_SHADOW}`}>{card.description}</p>
                 </div>
               </div>
             </div>

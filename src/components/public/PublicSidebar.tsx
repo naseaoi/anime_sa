@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import { LayoutGrid, ThumbsUp, PlayCircle, Moon, Sun, Monitor, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import type { Tag } from '../../types';
 import type { CardStats } from '../../utils/cardStats';
@@ -29,9 +29,38 @@ export const PublicSidebar: React.FC<PublicSidebarProps> = ({
     return Monitor;
   }, [theme]);
 
+  // 三连击 logo 进后台：单击延时 400ms 跳首页，期间累计满 3 次改跳 /tat
+  // /tat 路由由 Admin 组件按需展示登录页或后台首页
+  const tripleClickTimerRef = useRef<number | null>(null);
+  const tripleClickCountRef = useRef(0);
+
+  useEffect(() => () => {
+    if (tripleClickTimerRef.current !== null) {
+      window.clearTimeout(tripleClickTimerRef.current);
+    }
+  }, []);
+
+  const handleLogoClick = () => {
+    tripleClickCountRef.current += 1;
+    if (tripleClickTimerRef.current !== null) {
+      window.clearTimeout(tripleClickTimerRef.current);
+      tripleClickTimerRef.current = null;
+    }
+    if (tripleClickCountRef.current >= 3) {
+      tripleClickCountRef.current = 0;
+      window.location.href = '/tat';
+      return;
+    }
+    tripleClickTimerRef.current = window.setTimeout(() => {
+      tripleClickCountRef.current = 0;
+      tripleClickTimerRef.current = null;
+      window.location.href = '/';
+    }, 400);
+  };
+
   return (
     <aside className={`hidden lg:flex ${sidebarCollapsed ? 'lg:w-24' : 'lg:w-72'} lg:h-screen lg:sticky lg:top-0 p-5 lg:px-5 flex-col z-40 border-r border-[color:var(--line)] bg-[color:var(--surface-muted)] backdrop-blur-xl transition-all duration-300`}>
-      <div className="fade-up mb-10 cursor-pointer" onClick={() => window.location.href = '/'}>
+      <div className="fade-up mb-10 cursor-pointer" onClick={handleLogoClick}>
         <div className="relative h-9">
           <img
             src={iconUrl}

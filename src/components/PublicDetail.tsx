@@ -2,6 +2,9 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, ThumbsUp, Calendar, AlertCircle, Edit2, PlayCircle, Maximize2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import { PublicData, CardData } from '../types';
 import { Button, ImagePreview, Rating, useToast } from './Common';
 import { getStorage, checkServerSession } from '../services/storageFactory';
@@ -205,8 +208,12 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
 
           <section className="glass-panel rounded-[1.6rem] p-6 lg:p-8">
             <span className="text-[11px] font-semibold text-[color:var(--text-secondary)] uppercase tracking-[0.2em] block mb-4">观后感</span>
-            <div className="text-base lg:text-lg text-[color:var(--text-primary)] leading-relaxed whitespace-pre-wrap font-medium">
-              {card.description || <span className="text-[color:var(--text-secondary)] italic">暂无详细描述信息。</span>}
+            <div className="markdown-body text-base lg:text-lg text-[color:var(--text-primary)] leading-relaxed font-medium">
+              {card.description ? (
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{card.description}</ReactMarkdown>
+              ) : (
+                <span className="text-[color:var(--text-secondary)] italic">暂无观后感。</span>
+              )}
             </div>
           </section>
         </div>
