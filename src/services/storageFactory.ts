@@ -221,11 +221,17 @@ export const getStorageAsync = async (): Promise<StorageAdapter> => {
 };
 
 export const syncAdminCredentialsToTarget = async (target: 'sqlite' | 'webdav', payload: PrivateData) => {
+  // 客户端 sanitize：永远不向后端传明文 password；服务端也会拒绝，但前端先剔除可避免 400
+  const safePayload: PrivateData = {
+    username: payload.username,
+    passwordHash: payload.passwordHash,
+    passwordUpdatedAt: payload.passwordUpdatedAt
+  };
   try {
     const res = await authFetch(`/api/sqlite/admin-credentials-sync?target=${target}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(safePayload)
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data?.success) {

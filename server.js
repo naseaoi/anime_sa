@@ -61,6 +61,31 @@ const isCompressibleType = (contentType) =>
 
 const createWeakEtag = (stat) => `W/"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
 
+// 静态文件 stat 缓存：dist 产物带 hash 不会被改写，缓存几秒可在并发时避免重复 syscall
+// index.html 走 no-cache 响应头，5s 内 mtime 抖动也不会引发功能问题
+const STAT_CACHE_TTL_MS = 5000;
+const statCache = new Map();
+
+const getCachedStat = async (filePath) => {
+  const now = Date.now();
+  const cached = statCache.get(filePath);
+  if (cached && cached.exp > now) return cached;
+
+  try {
+    const stat = await fs.promises.stat(filePath);
+    const entry = { stat, isDirectory: stat.isDirectory(), missing: false, exp: now + STAT_CACHE_TTL_MS };
+    statCache.set(filePath, entry);
+    return entry;
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      const entry = { stat: null, isDirectory: false, missing: true, exp: now + STAT_CACHE_TTL_MS };
+      statCache.set(filePath, entry);
+      return entry;
+    }
+    throw err;
+  }
+};
+
 const streamWithOptionalCompression = (req, res, filePath, contentType, stat) => {
   const acceptEncoding = String(req.headers['accept-encoding'] || '').toLowerCase();
   const canCompress = isCompressibleType(contentType) && stat.size > 1024;
@@ -107,6 +132,11 @@ const cleanupRateLimitStore = (now) => {
   }
 };
 
+// 周期清理：原本只在每次 checkRateLimit 进来时懒清，冷门 scope 会永久留着。每 5 分钟跑一次足够。
+setInterval(() => {
+  cleanupRateLimitStore(Date.now());
+}, 5 * 60 * 1000).unref();
+
 const checkRateLimit = (req, res, scope, max, windowMs) => {
   const now = Date.now();
   cleanupRateLimitStore(now);
@@ -129,10 +159,32 @@ const checkRateLimit = (req, res, scope, max, windowMs) => {
 };
 
 // ===== 通用安全响应头 =====
+// CSP 说明：
+// - img-src 放宽到 https/http/data/blob —— 用户可填外链作为封面
+// - style-src/font-src 放行 Google Fonts（index.html link 引用）
+// - script-src 暂用 'unsafe-inline'：index.html 顶部需在 paint 前应用主题与标题，无法走 nonce
+// - HSTS 仅生产开启（dev 经 vite 走 http localhost）
+const CSP_HEADER_VALUE = [
+  "default-src 'self'",
+  "img-src 'self' data: blob: https: http:",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "script-src 'self' 'unsafe-inline'",
+  "connect-src 'self' https:",
+  "frame-ancestors 'self'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'"
+].join('; ');
+
 const setSecurityHeaders = (res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Content-Security-Policy', CSP_HEADER_VALUE);
+  if (IS_PRODUCTION) {
+    res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+  }
 };
 
 // ===== HTTP 服务器 =====
@@ -165,21 +217,20 @@ const server = http.createServer(async (req, res) => {
     res.end('Forbidden');
     return;
   }
-  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+  let entry = await getCachedStat(filePath);
+  if (entry.missing || entry.isDirectory) {
     filePath = path.join(DIST_DIR, 'index.html');
+    entry = await getCachedStat(filePath);
   }
-
-  const ext = path.extname(filePath);
-  const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-
-  let fileStat;
-  try {
-    fileStat = fs.statSync(filePath);
-  } catch {
+  if (entry.missing) {
     res.statusCode = 404;
     res.end('Not Found');
     return;
   }
+
+  const ext = path.extname(filePath);
+  const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+  const fileStat = entry.stat;
 
   const etag = createWeakEtag(fileStat);
   if (req.headers['if-none-match'] === etag) {

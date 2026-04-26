@@ -23,7 +23,16 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
   const [isAdmin, setIsAdmin] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isOriginalPreviewOpen, setIsOriginalPreviewOpen] = useState(false);
+  // 记录卡片封面的原始宽高比，原图模态框沿用此比例做占位容器，避免加载期间塌缩为 0 高度
+  const [coverAspect, setCoverAspect] = useState<number | null>(null);
   const { showToast } = useToast();
+
+  const handleCardCoverLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+      setCoverAspect(img.naturalWidth / img.naturalHeight);
+    }
+  };
 
   useEffect(() => {
     if (card) document.title = `${card.title} - ${data.settings.title}`;
@@ -138,6 +147,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                   loading="eager"
                   fetchPriority="high"
                   decoding="async"
+                  onLoad={handleCardCoverLoad}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/86 via-black/25 to-transparent pointer-events-none" />
 
@@ -225,7 +235,10 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                 关闭
               </button>
             </div>
-            <div className="rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-black/30 max-h-[82vh]">
+            <div
+              className="rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-black/30 max-h-[82vh] mx-auto"
+              style={{ aspectRatio: coverAspect ? String(coverAspect) : '16 / 9' }}
+            >
               <ImagePreview
                 src={getCardCoverUrl(card, 'original')}
                 alt={`${card.title} 原图`}

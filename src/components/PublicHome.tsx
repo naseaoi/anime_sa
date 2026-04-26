@@ -93,7 +93,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   // 关键问题：React 18 下，新页面 mount 的 scrollTo(0,0) 可能先于本组件 cleanup 运行，
   // 仅监听 'scroll' 事件会把这个 0 也写入 storage，覆盖掉用户的真实位置。
   // 方案：① 仅监听用户主动滚动事件（wheel/touchmove/keydown），编程式 scrollTo 不会触发；
-  //       ② 用 click 捕获在导航发生前用真实 scrollY 同步落盘，规避 effect 顺序不确定。
+  //       ② click 捕获只对可能触发导航的元素（a/button）落盘，避免一切普通点击都写 storage。
   useEffect(() => {
     const save = () => sessionStorage.setItem(scrollStorageKey, String(window.scrollY));
     let rafId: number | null = null;
@@ -104,8 +104,11 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
         rafId = null;
       });
     };
-    // 用户点击（包括卡片链接、侧边栏标签按钮等可能触发导航的元素）时立刻落盘
-    const onClickCapture = () => {
+    const onClickCapture = (e: MouseEvent) => {
+      const target = e.target;
+      if (!(target instanceof Element)) return;
+      // 仅对会引发导航的元素同步落盘：Link 渲染成 <a>，侧边栏标签按钮等用 <button>
+      if (!target.closest('a, button')) return;
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
         rafId = null;
@@ -199,10 +202,20 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   };
 
   // Hero 轮播卡片集合（只取前 10 个推荐）
+  // 用 sessionId+cardId 哈希做稳定排序：同一会话内 data 刷新顺序不变，避免视觉跳动；新开页面才换序
+  const heroSeedRef = useRef<number>(Math.floor(Math.random() * 0xffffffff) >>> 0);
   const heroCards = useMemo(() => {
     const recommended = data.cards.filter(c => c.isRecommended);
-    const shuffled = [...recommended].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, 10);
+    const seed = heroSeedRef.current;
+    const score = (id: string) => {
+      let h = seed ^ 0x811c9dc5;
+      for (let i = 0; i < id.length; i += 1) {
+        h = Math.imul(h ^ id.charCodeAt(i), 0x01000193) >>> 0;
+      }
+      return h;
+    };
+    const sorted = [...recommended].sort((a, b) => score(a.id) - score(b.id));
+    return sorted.slice(0, 10);
   }, [data.cards]);
 
   const showHero = activeTag === 'all' && !searchTerm && heroCards.length > 0;

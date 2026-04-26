@@ -1,14 +1,19 @@
 import fs from 'fs';
 import path from 'path';
 import net from 'net';
+import dns from 'node:dns';
 import crypto from 'crypto';
+import { Agent as UndiciAgent } from 'undici';
 import Database from 'better-sqlite3';
 import {
   timingSafeEqualText,
   hashPassword,
   verifyPasswordHash,
   normalizeMediaName,
-  normalizePrivateDataPayload
+  normalizePrivateDataPayload,
+  isValidUsername,
+  PASSWORD_MIN_LEN,
+  PASSWORD_MAX_LEN
 } from '../sharedSecurity.js';
 
 // 运行时常量
@@ -18,6 +23,40 @@ export const MEDIA_BODY_LIMIT_BYTES = 10 * 1024 * 1024;
 
 // 数据库单例：生产/开发共享同一份实现
 let dbInstance = null;
+let maintenanceStarted = false;
+
+// 周期清理过期 session：原本只在 verifySession 命中过期项时才删，
+// 长期不被访问的过期 session 会在 kv_store 里堆积。每小时跑一次足够。
+const cleanupExpiredSessions = (db) => {
+  const rows = db.prepare("SELECT key, value FROM kv_store WHERE key LIKE 'session:%'").all();
+  if (rows.length === 0) return 0;
+
+  const now = Date.now();
+  const expiredKeys = [];
+  for (const row of rows) {
+    let data = null;
+    try { data = JSON.parse(row.value); } catch { /* 损坏行直接清掉 */ }
+    if (!data || typeof data.expiresAt !== 'number' || data.expiresAt <= now) {
+      expiredKeys.push(row.key);
+    }
+  }
+  if (expiredKeys.length === 0) return 0;
+
+  const stmt = db.prepare('DELETE FROM kv_store WHERE key = ?');
+  const tx = db.transaction((keys) => {
+    for (const k of keys) stmt.run(k);
+  });
+  tx(expiredKeys);
+  return expiredKeys.length;
+};
+
+const startMaintenance = (db) => {
+  try { cleanupExpiredSessions(db); } catch { /* ignore */ }
+  // unref 避免阻止进程退出
+  setInterval(() => {
+    try { cleanupExpiredSessions(db); } catch { /* ignore */ }
+  }, 60 * 60 * 1000).unref();
+};
 
 export const ensureDb = () => {
   if (dbInstance) return dbInstance;
@@ -32,6 +71,10 @@ export const ensureDb = () => {
       value TEXT
     )
   `);
+  if (!maintenanceStarted) {
+    maintenanceStarted = true;
+    startMaintenance(dbInstance);
+  }
   return dbInstance;
 };
 
@@ -129,8 +172,9 @@ export const getStorageMode = (db) => {
 // ===== Session =====
 
 // 生产环境追加 Secure；开发态不需要
+// SameSite=Strict：本应用是单源站点（前后端同域），无跨站登录场景，Strict 可彻底阻断 CSRF
 const buildCookieString = (kv, isProduction) => {
-  const parts = [kv, 'Path=/', 'HttpOnly', 'SameSite=Lax'];
+  const parts = [kv, 'Path=/', 'HttpOnly', 'SameSite=Strict'];
   if (isProduction) parts.push('Secure');
   return parts;
 };
@@ -372,11 +416,11 @@ export const cleanupWebDavUnusedMedia = async (env, referencedNames, limit = 100
 
 // ===== 管理员凭据解析 =====
 
-export const ensureSqliteAdminFromEnv = (db, env) => {
+export const ensureSqliteAdminFromEnv = async (db, env) => {
   const username = (env.ADMIN_USERNAME || '').trim();
   const password = env.ADMIN_PASSWORD || '';
   if (!username || !password) return null;
-  const creds = { username, passwordHash: hashPassword(password), passwordUpdatedAt: Date.now() };
+  const creds = { username, passwordHash: await hashPassword(password), passwordUpdatedAt: Date.now() };
   dbSetJson(db, 'private_data', creds);
   return creds;
 };
@@ -399,27 +443,33 @@ export const resolveAdminCredentials = async (db, env) => {
     return { creds: sqliteCreds, source: 'sqlite' };
   }
 
-  const seeded = ensureSqliteAdminFromEnv(db, env);
+  const seeded = await ensureSqliteAdminFromEnv(db, env);
   if (seeded) return { creds: seeded, source: 'sqlite' };
 
   return { error: '管理员账号未初始化，请先配置 ADMIN_USERNAME 和 ADMIN_PASSWORD' };
 };
 
-export const buildAdminCredentialsForSave = (existing, payload) => {
+export const buildAdminCredentialsForSave = async (existing, payload) => {
   const username = String(payload?.username || '').trim();
-  const newPassword = typeof payload?.newPassword === 'string' ? payload.newPassword : '';
-  if (!username) return { error: '账号不能为空' };
+  if (!isValidUsername(username)) {
+    return { error: '账号需由 3–64 位字母、数字、下划线或横线组成' };
+  }
 
+  const newPassword = typeof payload?.newPassword === 'string' ? payload.newPassword : '';
   const hasNewPassword = newPassword.length > 0;
+  if (hasNewPassword && (newPassword.length < PASSWORD_MIN_LEN || newPassword.length > PASSWORD_MAX_LEN)) {
+    return { error: `密码长度需在 ${PASSWORD_MIN_LEN}–${PASSWORD_MAX_LEN} 之间` };
+  }
+
   const existingHash = typeof existing?.passwordHash === 'string' ? existing.passwordHash : '';
   const legacyPassword = typeof existing?.password === 'string' ? existing.password : '';
 
   let passwordHash = existingHash;
   const usernameChanged = username !== String(existing?.username || '');
   if (hasNewPassword) {
-    passwordHash = hashPassword(newPassword);
+    passwordHash = await hashPassword(newPassword);
   } else if (!passwordHash && legacyPassword) {
-    passwordHash = hashPassword(legacyPassword);
+    passwordHash = await hashPassword(legacyPassword);
   }
 
   if (!passwordHash) return { error: '请提供新密码' };
@@ -435,13 +485,13 @@ export const buildAdminCredentialsForSave = (existing, payload) => {
   };
 };
 
-export const buildPrivateDataForTarget = (payload) => {
+export const buildPrivateDataForTarget = async (payload) => {
   const normalized = normalizePrivateDataPayload(payload);
   if (!normalized) return { error: 'Invalid private_data payload' };
   return {
     data: {
       username: normalized.username,
-      passwordHash: normalized.passwordHash || hashPassword(normalized.password || ''),
+      passwordHash: normalized.passwordHash,
       passwordUpdatedAt: normalized.passwordUpdatedAt || Date.now()
     }
   };
@@ -478,9 +528,79 @@ export const isBlockedRemoteHost = (hostname) => {
   return false;
 };
 
+// DNS-rebinding 防护：fetch 实际连接时再做一次 IP 段校验。
+// 字符串层 isBlockedRemoteHost 只能识别明显的内网 hostname/IP；攻击者可让 evil.com 第一次解析为公网 IP（绕过字符串检查），
+// 实际 socket 连接时再解析为 192.168.x.x。这里把 lookup 交给 undici Agent，所有解析结果都校验。
+const safeDnsLookup = (hostname, opts, cb) => {
+  const options = typeof opts === 'number' ? { family: opts } : (opts || {});
+  dns.lookup(hostname, { all: true, family: options.family || 0 }, (err, addresses) => {
+    if (err) return cb(err);
+    if (!addresses || addresses.length === 0) {
+      return cb(new Error('No DNS records'));
+    }
+    for (const a of addresses) {
+      if (isBlockedRemoteHost(a.address)) {
+        return cb(new Error(`Blocked private address: ${a.address}`));
+      }
+    }
+    const first = addresses[0];
+    cb(null, first.address, first.family);
+  });
+};
+
+const safeFetchAgent = new UndiciAgent({
+  connect: { lookup: safeDnsLookup }
+});
+
+// ===== CSRF：写接口必须同源 =====
+//
+// Cookie 已是 SameSite=Strict，但作为深度防御：所有写方法（含 WebDAV 隧道方法）都校验 Origin/Referer。
+// 浏览器同源 fetch 至少会带其中之一；都没有视为可疑。
+const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const STATE_CHANGING_DAV_METHODS = new Set(['PUT', 'DELETE', 'MKCOL', 'PROPPATCH', 'MOVE', 'COPY', 'LOCK', 'UNLOCK', 'PROPFIND']);
+
+const isStateChangingRequest = (req) => {
+  const method = String(req.method || '').toUpperCase();
+  if (STATE_CHANGING_METHODS.has(method)) return true;
+  const tunneled = req.headers['x-dav-method'];
+  if (tunneled) {
+    const real = String(Array.isArray(tunneled) ? tunneled[0] : tunneled).toUpperCase();
+    if (STATE_CHANGING_DAV_METHODS.has(real)) return true;
+  }
+  return false;
+};
+
+const isSameOriginRequest = (req) => {
+  const host = String(req.headers.host || '');
+  if (!host) return false;
+  const allowed = new Set([`http://${host}`, `https://${host}`]);
+
+  const origin = String(req.headers.origin || '');
+  if (origin) return allowed.has(origin);
+
+  const referer = String(req.headers.referer || '');
+  if (referer) {
+    try {
+      const parsed = new URL(referer);
+      return allowed.has(`${parsed.protocol}//${parsed.host}`);
+    } catch {
+      return false;
+    }
+  }
+  return false;
+};
+
+const enforceSameOrigin = (req, res) => {
+  if (!isStateChangingRequest(req)) return true;
+  if (isSameOriginRequest(req)) return true;
+  jsonResponse(res, 403, { error: 'Cross-origin request not allowed' });
+  return false;
+};
+
 // ===== 主 handler：WebDAV 代理 =====
 
 export const handleWebDavApi = async (req, res, { env }) => {
+  if (!enforceSameOrigin(req, res)) return;
   const db = ensureDb();
   try {
     const url = new URL(req.url || '', `http://${req.headers.host || 'local'}`);
@@ -528,6 +648,7 @@ export const handleWebDavApi = async (req, res, { env }) => {
 // ===== 主 handler：/api/sqlite/* =====
 
 export const handleSqliteApi = async (req, res, { env, isProduction = false } = {}) => {
+  if (!enforceSameOrigin(req, res)) return;
   const db = ensureDb();
   try {
     const url = new URL(req.url || '', `http://${req.headers.host || 'local'}`);
@@ -552,7 +673,8 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
       const upstream = await fetch(target.toString(), {
         method: 'GET',
         redirect: 'follow',
-        headers: { 'User-Agent': WEBDAV_UA, Accept: 'image/*,*/*;q=0.8' }
+        headers: { 'User-Agent': WEBDAV_UA, Accept: 'image/*,*/*;q=0.8' },
+        dispatcher: safeFetchAgent
       });
 
       let finalUrl = null;
@@ -603,7 +725,7 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
       const hash = resolved.creds.passwordHash;
       const legacyPlain = resolved.creds.password;
       const passwordOk = typeof hash === 'string'
-        ? verifyPasswordHash(password, hash)
+        ? await verifyPasswordHash(password, hash)
         : timingSafeEqualText(password, legacyPlain || '');
 
       if (usernameOk && passwordOk) {
@@ -611,14 +733,15 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
         if (!hash && resolved.source === 'sqlite') {
           dbSetJson(db, 'private_data', {
             username: resolved.creds.username,
-            passwordHash: hashPassword(password),
+            passwordHash: await hashPassword(password),
             passwordUpdatedAt: Date.now()
           });
         }
         if (!hash && resolved.source === 'webdav') {
+          const upgradedHash = await hashPassword(password);
           saveWebDavJson(env, 'private_data.json', {
             username: resolved.creds.username,
-            passwordHash: hashPassword(password),
+            passwordHash: upgradedHash,
             passwordUpdatedAt: Date.now()
           }).catch(() => {});
         }
@@ -682,7 +805,7 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
         return jsonResponse(res, 503, { success: false, error: resolved.error || '管理员账号不可用' });
       }
 
-      const next = buildAdminCredentialsForSave(resolved.creds, body);
+      const next = await buildAdminCredentialsForSave(resolved.creds, body);
       if (!next.data) {
         return jsonResponse(res, 400, { success: false, error: next.error || '参数无效' });
       }
@@ -734,7 +857,7 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
       try { body = JSON.parse(rawBody.toString() || '{}'); }
       catch { return jsonResponse(res, 400, { success: false, error: 'Invalid JSON body' }); }
 
-      const next = buildPrivateDataForTarget(body);
+      const next = await buildPrivateDataForTarget(body);
       if (!next.data) {
         return jsonResponse(res, 400, { success: false, error: next.error || '参数无效' });
       }
@@ -857,7 +980,16 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
     if ((isWrite || isPrivateRead) && !requireAuth(req, res, db)) return;
 
     if (req.method === 'GET') {
-      return jsonResponse(res, 200, dbGetJson(db, key) || null);
+      const value = dbGetJson(db, key);
+      // private_data 脱敏：永远不向客户端返回明文 password 字段，只暴露 hash + 更新时间
+      if (key === 'private_data' && value && typeof value === 'object') {
+        return jsonResponse(res, 200, {
+          username: String(value.username || ''),
+          passwordHash: typeof value.passwordHash === 'string' ? value.passwordHash : undefined,
+          passwordUpdatedAt: value.passwordUpdatedAt
+        });
+      }
+      return jsonResponse(res, 200, value || null);
     }
 
     if (req.method === 'POST') {
@@ -871,7 +1003,7 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
         if (!normalized) return jsonResponse(res, 400, { error: 'Invalid private_data payload' });
         const privateData = {
           username: normalized.username,
-          passwordHash: normalized.passwordHash || hashPassword(normalized.password || ''),
+          passwordHash: normalized.passwordHash,
           passwordUpdatedAt: normalized.passwordUpdatedAt || Date.now()
         };
         dbSetJson(db, key, privateData);
