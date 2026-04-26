@@ -116,7 +116,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
             className="group w-10 h-10 inline-flex items-center justify-center rounded-xl text-[color:var(--text-primary)] hover:bg-[color:var(--accent-soft)] transition-all"
             title="返回"
           >
-            <ArrowLeft size={18} className="transition-transform duration-200 group-hover:-translate-x-0.5 group-hover:scale-110" />
+            <ArrowLeft size={18} className="transition-transform duration-200 group-hover:scale-110" />
           </button>
           <div className="flex items-center gap-3">
             <img src={data.settings.iconUrl} alt="Logo" className="w-7 h-7 rounded-lg object-cover shadow-sm" />
@@ -220,9 +220,11 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
 
       </main>
 
-      <footer className="mt-auto px-5 lg:px-12 pb-6">
-        <div className="max-w-7xl mx-auto pt-3 flex items-center justify-center text-xs text-[color:var(--text-secondary)]">
-          <p className="font-semibold text-center">{data.settings.footerLeft || `© ${new Date().getFullYear()}`}</p>
+      <footer className="mt-auto px-5 lg:px-12 pb-8">
+        <div className="max-w-7xl mx-auto pt-3 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3.5 text-[11px] text-[color:var(--text-secondary)]">
+          <p className="font-semibold tracking-wide">{data.settings.footerLeft || `© ${new Date().getFullYear()}`}</p>
+          <span aria-hidden className="hidden sm:block w-1 h-1 rounded-full bg-[color:var(--text-secondary)]/40" />
+          <p className="tracking-wide opacity-85">{data.settings.footerRight || data.settings.footerText || 'All rights reserved'}</p>
         </div>
       </footer>
 
