@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ChevronRight, CloudUpload, Database, Loader2, WandSparkles } from 'lucide-react';
 import { AuditLogEntry, PublicData } from '../../types';
 import { getAuditLogs, getStorage, logoutServerSession, runCoverGarbageCollectionBatch, setServerStorageMode, sqliteAdapter, syncAdminCredentialsToTarget, webdavAdapter } from '../../services/storageFactory';
-import { optimizeCardCoverVariants } from '../../services/coverAssetService';
+import { migrateCardCoversToStorage, optimizeCardCoverVariants } from '../../services/coverAssetService';
 import { AdminCard, Button, ConfirmModal, useToast } from '../Common';
 
 interface AdminSyncSectionProps {
@@ -130,8 +130,12 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
       const publicData = await sourceAdapter.getPublicData();
       const privateData = await sourceAdapter.getPrivateData();
 
+      showToast('正在迁移封面资源...', 'info');
+      const migratedCovers = await migrateCardCoversToStorage(publicData.cards, sourceAdapter.type, targetMode);
+      const nextPublicData = { ...publicData, cards: migratedCovers.cards };
+
       showToast('正在写入目标...', 'info');
-      const pubRes = await targetAdapter.savePublicData(publicData);
+      const pubRes = await targetAdapter.savePublicData(nextPublicData);
       if (!pubRes.success) throw new Error(pubRes.error);
 
       if (privateData?.username) {
@@ -139,7 +143,10 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
         if (!privRes.success) throw new Error(privRes.error);
       }
 
-      showToast('数据同步成功！可按需执行封面清理。', 'success');
+      const coverSummary = migratedCovers.migrated > 0 || migratedCovers.failed > 0
+        ? ` 封面迁移 ${migratedCovers.migrated} 张${migratedCovers.failed > 0 ? `，失败 ${migratedCovers.failed} 张` : ''}。`
+        : ' ';
+      showToast(`数据同步成功！${coverSummary}可按需执行封面清理。`, migratedCovers.failed > 0 ? 'info' : 'success');
       loadSyncInfo();
       loadAudit();
     } catch (e: any) {

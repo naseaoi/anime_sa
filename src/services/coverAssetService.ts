@@ -2,6 +2,8 @@ import { CardData } from '../types';
 import { getStorage } from './storageFactory';
 import { normalizeCoverVariants } from '../utils/cardCover';
 
+type StorageType = 'sqlite' | 'webdav';
+
 const MEDIA_UPLOAD_LIMIT_BYTES = 10 * 1024 * 1024;
 
 const imageDataUrlToBytes = (dataUrl: string) => {
@@ -57,19 +59,25 @@ const ensureOk = async (res: Response) => {
   throw new Error(message || `上传失败（${res.status}）`);
 };
 
-const uploadCoverBytes = async (cardId: string, mime: string, bytes: Uint8Array, suffix = 'original') => {
+const uploadCoverBytes = async (
+  cardId: string,
+  mime: string,
+  bytes: Uint8Array,
+  suffix = 'original',
+  targetStorage?: StorageType
+) => {
   if (bytes.byteLength > MEDIA_UPLOAD_LIMIT_BYTES) {
     throw new Error('图片过大，请压缩后重试（最大 10MB）');
   }
 
-  const adapter = getStorage();
+  const adapterType = targetStorage || getStorage().type;
   const assetName = buildAssetName(cardId, mime, suffix);
 
   const copied = new Uint8Array(bytes.byteLength);
   copied.set(bytes);
   const body = new Blob([copied.buffer], { type: mime });
 
-  if (adapter.type === 'webdav') {
+  if (adapterType === 'webdav') {
     const filename = `covers/${assetName}`;
     const res = await fetch(`/api/webdav?filename=${encodeURIComponent(filename)}`, {
       method: 'POST',
@@ -285,6 +293,78 @@ const hasDataUrlCover = (value?: string) => {
   return /^data:image\//i.test(String(value || ''));
 };
 
+const hasLocalMediaReference = (value?: string) => {
+  return isLocalMediaUrl(value);
+};
+
+const shouldMigrateCoverForStorage = (card: Partial<CardData>, source: StorageType, target: StorageType) => {
+  if (source === target) return false;
+  if (hasDataUrlCover(card.coverLocalData)) return true;
+  const normalized = normalizeCoverVariants(card);
+  if (!normalized) return false;
+
+  return [normalized.original, normalized.card, normalized.thumb, card.coverUrl].some((value) => hasLocalMediaReference(value));
+};
+
+const collectCoverSourceCandidates = (card: Partial<CardData>) => {
+  const normalized = normalizeCoverVariants(card);
+  const seen = new Set<string>();
+  const candidates = [normalized?.original, normalized?.card, normalized?.thumb, card.coverUrl];
+  return candidates.filter((value): value is string => {
+    const next = String(value || '').trim();
+    if (!next || seen.has(next)) return false;
+    seen.add(next);
+    return true;
+  });
+};
+
+const rebuildCardCoverForStorage = async <T extends Partial<CardData> & { id: string }>(
+  card: T,
+  target: StorageType
+): Promise<T> => {
+  const local = card.coverLocalData || '';
+  const parsed = imageDataUrlToBytes(local);
+
+  let source: { mime: string; bytes: Uint8Array } | null = parsed;
+  let lastError: unknown = null;
+
+  if (!source) {
+    for (const candidate of collectCoverSourceCandidates(card)) {
+      try {
+        source = await fetchImageBytesFromUrl(candidate);
+        break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+  }
+
+  if (!source) {
+    throw lastError instanceof Error ? lastError : new Error('未找到可迁移的封面源');
+  }
+
+  const renditions = await buildCoverRenditions(source.mime, source.bytes);
+  const coverMap: Partial<Record<'thumb' | 'card' | 'original', string>> = {};
+
+  for (const rendition of renditions) {
+    if (coverMap[rendition.key]) continue;
+    coverMap[rendition.key] = await uploadCoverBytes(card.id, rendition.mime, rendition.bytes, rendition.key, target);
+  }
+
+  const originalCoverUrl = coverMap.original || '';
+  const normalizedCoverVariants = normalizeCoverVariants({
+    ...card,
+    coverUrl: originalCoverUrl,
+    coverVariants: {
+      thumb: coverMap.thumb,
+      card: coverMap.card,
+      original: coverMap.original || originalCoverUrl
+    }
+  });
+
+  return { ...card, coverUrl: originalCoverUrl, coverLocalData: '', coverVariants: normalizedCoverVariants };
+};
+
 const isWebpVariantUrl = (value?: string) => {
   const raw = String(value || '').trim();
   if (!raw) return false;
@@ -379,6 +459,34 @@ export const migrateEmbeddedCoverAssets = async (cards: CardData[]) => {
   }
 
   return { cards: nextCards, migrated };
+};
+
+export const migrateCardCoversToStorage = async (
+  cards: CardData[],
+  source: StorageType,
+  target: StorageType
+) => {
+  let migrated = 0;
+  let failed = 0;
+  const nextCards: CardData[] = [];
+
+  for (const card of cards) {
+    if (!shouldMigrateCoverForStorage(card, source, target)) {
+      nextCards.push(card);
+      continue;
+    }
+
+    try {
+      const nextCard = await rebuildCardCoverForStorage(card, target);
+      nextCards.push(nextCard);
+      migrated += 1;
+    } catch {
+      nextCards.push(card);
+      failed += 1;
+    }
+  }
+
+  return { cards: nextCards, migrated, failed };
 };
 
 export const optimizeCardCoverVariants = async (
