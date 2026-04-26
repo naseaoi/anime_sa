@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { forceOptimizeUrlCardCovers, migrateCardCoversToStorage, migrateEmbeddedCoverAssets, persistCardCover } from './coverAssetService';
+import { forceOptimizeUrlCardCovers, migrateCardCoversToStorage, migrateEmbeddedCoverAssets, optimizeCardCoverVariants, persistCardCover } from './coverAssetService';
 import { CardData } from '../types';
 import { getStorage } from './storageFactory';
 
@@ -405,7 +405,7 @@ describe('coverAssetService', () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
-  it('forceOptimizeUrlCardCovers localizes remote cover urls into current storage', async () => {
+  it('forceOptimizeUrlCardCovers prefers coverUrl as source', async () => {
     getStorageMock.mockReturnValue({ type: 'sqlite' } as any);
 
     class MockImage {
@@ -458,7 +458,7 @@ describe('coverAssetService', () => {
         id: 'force-url-1',
         coverUrl: 'https://cdn.example.com/original.jpg',
         coverVariants: {
-          original: 'https://cdn.example.com/original.jpg',
+          original: 'https://cdn.example.com/original-backup.jpg',
           thumb: 'https://cdn.example.com/thumb.jpg',
           card: 'https://cdn.example.com/card.jpg'
         }
@@ -471,7 +471,31 @@ describe('coverAssetService', () => {
     expect(result.cards[0].coverVariants?.original).toContain('/api/sqlite/media?name=');
     expect(result.cards[0].coverVariants?.thumb).toContain('/api/sqlite/media?name=');
     expect(result.cards[0].coverVariants?.card).toContain('/api/sqlite/media?name=');
-    expect(String(fetchMock.mock.calls[0][0])).toContain('/api/sqlite/remote-image?url=');
+    expect(String(fetchMock.mock.calls[0][0])).toContain(encodeURIComponent('https://cdn.example.com/original.jpg'));
     expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('optimizeCardCoverVariants returns failure reasons', async () => {
+    getStorageMock.mockReturnValue({ type: 'sqlite' } as any);
+    const fetchMock = vi.fn().mockResolvedValue(new Response('boom', { status: 500 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await optimizeCardCoverVariants([
+      makeCard({
+        id: 'failed-card',
+        title: '失败卡片',
+        coverLocalData: 'data:image/png;base64,AA=='
+      })
+    ]);
+
+    expect(result.optimized).toBe(0);
+    expect(result.failed).toBe(1);
+    expect(result.failures).toEqual([
+      {
+        id: 'failed-card',
+        title: '失败卡片',
+        reason: 'boom'
+      }
+    ]);
   });
 });

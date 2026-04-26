@@ -4,6 +4,12 @@ import { normalizeCoverVariants } from '../utils/cardCover';
 
 type StorageType = 'sqlite' | 'webdav';
 
+export interface CoverProcessFailure {
+  id: string;
+  title: string;
+  reason: string;
+}
+
 const MEDIA_UPLOAD_LIMIT_BYTES = 10 * 1024 * 1024;
 
 const imageDataUrlToBytes = (dataUrl: string) => {
@@ -57,6 +63,15 @@ const ensureOk = async (res: Response) => {
   if (res.ok) return;
   const message = (await res.text().catch(() => '')).slice(0, 200);
   throw new Error(message || `上传失败（${res.status}）`);
+};
+
+const toCoverProcessFailure = (card: Pick<CardData, 'id' | 'title'>, error: unknown): CoverProcessFailure => {
+  const message = error instanceof Error ? error.message : String(error || '未知错误');
+  return {
+    id: card.id,
+    title: String(card.title || card.id || '未命名卡片'),
+    reason: message || '未知错误'
+  };
 };
 
 const uploadCoverBytes = async (
@@ -329,18 +344,35 @@ const collectCoverSourceCandidates = (card: Partial<CardData>) => {
   });
 };
 
+const collectNetworkCoverSourceCandidates = (card: Partial<CardData>) => {
+  const normalized = normalizeCoverVariants(card);
+  const seen = new Set<string>();
+  const candidates = [card.coverUrl, normalized?.original, normalized?.card, normalized?.thumb];
+  return candidates.filter((value): value is string => {
+    const next = String(value || '').trim();
+    if (!next || seen.has(next) || !hasNetworkUrlCover(next)) return false;
+    seen.add(next);
+    return true;
+  });
+};
+
 const rebuildCardCoverForStorage = async <T extends Partial<CardData> & { id: string }>(
   card: T,
-  target: StorageType
+  target: StorageType,
+  options?: {
+    sourceCandidates?: string[];
+    includeEmbedded?: boolean;
+  }
 ): Promise<T> => {
   const local = card.coverLocalData || '';
-  const parsed = imageDataUrlToBytes(local);
+  const parsed = options?.includeEmbedded === false ? null : imageDataUrlToBytes(local);
 
   let source: { mime: string; bytes: Uint8Array } | null = parsed;
   let lastError: unknown = null;
 
   if (!source) {
-    for (const candidate of collectCoverSourceCandidates(card)) {
+    const candidates = options?.sourceCandidates || collectCoverSourceCandidates(card);
+    for (const candidate of candidates) {
       try {
         source = await fetchImageBytesFromUrl(candidate);
         break;
@@ -480,6 +512,7 @@ export const migrateCardCoversToStorage = async (
   let migrated = 0;
   let failed = 0;
   const nextCards: CardData[] = [];
+  const failures: CoverProcessFailure[] = [];
 
   for (const card of cards) {
     if (!shouldMigrateCoverForStorage(card, source, target)) {
@@ -491,13 +524,14 @@ export const migrateCardCoversToStorage = async (
       const nextCard = await rebuildCardCoverForStorage(card, target);
       nextCards.push(nextCard);
       migrated += 1;
-    } catch {
+    } catch (error) {
       nextCards.push(card);
       failed += 1;
+      failures.push(toCoverProcessFailure(card, error));
     }
   }
 
-  return { cards: nextCards, migrated, failed };
+  return { cards: nextCards, migrated, failed, failures };
 };
 
 export const forceOptimizeUrlCardCovers = async (
@@ -510,6 +544,7 @@ export const forceOptimizeUrlCardCovers = async (
   let failed = 0;
   const nextCards: CardData[] = [];
   const targetStorage = getStorage().type;
+  const failures: CoverProcessFailure[] = [];
 
   for (const card of cards) {
     if (!shouldForceOptimizeUrlCover(card)) {
@@ -520,19 +555,23 @@ export const forceOptimizeUrlCardCovers = async (
     }
 
     try {
-      const nextCard = await rebuildCardCoverForStorage(card, targetStorage);
+      const nextCard = await rebuildCardCoverForStorage(card, targetStorage, {
+        sourceCandidates: collectNetworkCoverSourceCandidates(card),
+        includeEmbedded: false
+      });
       nextCards.push(nextCard);
       optimized += 1;
-    } catch {
+    } catch (error) {
       nextCards.push(card);
       failed += 1;
+      failures.push(toCoverProcessFailure(card, error));
     }
 
     done += 1;
     onProgress?.({ total, done, optimized, failed });
   }
 
-  return { cards: nextCards, optimized, failed, total };
+  return { cards: nextCards, optimized, failed, total, failures };
 };
 
 export const optimizeCardCoverVariants = async (
@@ -544,6 +583,7 @@ export const optimizeCardCoverVariants = async (
   let optimized = 0;
   let failed = 0;
   const nextCards: CardData[] = [];
+  const failures: CoverProcessFailure[] = [];
 
   for (const card of cards) {
     const needsOptimize = needCoverVariantBackfill(card);
@@ -558,14 +598,15 @@ export const optimizeCardCoverVariants = async (
       const nextCard = await persistCardCover(card);
       nextCards.push(nextCard);
       optimized += 1;
-    } catch {
+    } catch (error) {
       nextCards.push(card);
       failed += 1;
+      failures.push(toCoverProcessFailure(card, error));
     }
 
     done += 1;
     onProgress?.({ total, done, optimized, failed });
   }
 
-  return { cards: nextCards, optimized, failed, total };
+  return { cards: nextCards, optimized, failed, total, failures };
 };

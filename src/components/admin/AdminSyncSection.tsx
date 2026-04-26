@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ChevronRight, CloudUpload, Database, Loader2, WandSparkles } from 'lucide-react';
 import { AuditLogEntry, PublicData } from '../../types';
 import { getAuditLogs, getStorage, logoutServerSession, runCoverGarbageCollectionBatch, setServerStorageMode, sqliteAdapter, syncAdminCredentialsToTarget, webdavAdapter } from '../../services/storageFactory';
-import { forceOptimizeUrlCardCovers, migrateCardCoversToStorage, optimizeCardCoverVariants } from '../../services/coverAssetService';
+import { CoverProcessFailure, forceOptimizeUrlCardCovers, migrateCardCoversToStorage, optimizeCardCoverVariants } from '../../services/coverAssetService';
 import { AdminCard, Button, ConfirmModal, useToast } from '../Common';
 
 interface AdminSyncSectionProps {
@@ -19,6 +19,7 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [optimizingCovers, setOptimizingCovers] = useState(false);
   const [optimizeProgress, setOptimizeProgress] = useState<{ total: number; done: number; optimized: number; failed: number } | null>(null);
+  const [optimizeFailures, setOptimizeFailures] = useState<CoverProcessFailure[]>([]);
   const [syncInfo, setSyncInfo] = useState<{ webdav?: number; sqlite?: number } | null>(null);
   const [syncConfirm, setSyncConfirm] = useState<{ isOpen: boolean; direction: 'to_sqlite' | 'to_webdav' | null }>({ isOpen: false, direction: null });
   const { showToast } = useToast();
@@ -39,9 +40,11 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
   const executeCoverOptimize = async () => {
     setOptimizingCovers(true);
     setOptimizeProgress({ total: data.cards.length, done: 0, optimized: 0, failed: 0 });
+    setOptimizeFailures([]);
 
     try {
       const result = await optimizeCardCoverVariants(data.cards, setOptimizeProgress);
+      setOptimizeFailures(result.failures);
       if (result.optimized === 0 && result.failed === 0) {
         showToast('当前封面已全部具备缩略图，无需优化', 'info');
         return;
@@ -66,9 +69,11 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
   const executeForceUrlCoverOptimize = async () => {
     setOptimizingCovers(true);
     setOptimizeProgress({ total: data.cards.length, done: 0, optimized: 0, failed: 0 });
+    setOptimizeFailures([]);
 
     try {
       const result = await forceOptimizeUrlCardCovers(data.cards, setOptimizeProgress);
+      setOptimizeFailures(result.failures);
       if (result.optimized === 0 && result.failed === 0) {
         showToast('当前没有可强制优化的 URL 封面', 'info');
         return;
@@ -306,6 +311,19 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
           {optimizeProgress && (
             <div className="p-3 rounded-lg border border-[color:var(--line)] bg-[color:var(--surface)]/60 text-sm text-[color:var(--text-secondary)]">
               进度：{optimizeProgress.done}/{optimizeProgress.total}，已优化：{optimizeProgress.optimized}，失败：{optimizeProgress.failed}
+            </div>
+          )}
+          {optimizeFailures.length > 0 && (
+            <div className="p-3 rounded-lg border border-red-200/70 bg-red-50/70 text-sm text-red-700 space-y-2 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300">
+              <div className="font-semibold">失败原因</div>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {optimizeFailures.map((item) => (
+                  <div key={`${item.id}-${item.reason}`} className="rounded-md border border-red-200/60 bg-white/70 px-3 py-2 dark:border-red-900/40 dark:bg-black/10">
+                    <div className="font-medium break-all">{item.title}</div>
+                    <div className="text-xs opacity-90 break-all">{item.reason}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
