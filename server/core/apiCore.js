@@ -533,7 +533,12 @@ export const isBlockedRemoteHost = (hostname) => {
 // 实际 socket 连接时再解析为 192.168.x.x。这里把 lookup 交给 undici Agent，所有解析结果都校验。
 const safeDnsLookup = (hostname, opts, cb) => {
   const options = typeof opts === 'number' ? { family: opts } : (opts || {});
-  dns.lookup(hostname, { all: true, family: options.family || 0 }, (err, addresses) => {
+  dns.lookup(hostname, {
+    all: true,
+    family: options.family || 0,
+    hints: options.hints,
+    verbatim: options.verbatim
+  }, (err, addresses) => {
     if (err) return cb(err);
     if (!addresses || addresses.length === 0) {
       return cb(new Error('No DNS records'));
@@ -542,6 +547,9 @@ const safeDnsLookup = (hostname, opts, cb) => {
       if (isBlockedRemoteHost(a.address)) {
         return cb(new Error(`Blocked private address: ${a.address}`));
       }
+    }
+    if (options.all) {
+      return cb(null, addresses.map((item) => ({ address: item.address, family: item.family })));
     }
     const first = addresses[0];
     cb(null, first.address, first.family);
