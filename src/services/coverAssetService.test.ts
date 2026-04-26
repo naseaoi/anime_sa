@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { migrateCardCoversToStorage, migrateEmbeddedCoverAssets, persistCardCover } from './coverAssetService';
+import { forceOptimizeUrlCardCovers, migrateCardCoversToStorage, migrateEmbeddedCoverAssets, persistCardCover } from './coverAssetService';
 import { CardData } from '../types';
 import { getStorage } from './storageFactory';
 
@@ -402,6 +402,76 @@ describe('coverAssetService', () => {
     expect(result.cards[0].coverVariants?.card).toContain('/api/sqlite/media?name=');
     expect(String(fetchMock.mock.calls[0][0])).toContain('/api/sqlite/remote-image?url=');
     expect(String(fetchMock.mock.calls[1][0])).toContain('/api/sqlite/media?name=');
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('forceOptimizeUrlCardCovers localizes remote cover urls into current storage', async () => {
+    getStorageMock.mockReturnValue({ type: 'sqlite' } as any);
+
+    class MockImage {
+      onload: null | (() => void) = null;
+      onerror: null | (() => void) = null;
+      naturalWidth = 1800;
+      naturalHeight = 1000;
+
+      set src(_value: string) {
+        this.onload?.();
+      }
+    }
+
+    const createElementMock = vi.fn((tag: string) => {
+      if (tag !== 'canvas') throw new Error(`unexpected element ${tag}`);
+      return {
+        width: 0,
+        height: 0,
+        getContext: vi.fn(() => ({ drawImage: vi.fn() })),
+        toBlob: vi.fn((cb: (blob: Blob | null) => void, mime?: string) => {
+          cb(new Blob([new Uint8Array([3, 4, 5])], { type: mime || 'image/jpeg' }));
+        })
+      };
+    });
+
+    vi.stubGlobal('window', { location: { origin: 'http://localhost' } });
+    vi.stubGlobal('document', { createElement: createElementMock });
+    vi.stubGlobal('Image', MockImage as any);
+    const UrlCtor = URL;
+    vi.stubGlobal('URL', Object.assign(UrlCtor, {
+      createObjectURL: vi.fn(() => 'blob:mock'),
+      revokeObjectURL: vi.fn()
+    }));
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([8, 8, 8]), {
+          status: 200,
+          headers: { 'Content-Type': 'image/jpeg' }
+        })
+      )
+      .mockResolvedValueOnce(new Response('', { status: 200 }))
+      .mockResolvedValueOnce(new Response('', { status: 200 }))
+      .mockResolvedValueOnce(new Response('', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await forceOptimizeUrlCardCovers([
+      makeCard({
+        id: 'force-url-1',
+        coverUrl: 'https://cdn.example.com/original.jpg',
+        coverVariants: {
+          original: 'https://cdn.example.com/original.jpg',
+          thumb: 'https://cdn.example.com/thumb.jpg',
+          card: 'https://cdn.example.com/card.jpg'
+        }
+      })
+    ]);
+
+    expect(result.optimized).toBe(1);
+    expect(result.failed).toBe(0);
+    expect(result.cards[0].coverUrl).toContain('/api/sqlite/media?name=');
+    expect(result.cards[0].coverVariants?.original).toContain('/api/sqlite/media?name=');
+    expect(result.cards[0].coverVariants?.thumb).toContain('/api/sqlite/media?name=');
+    expect(result.cards[0].coverVariants?.card).toContain('/api/sqlite/media?name=');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/api/sqlite/remote-image?url=');
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 });

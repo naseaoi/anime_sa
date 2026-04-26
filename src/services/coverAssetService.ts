@@ -293,8 +293,19 @@ const hasDataUrlCover = (value?: string) => {
   return /^data:image\//i.test(String(value || ''));
 };
 
+const hasNetworkUrlCover = (value?: string) => {
+  return /^(https?:)?\/\//i.test(String(value || '').trim());
+};
+
 const hasLocalMediaReference = (value?: string) => {
   return isLocalMediaUrl(value);
+};
+
+const shouldForceOptimizeUrlCover = (card: Partial<CardData>) => {
+  const normalized = normalizeCoverVariants(card);
+  if (!normalized && !card.coverUrl) return false;
+
+  return [normalized?.original, normalized?.card, normalized?.thumb, card.coverUrl].some((value) => hasNetworkUrlCover(value));
 };
 
 const shouldMigrateCoverForStorage = (card: Partial<CardData>, source: StorageType, target: StorageType) => {
@@ -487,6 +498,41 @@ export const migrateCardCoversToStorage = async (
   }
 
   return { cards: nextCards, migrated, failed };
+};
+
+export const forceOptimizeUrlCardCovers = async (
+  cards: CardData[],
+  onProgress?: (progress: { total: number; done: number; optimized: number; failed: number }) => void
+) => {
+  const total = cards.length;
+  let done = 0;
+  let optimized = 0;
+  let failed = 0;
+  const nextCards: CardData[] = [];
+  const targetStorage = getStorage().type;
+
+  for (const card of cards) {
+    if (!shouldForceOptimizeUrlCover(card)) {
+      nextCards.push(card);
+      done += 1;
+      onProgress?.({ total, done, optimized, failed });
+      continue;
+    }
+
+    try {
+      const nextCard = await rebuildCardCoverForStorage(card, targetStorage);
+      nextCards.push(nextCard);
+      optimized += 1;
+    } catch {
+      nextCards.push(card);
+      failed += 1;
+    }
+
+    done += 1;
+    onProgress?.({ total, done, optimized, failed });
+  }
+
+  return { cards: nextCards, optimized, failed, total };
 };
 
 export const optimizeCardCoverVariants = async (

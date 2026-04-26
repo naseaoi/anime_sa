@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ChevronRight, CloudUpload, Database, Loader2, WandSparkles } from 'lucide-react';
 import { AuditLogEntry, PublicData } from '../../types';
 import { getAuditLogs, getStorage, logoutServerSession, runCoverGarbageCollectionBatch, setServerStorageMode, sqliteAdapter, syncAdminCredentialsToTarget, webdavAdapter } from '../../services/storageFactory';
-import { migrateCardCoversToStorage, optimizeCardCoverVariants } from '../../services/coverAssetService';
+import { forceOptimizeUrlCardCovers, migrateCardCoversToStorage, optimizeCardCoverVariants } from '../../services/coverAssetService';
 import { AdminCard, Button, ConfirmModal, useToast } from '../Common';
 
 interface AdminSyncSectionProps {
@@ -58,6 +58,33 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
       loadAudit();
     } catch (e: any) {
       showToast(`封面优化失败: ${e?.message || '未知错误'}`, 'error');
+    } finally {
+      setOptimizingCovers(false);
+    }
+  };
+
+  const executeForceUrlCoverOptimize = async () => {
+    setOptimizingCovers(true);
+    setOptimizeProgress({ total: data.cards.length, done: 0, optimized: 0, failed: 0 });
+
+    try {
+      const result = await forceOptimizeUrlCardCovers(data.cards, setOptimizeProgress);
+      if (result.optimized === 0 && result.failed === 0) {
+        showToast('当前没有可强制优化的 URL 封面', 'info');
+        return;
+      }
+
+      const success = await onPersistData(
+        { ...data, cards: result.cards },
+        `URL 封面优化完成：转存 ${result.optimized} 张${result.failed > 0 ? `，失败 ${result.failed} 张` : ''}`
+      );
+
+      if (!success && result.failed > 0) {
+        showToast(`URL 封面优化未完整保存，失败 ${result.failed} 张`, 'error');
+      }
+      loadAudit();
+    } catch (e: any) {
+      showToast(`URL 封面优化失败: ${e?.message || '未知错误'}`, 'error');
     } finally {
       setOptimizingCovers(false);
     }
@@ -255,16 +282,27 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
 
       <AdminCard title="封面缩略图优化">
         <div className="space-y-4">
-          <p className="text-sm text-[color:var(--text-secondary)]">批量为历史卡片补齐封面缩略图（thumb/card/original），无需逐条打开编辑保存。</p>
-          <Button
-            onClick={executeCoverOptimize}
-            disabled={optimizingCovers || gcRunning || migrating}
-            variant="secondary"
-            className="w-full h-12 rounded-xl justify-between border border-[color:var(--line)] bg-[color:var(--surface)]/70"
-          >
-            <span className="flex items-center gap-2"><WandSparkles size={16} /> 一键优化已有封面</span>
-            {optimizingCovers ? <Loader2 className="animate-spin" size={16} /> : <ChevronRight size={16} className="text-[color:var(--text-secondary)]" />}
-          </Button>
+          <p className="text-sm text-[color:var(--text-secondary)]">批量为历史卡片补齐封面缩略图，或强制把在线 URL 封面转存到当前存储。</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Button
+              onClick={executeCoverOptimize}
+              disabled={optimizingCovers || gcRunning || migrating}
+              variant="secondary"
+              className="w-full h-12 rounded-xl justify-between border border-[color:var(--line)] bg-[color:var(--surface)]/70"
+            >
+              <span className="flex items-center gap-2"><WandSparkles size={16} /> 一键优化已有封面</span>
+              {optimizingCovers ? <Loader2 className="animate-spin" size={16} /> : <ChevronRight size={16} className="text-[color:var(--text-secondary)]" />}
+            </Button>
+            <Button
+              onClick={executeForceUrlCoverOptimize}
+              disabled={optimizingCovers || gcRunning || migrating}
+              variant="secondary"
+              className="w-full h-12 rounded-xl justify-between border border-[color:var(--line)] bg-[color:var(--surface)]/70"
+            >
+              <span className="flex items-center gap-2"><Database size={16} /> 强制优化 URL 封面</span>
+              {optimizingCovers ? <Loader2 className="animate-spin" size={16} /> : <ChevronRight size={16} className="text-[color:var(--text-secondary)]" />}
+            </Button>
+          </div>
           {optimizeProgress && (
             <div className="p-3 rounded-lg border border-[color:var(--line)] bg-[color:var(--surface)]/60 text-sm text-[color:var(--text-secondary)]">
               进度：{optimizeProgress.done}/{optimizeProgress.total}，已优化：{optimizeProgress.optimized}，失败：{optimizeProgress.failed}
