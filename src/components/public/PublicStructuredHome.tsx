@@ -25,6 +25,7 @@ interface PublicStructuredHomeProps extends HeroProps {
   getCardHref: (card: CardData, forcedSection: string) => string;
   getCardState: () => { from: string };
   onTagChange: (tagId: string) => void;
+  tags: Tag[];
 }
 
 // 非首屏分区的通用壳：标题 + 计数 + "查看更多" + 卡片网格
@@ -47,12 +48,13 @@ interface HomeSectionProps {
   getCardHref: (card: CardData) => string;
   getCardState: () => { from: string };
   onViewMore: () => void;
+  tags: Tag[];
 }
 
 const HomeSection: React.FC<HomeSectionProps> = ({
   animationDelay, headerAnimationDelay, icon, title, cards, sectionCardLimit,
   sectionKey, gridKey, staggerCards, setHeroIndex, setIsHeroPaused,
-  onTouchStart, onTouchMove, onTouchEnd, getCardHref, getCardState, onViewMore
+  onTouchStart, onTouchMove, onTouchEnd, getCardHref, getCardState, onViewMore, tags
 }) => {
   const showViewMore = cards.length > sectionCardLimit;
   return (
@@ -85,6 +87,7 @@ const HomeSection: React.FC<HomeSectionProps> = ({
         onTouchEnd={onTouchEnd}
         getCardHref={getCardHref}
         getCardState={getCardState}
+        tags={tags}
       />
       {showViewMore && (
         <div className="flex justify-end pt-2 md:hidden">
@@ -101,7 +104,7 @@ const HomeSection: React.FC<HomeSectionProps> = ({
 export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
   sections, gridKey, staggerCards, sectionCardLimit, showHero, heroCards,
   heroIndex, setHeroIndex, setIsHeroPaused, onTouchStart, onTouchMove, onTouchEnd,
-  getCardHref, getCardState, onTagChange
+  getCardHref, getCardState, onTagChange, tags
 }) => {
   const gridProps = {
     staggerCards,
@@ -110,7 +113,8 @@ export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
     onTouchStart,
     onTouchMove,
     onTouchEnd,
-    getCardState
+    getCardState,
+    tags
   };
 
   return (

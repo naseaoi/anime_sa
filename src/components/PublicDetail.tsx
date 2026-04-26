@@ -123,8 +123,8 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
       </header>
 
       <main className="flex-1 pt-20 pb-6 lg:pb-10">
-        <div className="max-w-7xl mx-auto px-5 lg:px-12 mt-4 lg:mt-10">
-          <div className="grid grid-cols-1 lg:grid-cols-[1.25fr_1fr] gap-6 lg:gap-10 mb-8 lg:mb-12">
+        <div className="max-w-7xl mx-auto px-5 lg:px-12 mt-2 lg:mt-5">
+          <div className="grid grid-cols-1 lg:grid-cols-[1.25fr_1fr] gap-6 lg:gap-10 mb-4 lg:mb-6">
             <section className="order-1 lg:order-none lg:col-start-2 lg:row-start-1 flex flex-col justify-center gap-4">
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-2">
@@ -182,7 +182,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
               </div>
             </section>
 
-            <section className="order-3 lg:order-none lg:col-start-2 lg:row-start-2">
+            <section className="order-3 lg:order-none lg:col-start-2 lg:row-start-2 lg:flex lg:flex-col lg:justify-end">
               <div className="glass-panel rounded-2xl p-5 lg:p-6 space-y-5">
                 <div>
                   <span className="text-[11px] font-semibold text-[color:var(--text-secondary)] uppercase tracking-[0.2em] block mb-2">个人评分</span>
@@ -196,7 +196,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                   <span className="text-[11px] font-semibold text-[color:var(--text-secondary)] uppercase tracking-[0.2em] block mb-2">时间周期</span>
                   <div className="flex items-center gap-2 text-[color:var(--text-primary)] font-semibold">
                     <Calendar size={15} className="text-[color:var(--text-secondary)]" />
-                    <span className="text-sm">{card.startDate || '未知'} - {card.endDate || '至今'}</span>
+                    <span className="text-sm">{card.startDate || '未知'} → {card.endDate || '至今'}</span>
                   </div>
                 </div>
               </div>

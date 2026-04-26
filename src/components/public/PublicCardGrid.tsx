@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, PlayCircle, Star, ThumbsUp } from 'lucide-react';
-import { CardData } from '../../types';
+import { CardData, Tag } from '../../types';
 import { ImagePreview } from '../Common';
 import { getCardCoverSourceSet } from '../../utils/cardCover';
+
+// 卡片白色文字在亮色封面上的多层阴影：近距描边 + 远距扩散，保证可读
+const COVER_TEXT_SHADOW = '[text-shadow:0_0_3px_rgba(0,0,0,0.85),0_2px_6px_rgba(0,0,0,0.5)]';
 
 interface PublicCardGridProps {
   gridKey: string;
@@ -20,6 +23,7 @@ interface PublicCardGridProps {
   getCardHref?: (card: CardData) => string;
   getCardState?: (card: CardData) => unknown;
   staggerCards?: boolean;
+  tags?: Tag[];
 }
 
 const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
@@ -36,7 +40,8 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
   onTouchEnd,
   getCardHref,
   getCardState,
-  staggerCards = false
+  staggerCards = false,
+  tags
 }) => {
   const resolveHref = (card: CardData) => (getCardHref ? getCardHref(card) : `/card/${card.id}`);
   const resolveState = (card: CardData) => (getCardState ? getCardState(card) : undefined);
@@ -46,6 +51,12 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
     (heroIndex + 1) % Math.max(heroLength, 1),
     (heroIndex - 1 + Math.max(heroLength, 1)) % Math.max(heroLength, 1)
   ]);
+  // 分类标签 id→name 映射，渲染期 O(1) 查找，避免每张卡 × 每个 tagId 都 .find
+  const tagNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    (tags || []).forEach((t) => map.set(t.id, t.name));
+    return map;
+  }, [tags]);
 
   return (
     <div key={gridKey} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 auto-rows-min">
@@ -120,16 +131,31 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
                 fetchPriority={index < (showHero ? 2 : 6) ? 'high' : 'auto'}
                 decoding="async"
               />
-              <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(120%_95%_at_0%_100%,rgba(0,0,0,0.80)_0%,rgba(0,0,0,0.54)_35%,rgba(0,0,0,0.16)_64%,rgba(0,0,0,0)_100%)]" />
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-r from-black/10 via-transparent to-amber-200/10 dark:to-amber-200/5" />
 
-              <div className="absolute top-3 right-3 flex gap-2"><div className="bg-black/55 backdrop-blur-md border border-white/15 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5"><Star size={12} className="text-amber-300 fill-amber-300" /><span className="text-xs font-semibold text-white">{card.rating.toFixed(1)}</span></div></div>
-              <div className="absolute bottom-0 left-0 right-0 text-white drop-shadow-md flex flex-col justify-end p-4">
-                <h3 className="font-display text-xl leading-tight line-clamp-1 origin-bottom-left transition-transform duration-300">{card.title}</h3>
-                <p className="md:hidden text-white/85 pt-2 line-clamp-1 font-medium text-[11px]">{card.description}</p>
+              <div className="absolute bottom-0 left-0 right-0 text-white flex flex-col justify-end p-4">
+                {/* 第一行：评分 + 分类标签——统一像素级样式（同字号/padding/圆角），单行水平排列，溢出裁切 */}
+                <div className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/55 border border-white/15 backdrop-blur-sm text-[10px] font-semibold leading-none flex-shrink-0">
+                    <Star size={10} className="text-amber-300 fill-amber-300" />
+                    {card.rating.toFixed(1)}
+                  </span>
+                  {card.tagIds.map((tid) => {
+                    const name = tagNameById.get(tid);
+                    if (!name) return null;
+                    return (
+                      <span key={tid} className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-black/55 border border-white/15 backdrop-blur-sm text-[10px] font-semibold leading-none flex-shrink-0">
+                        {name}
+                      </span>
+                    );
+                  })}
+                </div>
+                {/* 第二行：标题 */}
+                <h3 className={`mt-1 font-display text-xl leading-tight line-clamp-1 origin-bottom-left transition-transform duration-300 ${COVER_TEXT_SHADOW}`}>{card.title}</h3>
+                {/* 第三行：简介，默认折叠（grid-rows 0fr），仅桌面端 hover 展开为单行 */}
                 <div className="hidden md:grid grid-rows-[0fr] md:group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-400 ease-out">
                   <div className="overflow-hidden">
-                    <p className="text-white/85 pt-2 line-clamp-2 font-medium text-[11px]">{card.description}</p>
+                    <p className={`text-white/85 pt-1 line-clamp-1 font-medium text-[11px] ${COVER_TEXT_SHADOW}`}>{card.description}</p>
                   </div>
                 </div>
               </div>

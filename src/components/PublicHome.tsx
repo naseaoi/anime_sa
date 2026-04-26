@@ -496,6 +496,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
             getCardHref={(card, forcedSection) => getCardHrefBySection(card, forcedSection)}
             getCardState={getCardLinkState}
             onTagChange={handleTagChange}
+            tags={data.tags}
           />
         ) : (
           <>
@@ -524,6 +525,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
                 activeSectionSlug ? getCardHrefBySection(card, activeSectionSlug) : getCardHrefBySection(card)
               }
               getCardState={getCardLinkState}
+              tags={data.tags}
             />
           </>
         )}
