@@ -1,30 +1,60 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronRight, CloudUpload, Database, Loader2, WandSparkles } from 'lucide-react';
+import { ChevronRight, CloudUpload, Database, Loader2, RefreshCw, WandSparkles } from 'lucide-react';
 import { AuditLogEntry, PublicData } from '../../types';
 import { getAuditLogs, getStorage, logoutServerSession, runCoverGarbageCollectionBatch, setServerStorageMode, sqliteAdapter, syncAdminCredentialsToTarget, webdavAdapter } from '../../services/storageFactory';
 import { CoverProcessFailure, forceOptimizeUrlCardCovers, migrateCardCoversToStorage, optimizeCardCoverVariants } from '../../services/coverAssetService';
-import { AdminCard, Button, ConfirmModal, useToast } from '../Common';
+import { Button, ConfirmModal, useToast } from '../Common';
+import { AdminBadge, AdminPanel } from './ui';
 
 interface AdminSyncSectionProps {
   data: PublicData;
   onPersistData: (nextData: PublicData, successMessage: string) => Promise<boolean>;
 }
 
+type SyncDirection = 'to_sqlite' | 'to_webdav';
+type StorageMode = 'webdav' | 'sqlite';
+
 export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPersistData }) => {
-  const [currentMode] = useState<'webdav' | 'sqlite'>(getStorage().type);
+  const [currentMode] = useState<StorageMode>(getStorage().type);
   const [migrating, setMigrating] = useState(false);
   const [gcRunning, setGcRunning] = useState(false);
-  const [gcProgress, setGcProgress] = useState<{ target: 'sqlite' | 'webdav'; rounds: number; removed: number; checked: number; pending: number } | null>(null);
+  const [gcProgress, setGcProgress] = useState<{ target: StorageMode; rounds: number; removed: number; checked: number; pending: number } | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [optimizingCovers, setOptimizingCovers] = useState(false);
   const [optimizeProgress, setOptimizeProgress] = useState<{ total: number; done: number; optimized: number; failed: number } | null>(null);
   const [optimizeFailures, setOptimizeFailures] = useState<CoverProcessFailure[]>([]);
   const [syncInfo, setSyncInfo] = useState<{ webdav?: number; sqlite?: number } | null>(null);
-  const [syncConfirm, setSyncConfirm] = useState<{ isOpen: boolean; direction: 'to_sqlite' | 'to_webdav' | null }>({ isOpen: false, direction: null });
+  const [syncConfirm, setSyncConfirm] = useState<{ isOpen: boolean; direction: SyncDirection | null }>({ isOpen: false, direction: null });
   const { showToast } = useToast();
 
-  const handleModeSwitch = async (mode: 'webdav' | 'sqlite') => {
+  const loadSyncInfo = async () => {
+    setSyncInfo(null);
+    try {
+      const [webdavData, sqliteData] = await Promise.all([webdavAdapter.getPublicData(), sqliteAdapter.getPublicData()]);
+      setSyncInfo({ webdav: webdavData.updatedAt || 0, sqlite: sqliteData.updatedAt || 0 });
+    } catch (e) {
+      showToast('获取版本信息失败', 'error');
+    }
+  };
+
+  const loadAudit = async () => {
+    setAuditLoading(true);
+    const result = await getAuditLogs(20);
+    setAuditLoading(false);
+    if (!result.success) {
+      showToast(result.error || '读取日志失败', 'error');
+      return;
+    }
+    setAuditLogs(result.items);
+  };
+
+  useEffect(() => {
+    loadSyncInfo();
+    loadAudit();
+  }, []);
+
+  const handleModeSwitch = async (mode: StorageMode) => {
     if (mode === currentMode) return;
 
     const success = await setServerStorageMode(mode);
@@ -95,33 +125,7 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
     }
   };
 
-  const loadSyncInfo = async () => {
-    setSyncInfo(null);
-    try {
-      const [w, s] = await Promise.all([webdavAdapter.getPublicData(), sqliteAdapter.getPublicData()]);
-      setSyncInfo({ webdav: w.updatedAt || 0, sqlite: s.updatedAt || 0 });
-    } catch (e) {
-      showToast('获取版本信息失败', 'error');
-    }
-  };
-
-  const loadAudit = async () => {
-    setAuditLoading(true);
-    const result = await getAuditLogs(20);
-    setAuditLoading(false);
-    if (!result.success) {
-      showToast(result.error || '读取日志失败', 'error');
-      return;
-    }
-    setAuditLogs(result.items);
-  };
-
-  useEffect(() => {
-    loadSyncInfo();
-    loadAudit();
-  }, []);
-
-  const executeGc = async (target: 'sqlite' | 'webdav') => {
+  const executeGc = async (target: StorageMode) => {
     setGcRunning(true);
     let totalRemoved = 0;
     let totalChecked = 0;
@@ -151,7 +155,7 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
     }
   };
 
-  const executeSync = async (direction: 'to_sqlite' | 'to_webdav') => {
+  const executeSync = async (direction: SyncDirection) => {
     setMigrating(true);
     try {
       const sourceAdapter = direction === 'to_sqlite' ? webdavAdapter : sqliteAdapter;
@@ -167,12 +171,12 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
       const nextPublicData = { ...publicData, cards: migratedCovers.cards };
 
       showToast('正在写入目标...', 'info');
-      const pubRes = await targetAdapter.savePublicData(nextPublicData);
-      if (!pubRes.success) throw new Error(pubRes.error);
+      const publicResult = await targetAdapter.savePublicData(nextPublicData);
+      if (!publicResult.success) throw new Error(publicResult.error);
 
       if (privateData?.username) {
-        const privRes = await syncAdminCredentialsToTarget(targetMode, privateData);
-        if (!privRes.success) throw new Error(privRes.error);
+        const privateResult = await syncAdminCredentialsToTarget(targetMode, privateData);
+        if (!privateResult.success) throw new Error(privateResult.error);
       }
 
       const coverSummary = migratedCovers.migrated > 0 || migratedCovers.failed > 0
@@ -202,154 +206,165 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
     return map[action] || action;
   };
 
+  const actionDisabled = migrating || gcRunning || optimizingCovers;
+
   return (
-    <div className="flex flex-col gap-10 max-w-5xl mx-auto">
-      <AdminCard title="存储设置">
-        <div className="space-y-6">
-          <div className="flex items-center gap-4">
-            <button
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="space-y-4">
+        <AdminPanel title="存储模式">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <StorageModeButton
+              active={currentMode === 'webdav'}
+              icon={<CloudUpload size={18} />}
+              title="WebDAV"
+              subtitle="远程存储"
               onClick={() => handleModeSwitch('webdav')}
-              className={`flex-1 p-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${currentMode === 'webdav' ? 'border-[color:var(--accent)] bg-[color:var(--accent-soft)] text-[color:var(--text-primary)]' : 'border-[color:var(--line)] hover:border-[color:var(--accent)]/50 text-[color:var(--text-secondary)]'}`}
-            >
-              <CloudUpload size={24} className={currentMode === 'webdav' ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)]'} />
-              <span className="font-bold">WebDAV</span>
-            </button>
-            <button
+            />
+            <StorageModeButton
+              active={currentMode === 'sqlite'}
+              icon={<Database size={18} />}
+              title="SQLite"
+              subtitle="本地数据库"
               onClick={() => handleModeSwitch('sqlite')}
-              className={`flex-1 p-4 rounded-xl border flex flex-col items-center gap-2 transition-all ${currentMode === 'sqlite' ? 'border-[color:var(--accent)] bg-[color:var(--accent-soft)] text-[color:var(--text-primary)]' : 'border-[color:var(--line)] hover:border-[color:var(--accent)]/50 text-[color:var(--text-secondary)]'}`}
-            >
-              <Database size={24} className={currentMode === 'sqlite' ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)]'} />
-              <span className="font-bold">SQLite</span>
-            </button>
+            />
           </div>
+        </AdminPanel>
 
-          <div className="pt-4 border-t border-[color:var(--line)] space-y-4">
-            <h4 className="font-bold text-[color:var(--text-primary)]">数据状态</h4>
-
-            {!syncInfo ? (
-              <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-[color:var(--text-primary)]" size={32} /></div>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-[color:var(--surface)]/70 rounded-xl border border-[color:var(--line)]">
-                    <div className="font-bold text-[color:var(--text-secondary)] mb-2 flex items-center gap-2"><CloudUpload size={16} /> WebDAV</div>
-                    <div className="text-sm font-mono text-[color:var(--text-primary)]">{formatDate(syncInfo.webdav)}</div>
-                  </div>
-                  <div className="p-4 bg-[color:var(--surface)]/70 rounded-xl border border-[color:var(--line)]">
-                    <div className="font-bold text-[color:var(--text-secondary)] mb-2 flex items-center gap-2"><Database size={16} /> SQLite</div>
-                    <div className="text-sm font-mono text-[color:var(--text-primary)]">{formatDate(syncInfo.sqlite)}</div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 pt-2">
-                  <Button onClick={() => setSyncConfirm({ isOpen: true, direction: 'to_sqlite' })} disabled={migrating} variant="secondary" className="w-full justify-between h-14 px-4 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)]/70">
-                    <span className="flex items-center gap-2">
-                      <CloudUpload size={18} />
-                      <span>WebDAV 覆盖到 SQLite</span>
-                    </span>
-                    {migrating ? <Loader2 className="animate-spin" /> : <ChevronRight size={18} className="text-[color:var(--text-secondary)]" />}
-                  </Button>
-                  <Button onClick={() => setSyncConfirm({ isOpen: true, direction: 'to_webdav' })} disabled={migrating} variant="secondary" className="w-full justify-between h-14 px-4 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)]/70">
-                    <span className="flex items-center gap-2">
-                      <Database size={18} />
-                      <span>SQLite 覆盖到 WebDAV</span>
-                    </span>
-                    {migrating ? <Loader2 className="animate-spin" /> : <ChevronRight size={18} className="text-[color:var(--text-secondary)]" />}
-                  </Button>
-                </div>
-                <p className="text-xs text-[color:var(--text-secondary)] text-center">注意：同步操作将完全覆盖目标端的数据，不可恢复。</p>
-              </>
-            )}
-          </div>
-        </div>
-      </AdminCard>
-
-      <AdminCard title="封面资源清理">
-        <div className="space-y-4">
-          <p className="text-sm text-[color:var(--text-secondary)]">按批次清理未被卡片引用的封面资源，避免存储体积长期膨胀。</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Button onClick={() => executeGc('sqlite')} disabled={gcRunning || migrating} variant="secondary" className="h-12 rounded-xl justify-between border border-[color:var(--line)] bg-[color:var(--surface)]/70">
-              <span className="flex items-center gap-2"><Database size={16} /> 清理 SQLite 封面</span>
-              {gcRunning && gcProgress?.target === 'sqlite' ? <Loader2 className="animate-spin" size={16} /> : <ChevronRight size={16} className="text-[color:var(--text-secondary)]" />}
-            </Button>
-            <Button onClick={() => executeGc('webdav')} disabled={gcRunning || migrating} variant="secondary" className="h-12 rounded-xl justify-between border border-[color:var(--line)] bg-[color:var(--surface)]/70">
-              <span className="flex items-center gap-2"><CloudUpload size={16} /> 清理 WebDAV 封面</span>
-              {gcRunning && gcProgress?.target === 'webdav' ? <Loader2 className="animate-spin" size={16} /> : <ChevronRight size={16} className="text-[color:var(--text-secondary)]" />}
-            </Button>
-          </div>
-          {gcProgress && (
-            <div className="p-3 rounded-lg border border-[color:var(--line)] bg-[color:var(--surface)]/60 text-sm text-[color:var(--text-secondary)]">
-              目标：{gcProgress.target.toUpperCase()}，批次：{gcProgress.rounds}，已删：{gcProgress.removed}，候选总数：{gcProgress.checked}，剩余：{gcProgress.pending}
+        <AdminPanel title="数据版本">
+          {!syncInfo ? (
+            <div className="flex h-28 items-center justify-center">
+              <Loader2 className="animate-spin text-[color:var(--text-secondary)]" size={24} />
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <VersionItem icon={<CloudUpload size={16} />} label="WebDAV" value={formatDate(syncInfo.webdav)} />
+              <VersionItem icon={<Database size={16} />} label="SQLite" value={formatDate(syncInfo.sqlite)} />
             </div>
           )}
-        </div>
-      </AdminCard>
+        </AdminPanel>
 
-      <AdminCard title="封面缩略图优化">
-        <div className="space-y-4">
-          <p className="text-sm text-[color:var(--text-secondary)]">批量为历史卡片补齐封面缩略图，或强制把在线 URL 封面转存到当前存储。</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Button
+        <AdminPanel title="覆盖同步">
+          <div className="space-y-3">
+            <ActionButton
+              icon={<CloudUpload size={17} />}
+              title="WebDAV 覆盖到 SQLite"
+              disabled={actionDisabled}
+              loading={migrating}
+              onClick={() => setSyncConfirm({ isOpen: true, direction: 'to_sqlite' })}
+            />
+            <ActionButton
+              icon={<Database size={17} />}
+              title="SQLite 覆盖到 WebDAV"
+              disabled={actionDisabled}
+              loading={migrating}
+              onClick={() => setSyncConfirm({ isOpen: true, direction: 'to_webdav' })}
+            />
+            <div className="rounded-[6px] border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/25 dark:text-red-300">
+              同步会完全覆盖目标端数据，执行前确认方向。
+            </div>
+          </div>
+        </AdminPanel>
+
+        <AdminPanel title="封面维护">
+          <div className="grid gap-3 lg:grid-cols-2">
+            <ActionButton
+              icon={<Database size={17} />}
+              title="清理 SQLite 封面"
+              disabled={actionDisabled}
+              loading={gcRunning && gcProgress?.target === 'sqlite'}
+              onClick={() => executeGc('sqlite')}
+            />
+            <ActionButton
+              icon={<CloudUpload size={17} />}
+              title="清理 WebDAV 封面"
+              disabled={actionDisabled}
+              loading={gcRunning && gcProgress?.target === 'webdav'}
+              onClick={() => executeGc('webdav')}
+            />
+            <ActionButton
+              icon={<WandSparkles size={17} />}
+              title="优化已有封面"
+              disabled={actionDisabled}
+              loading={optimizingCovers}
               onClick={executeCoverOptimize}
-              disabled={optimizingCovers || gcRunning || migrating}
-              variant="secondary"
-              className="w-full h-12 rounded-xl justify-between border border-[color:var(--line)] bg-[color:var(--surface)]/70"
-            >
-              <span className="flex items-center gap-2"><WandSparkles size={16} /> 一键优化已有封面</span>
-              {optimizingCovers ? <Loader2 className="animate-spin" size={16} /> : <ChevronRight size={16} className="text-[color:var(--text-secondary)]" />}
-            </Button>
-            <Button
+            />
+            <ActionButton
+              icon={<RefreshCw size={17} />}
+              title="优化 URL 封面"
+              disabled={actionDisabled}
+              loading={optimizingCovers}
               onClick={executeForceUrlCoverOptimize}
-              disabled={optimizingCovers || gcRunning || migrating}
-              variant="secondary"
-              className="w-full h-12 rounded-xl justify-between border border-[color:var(--line)] bg-[color:var(--surface)]/70"
-            >
-              <span className="flex items-center gap-2"><Database size={16} /> 强制优化 URL 封面</span>
-              {optimizingCovers ? <Loader2 className="animate-spin" size={16} /> : <ChevronRight size={16} className="text-[color:var(--text-secondary)]" />}
-            </Button>
+            />
           </div>
-          {optimizeProgress && (
-            <div className="p-3 rounded-lg border border-[color:var(--line)] bg-[color:var(--surface)]/60 text-sm text-[color:var(--text-secondary)]">
-              进度：{optimizeProgress.done}/{optimizeProgress.total}，已优化：{optimizeProgress.optimized}，失败：{optimizeProgress.failed}
+
+          {(gcProgress || optimizeProgress) && (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {gcProgress && (
+                <ProgressBox
+                  title={`${gcProgress.target.toUpperCase()} 清理`}
+                  lines={[
+                    `批次 ${gcProgress.rounds}`,
+                    `已删 ${gcProgress.removed}`,
+                    `候选 ${gcProgress.checked}`,
+                    `剩余 ${gcProgress.pending}`
+                  ]}
+                />
+              )}
+              {optimizeProgress && (
+                <ProgressBox
+                  title="封面优化"
+                  lines={[
+                    `${optimizeProgress.done}/${optimizeProgress.total}`,
+                    `已优化 ${optimizeProgress.optimized}`,
+                    `失败 ${optimizeProgress.failed}`
+                  ]}
+                />
+              )}
             </div>
           )}
+
           {optimizeFailures.length > 0 && (
-            <div className="p-3 rounded-lg border border-red-200/70 bg-red-50/70 text-sm text-red-700 space-y-2 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300">
-              <div className="font-semibold">失败原因</div>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
+            <div className="mt-4 rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/25 dark:text-red-300">
+              <div className="mb-2 font-semibold">失败原因</div>
+              <div className="max-h-64 space-y-2 overflow-y-auto">
                 {optimizeFailures.map((item) => (
-                  <div key={`${item.id}-${item.reason}`} className="rounded-md border border-red-200/60 bg-white/70 px-3 py-2 dark:border-red-900/40 dark:bg-black/10">
-                    <div className="font-medium break-all">{item.title}</div>
-                    <div className="text-xs opacity-90 break-all">{item.reason}</div>
+                  <div key={`${item.id}-${item.reason}`} className="rounded-[6px] border border-red-200/70 bg-white/75 px-3 py-2 dark:border-red-900/50 dark:bg-black/10">
+                    <div className="break-all font-medium">{item.title}</div>
+                    <div className="break-all text-xs opacity-90">{item.reason}</div>
                   </div>
                 ))}
               </div>
             </div>
           )}
-        </div>
-      </AdminCard>
+        </AdminPanel>
+      </div>
 
-      <AdminCard
+      <AdminPanel
         title="操作日志"
-        action={<Button onClick={loadAudit} variant="ghost" size="sm" className="h-8 px-3" disabled={auditLoading}>{auditLoading ? <Loader2 className="animate-spin" size={14} /> : '刷新'}</Button>}
+        action={
+          <Button onClick={loadAudit} variant="ghost" size="sm" className="h-8 rounded-[6px] px-3" disabled={auditLoading}>
+            {auditLoading ? <Loader2 className="animate-spin" size={14} /> : '刷新'}
+          </Button>
+        }
+        bodyClassName="p-0"
       >
-        <div className="space-y-2">
+        <div className="divide-y divide-[color:var(--line)]">
           {auditLogs.length === 0 ? (
-            <div className="text-sm text-[color:var(--text-secondary)]">暂无日志</div>
+            <div className="px-4 py-10 text-center text-sm text-[color:var(--text-secondary)]">暂无日志</div>
           ) : auditLogs.map((item) => (
-            <div key={item.id} className="p-3 rounded-lg border border-[color:var(--line)] bg-[color:var(--surface)]/60 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-[color:var(--text-primary)]">{formatAction(item.action)}</div>
-                <div className="text-xs text-[color:var(--text-secondary)] truncate">{item.details || '-'} {item.message ? `· ${item.message}` : ''}</div>
+            <div key={item.id} className="px-4 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-[color:var(--text-primary)]">{formatAction(item.action)}</div>
+                  <div className="mt-1 truncate text-xs text-[color:var(--text-secondary)]">{item.details || '-'} {item.message ? `· ${item.message}` : ''}</div>
+                </div>
+                <AdminBadge tone={item.status === 'success' ? 'success' : 'danger'}>{item.status === 'success' ? '成功' : '失败'}</AdminBadge>
               </div>
-              <div className="text-right shrink-0">
-                <div className={`text-xs font-bold ${item.status === 'success' ? 'text-emerald-600' : 'text-red-500'}`}>{item.status === 'success' ? '成功' : '失败'}</div>
-                <div className="text-[11px] text-[color:var(--text-secondary)]">{new Date(item.ts).toLocaleString()}</div>
-              </div>
+              <div className="mt-2 text-[11px] text-[color:var(--text-secondary)]">{new Date(item.ts).toLocaleString()}</div>
             </div>
           ))}
         </div>
-      </AdminCard>
+      </AdminPanel>
 
       <ConfirmModal
         isOpen={syncConfirm.isOpen}
@@ -363,3 +378,65 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
     </div>
   );
 };
+
+const StorageModeButton: React.FC<{
+  active: boolean;
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  onClick: () => void;
+}> = ({ active, icon, title, subtitle, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`flex items-center gap-3 rounded-[8px] border px-4 py-3 text-left transition-colors ${active ? 'border-[color:var(--accent)] bg-[color:var(--accent-soft)] text-[color:var(--text-primary)]' : 'border-[color:var(--line)] text-[color:var(--text-secondary)] hover:bg-[color:var(--bg-soft)] hover:text-[color:var(--text-primary)]'}`}
+  >
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] border border-[color:var(--line)] bg-[color:var(--surface)]">{icon}</span>
+    <span className="min-w-0">
+      <span className="block text-sm font-semibold">{title}</span>
+      <span className="block text-xs text-[color:var(--text-secondary)]">{subtitle}</span>
+    </span>
+  </button>
+);
+
+const VersionItem: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({ icon, label, value }) => (
+  <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--bg-soft)] px-4 py-3">
+    <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[color:var(--text-secondary)]">
+      {icon}
+      {label}
+    </div>
+    <div className="break-all font-mono text-sm text-[color:var(--text-primary)]">{value}</div>
+  </div>
+);
+
+const ActionButton: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  disabled?: boolean;
+  loading?: boolean;
+  onClick: () => void;
+}> = ({ icon, title, disabled, loading, onClick }) => (
+  <Button
+    onClick={onClick}
+    disabled={disabled}
+    variant="secondary"
+    className="h-11 w-full justify-between rounded-[6px] border border-[color:var(--line)] bg-[color:var(--surface)] px-3"
+  >
+    <span className="flex min-w-0 items-center gap-2">
+      {icon}
+      <span className="truncate">{title}</span>
+    </span>
+    {loading ? <Loader2 className="animate-spin" size={15} /> : <ChevronRight size={15} className="text-[color:var(--text-secondary)]" />}
+  </Button>
+);
+
+const ProgressBox: React.FC<{ title: string; lines: string[] }> = ({ title, lines }) => (
+  <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--bg-soft)] p-3">
+    <div className="mb-2 text-sm font-semibold text-[color:var(--text-primary)]">{title}</div>
+    <div className="flex flex-wrap gap-2">
+      {lines.map((line) => (
+        <AdminBadge key={line}>{line}</AdminBadge>
+      ))}
+    </div>
+  </div>
+);

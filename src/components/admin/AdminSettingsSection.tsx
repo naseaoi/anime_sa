@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
-import { PublicData } from '../../types';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { PublicData, SiteSettings } from '../../types';
 import { getAdminProfile, logoutServerSession, updateAdminCredentials } from '../../services/storageFactory';
-import { AdminCard, Button, ConfirmModal, Input, useToast } from '../Common';
+import { Button, ConfirmModal, Input, useToast } from '../Common';
+import { AdminIconButton, AdminPanel } from './ui';
 
 interface AdminSettingsSectionProps {
   data: PublicData;
@@ -21,6 +22,10 @@ export const AdminSettingsSection: React.FC<AdminSettingsSectionProps> = ({ data
   const { showToast } = useToast();
 
   useEffect(() => {
+    setSiteSettings(data.settings);
+  }, [data.settings]);
+
+  useEffect(() => {
     getAdminProfile()
       .then((profile) => {
         setUsername(profile.username);
@@ -28,6 +33,11 @@ export const AdminSettingsSection: React.FC<AdminSettingsSectionProps> = ({ data
       })
       .catch((e: any) => showToast(e?.message || '读取管理员信息失败', 'error'));
   }, []);
+
+  const updateSettings = (nextSettings: SiteSettings) => {
+    setSiteSettings(nextSettings);
+    onUpdate({ ...data, settings: nextSettings });
+  };
 
   const willRequireRelogin = () => {
     const nextUsername = username.trim();
@@ -72,84 +82,83 @@ export const AdminSettingsSection: React.FC<AdminSettingsSectionProps> = ({ data
       window.location.reload();
       return;
     }
+    setInitialUsername(nextUsername);
     showToast('已保存');
   };
 
   return (
-    <div className="flex flex-col gap-10 max-w-5xl mx-auto">
-      <div className="w-full">
-        <AdminCard title="网站设置">
-          <div className="space-y-8">
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <AdminPanel title="站点信息">
+        <div className="grid gap-4 md:grid-cols-2">
+          <Input
+            label="网站标题"
+            value={siteSettings.title}
+            onChange={(e) => updateSettings({ ...siteSettings, title: e.target.value })}
+            className="h-10 rounded-[6px] text-sm"
+          />
+          <Input
+            label="图标 URL"
+            value={siteSettings.iconUrl}
+            onChange={(e) => updateSettings({ ...siteSettings, iconUrl: e.target.value })}
+            className="h-10 rounded-[6px] text-sm"
+          />
+          <Input
+            label="Footer 左侧文案"
+            value={siteSettings.footerLeft || ''}
+            onChange={(e) => updateSettings({ ...siteSettings, footerLeft: e.target.value })}
+            className="h-10 rounded-[6px] text-sm"
+          />
+          <Input
+            label="Footer 右侧文案"
+            value={siteSettings.footerRight || ''}
+            onChange={(e) => updateSettings({ ...siteSettings, footerRight: e.target.value })}
+            className="h-10 rounded-[6px] text-sm"
+          />
+        </div>
+      </AdminPanel>
+
+      <AdminPanel title="安全配置">
+        <div className="space-y-4">
+          <Input
+            label="账号"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="h-10 rounded-[6px] text-sm"
+          />
+          <div className="relative">
             <Input
-              label="网站标题"
-              value={siteSettings.title}
-              onChange={(e) => {
-                const nextSettings = { ...siteSettings, title: e.target.value };
-                setSiteSettings(nextSettings);
-                onUpdate({ ...data, settings: nextSettings });
-              }}
-              className="h-12 text-base"
-            />
-            <Input
-              label="图标 (URL)"
-              value={siteSettings.iconUrl}
-              onChange={(e) => {
-                const nextSettings = { ...siteSettings, iconUrl: e.target.value };
-                setSiteSettings(nextSettings);
-                onUpdate({ ...data, settings: nextSettings });
-              }}
-              className="h-12 text-base"
-            />
-            <Input
-              label="Footer 左侧文案"
-              value={siteSettings.footerLeft || ''}
-              onChange={(e) => {
-                const nextSettings = { ...siteSettings, footerLeft: e.target.value };
-                setSiteSettings(nextSettings);
-                onUpdate({ ...data, settings: nextSettings });
-              }}
-              className="h-12 text-base"
-            />
-            <Input
-              label="Footer 右侧文案"
-              value={siteSettings.footerRight || ''}
-              onChange={(e) => {
-                const nextSettings = { ...siteSettings, footerRight: e.target.value };
-                setSiteSettings(nextSettings);
-                onUpdate({ ...data, settings: nextSettings });
-              }}
-              className="h-12 text-base"
-            />
-          </div>
-        </AdminCard>
-      </div>
-      <div className="w-full">
-        <AdminCard title="安全选项">
-          <div className="space-y-6">
-            <Input label="账号" value={username} onChange={(e) => setUsername(e.target.value)} className="h-12 text-base" />
-            <div className="relative">
-              <Input label="新密码（留空则不修改）" type={showPassword ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="h-12 text-base" />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-[38px] text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]">
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
-            </div>
-            <Input
-              label="确认新密码"
+              label="新密码"
               type={showPassword ? 'text' : 'password'}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="h-12 text-base"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="留空则不修改"
+              className="h-10 rounded-[6px] pr-11 text-sm"
             />
-            <Button
-              className="w-full h-12 rounded-xl text-base"
-              onClick={() => saveCredentials()}
-              disabled={savingCreds}
+            <AdminIconButton
+              label={showPassword ? '隐藏密码' : '显示密码'}
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-1 top-[25px]"
             >
-              保存安全配置
-            </Button>
+              {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+            </AdminIconButton>
           </div>
-        </AdminCard>
-      </div>
+          <Input
+            label="确认新密码"
+            type={showPassword ? 'text' : 'password'}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="h-10 rounded-[6px] text-sm"
+          />
+          <Button
+            className="h-10 w-full rounded-[6px] text-sm"
+            onClick={() => saveCredentials()}
+            disabled={savingCreds}
+          >
+            {savingCreds ? <Loader2 className="animate-spin" size={15} /> : null}
+            保存安全配置
+          </Button>
+        </div>
+      </AdminPanel>
 
       <ConfirmModal
         isOpen={confirmLogoutModalOpen}

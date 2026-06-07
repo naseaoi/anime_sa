@@ -45,33 +45,33 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="h-screen flex items-center justify-center p-6 transition-colors duration-300">
-      <div className="w-full max-w-md glass-panel rounded-3xl p-10 md:p-12">
-        <h2 className="text-2xl font-bold text-center text-[color:var(--text-primary)] mb-10">后台管理登录</h2>
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <Input label="账号" value={username} onChange={(e) => setUsername(e.target.value)} className="h-12 text-base" />
-          <Input label="密码" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-12 text-base" />
-          <div className="flex items-center gap-2 px-1">
+    <div className="flex h-screen items-center justify-center bg-[color:var(--bg-soft)] p-6 transition-colors duration-300">
+      <div className="w-full max-w-md rounded-[8px] border border-[color:var(--line)] bg-[color:var(--surface)] p-6 shadow-sm md:p-8">
+        <h2 className="mb-8 text-center text-xl font-semibold text-[color:var(--text-primary)]">后台管理登录</h2>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <Input label="账号" value={username} onChange={(e) => setUsername(e.target.value)} className="h-10 rounded-[6px] text-sm" />
+          <Input label="密码" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-10 rounded-[6px] text-sm" />
+          <div className="flex items-center gap-2 px-0.5">
             <input
               type="checkbox"
               id="keep"
               checked={keep}
               onChange={(e) => setKeep(e.target.checked)}
-              className="w-5 h-5 rounded border-stone-300 text-ink focus:ring-ink"
+              className="h-4 w-4 rounded-[4px] border-stone-300 text-ink focus:ring-ink"
             />
-            <label htmlFor="keep" className="text-sm font-bold text-[color:var(--text-secondary)] cursor-pointer">保持登录</label>
+            <label htmlFor="keep" className="cursor-pointer text-sm font-medium text-[color:var(--text-secondary)]">保持登录</label>
           </div>
           {notice && (
-            <div className="p-4 bg-emerald-50 text-emerald-700 text-sm font-bold rounded-xl border border-emerald-100">
+            <div className="rounded-[6px] border border-emerald-100 bg-emerald-50 p-3 text-sm font-medium text-emerald-700">
               {notice}
             </div>
           )}
           {error && (
-            <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm font-bold rounded-xl border border-red-100 dark:border-red-900/30">
+            <div className="rounded-[6px] border border-red-100 bg-red-50 p-3 text-sm font-medium text-red-600 dark:border-red-900/30 dark:bg-red-900/20 dark:text-red-400">
               {error}
             </div>
           )}
-          <Button type="submit" className="w-full h-14 rounded-2xl text-lg" disabled={loading}>
+          <Button type="submit" className="h-10 w-full rounded-[6px] text-sm" disabled={loading}>
             {loading ? <Loader2 className="animate-spin" /> : '登录系统'}
           </Button>
         </form>

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Check, Edit2, Plus, Trash2, X } from 'lucide-react';
 import { PublicData } from '../../types';
-import { AdminCard, Button, Input, Modal, useToast } from '../Common';
+import { Button, Input, Modal, useToast } from '../Common';
 import { normalizeTagSlug } from '../../utils/routeUtils';
 import { TAG_ICON_OPTIONS, getTagIcon } from '../../utils/tagIcons';
+import { AdminBadge, AdminIconButton, AdminPanel } from './ui';
 
 interface AdminTagsSectionProps {
   data: PublicData;
@@ -20,7 +21,14 @@ export const AdminTagsSection: React.FC<AdminTagsSectionProps> = ({ data, onUpda
   const [editIcon, setEditIcon] = useState('');
   const [iconPickerTarget, setIconPickerTarget] = useState<'new' | 'edit' | null>(null);
   const { showToast } = useToast();
-  const iconChoices = TAG_ICON_OPTIONS;
+
+  const usageMap = useMemo(() => {
+    const map = new Map<string, number>();
+    data.cards.forEach((card) => {
+      card.tagIds.forEach((tagId) => map.set(tagId, (map.get(tagId) || 0) + 1));
+    });
+    return map;
+  }, [data.cards]);
 
   const currentIconValue = iconPickerTarget === 'edit' ? editIcon : newTagIcon;
   const setCurrentIconValue = (next: string) => {
@@ -32,9 +40,20 @@ export const AdminTagsSection: React.FC<AdminTagsSectionProps> = ({ data, onUpda
   };
 
   const handleAdd = () => {
-    if (!newTagName.trim()) return;
+    const name = newTagName.trim();
+    if (!name) return;
+
     const newId = Date.now().toString();
-    const newTags = [...data.tags, { id: newId, name: newTagName.trim(), slug: normalizeTagSlug(newTagSlug.trim(), newTagName.trim()), icon: newTagIcon || undefined }];
+    const newTags = [
+      ...data.tags,
+      {
+        id: newId,
+        name,
+        slug: normalizeTagSlug(newTagSlug.trim(), name),
+        icon: newTagIcon || undefined
+      }
+    ];
+
     onUpdate({ ...data, tags: newTags });
     setNewTagName('');
     setNewTagSlug('');
@@ -43,104 +62,159 @@ export const AdminTagsSection: React.FC<AdminTagsSectionProps> = ({ data, onUpda
   };
 
   const handleUpdate = (id: string) => {
-    if (!editName.trim()) return;
-    const newTags = data.tags.map((t) => (t.id === id ? { ...t, name: editName.trim(), slug: normalizeTagSlug(editSlug.trim(), editName.trim()), icon: editIcon || undefined } : t));
+    const name = editName.trim();
+    if (!name) return;
+
+    const newTags = data.tags.map((tag) => (
+      tag.id === id
+        ? { ...tag, name, slug: normalizeTagSlug(editSlug.trim(), name), icon: editIcon || undefined }
+        : tag
+    ));
+
     onUpdate({ ...data, tags: newTags });
     setEditingId(null);
     showToast('分类更新成功', 'success');
   };
 
   const handleDelete = (id: string) => {
-    const isUsed = data.cards.some((c) => c.tagIds.includes(id));
+    const isUsed = data.cards.some((card) => card.tagIds.includes(id));
     if (isUsed) {
       showToast('无法删除：该分类下还有关联的记录', 'error');
       return;
     }
-    const newTags = data.tags.filter((t) => t.id !== id);
-    onUpdate({ ...data, tags: newTags });
+
+    onUpdate({ ...data, tags: data.tags.filter((tag) => tag.id !== id) });
     showToast('分类已移除', 'success');
   };
 
+  const startEdit = (tag: (typeof data.tags)[number]) => {
+    setEditingId(tag.id);
+    setEditName(tag.name);
+    setEditSlug(tag.slug || '');
+    setEditIcon(tag.icon || '');
+  };
+
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
-      <AdminCard title="添加新分类">
-        <div className="grid grid-cols-1 md:grid-cols-[auto_1fr_1fr_auto] gap-4 items-center">
-          <button
-            type="button"
-            onClick={() => setIconPickerTarget('new')}
-            className="h-12 px-3 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface-muted)] text-[color:var(--text-secondary)] hover:border-[color:var(--accent)] hover:text-[color:var(--text-primary)] transition-colors inline-flex items-center gap-2"
-            title="选择分类图标"
-          >
-            <span className="w-5 h-5 flex items-center justify-center">{getTagIcon(newTagIcon, 'w-4 h-4') || <span className="text-xs font-bold">字</span>}</span>
-          </button>
+    <div className="space-y-4">
+      <AdminPanel title="新增分类">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-bold uppercase tracking-wider text-subtle dark:text-zinc-400">图标</span>
+            <button
+              type="button"
+              onClick={() => setIconPickerTarget('new')}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-[6px] border border-[color:var(--line)] bg-[color:var(--surface)] text-[color:var(--text-secondary)] transition-colors hover:border-[color:var(--accent)] hover:text-[color:var(--text-primary)]"
+              title="选择分类图标"
+              aria-label="选择分类图标"
+            >
+              {getTagIcon(newTagIcon, 'w-4 h-4') || <span className="text-xs font-semibold">字</span>}
+            </button>
+          </div>
           <Input
-            placeholder="输入分类名称..."
+            label="分类名称"
+            placeholder="例如：番剧"
             value={newTagName}
             onChange={(e) => setNewTagName(e.target.value)}
-            className="h-12 text-base"
+            className="h-10 rounded-[6px] text-sm"
           />
           <Input
-            placeholder="英文标识（如 game）"
+            label="英文标识"
+            placeholder="例如：anime"
             value={newTagSlug}
             onChange={(e) => setNewTagSlug(e.target.value)}
-            className="h-12 text-base"
+            className="h-10 rounded-[6px] text-sm"
           />
-          <Button onClick={handleAdd} disabled={!newTagName.trim()} className="h-12 px-8 rounded-xl shrink-0">
-            <Plus size={18} /> 添加
+          <Button onClick={handleAdd} disabled={!newTagName.trim()} className="h-10 rounded-[6px] px-4">
+            <Plus size={17} /> 添加
           </Button>
         </div>
-      </AdminCard>
+      </AdminPanel>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {data.tags.map((tag) => (
-          <div key={tag.id} className="bg-[color:var(--surface-muted)] p-4 rounded-xl border border-[color:var(--line)] shadow-sm flex items-center justify-between group hover:border-[color:var(--accent)]/45 transition-colors">
-            {editingId === tag.id ? (
-                <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto_auto] items-center gap-2 w-full">
-                  <button
-                    type="button"
-                    onClick={() => setIconPickerTarget('edit')}
-                    className="w-8 h-8 rounded-lg border border-[color:var(--line)] bg-[color:var(--surface)] text-[color:var(--text-secondary)] hover:border-[color:var(--accent)] hover:text-[color:var(--text-primary)] transition-colors inline-flex items-center justify-center shrink-0"
-                    title="选择分类图标"
-                  >
-                    <span className="w-4 h-4 flex items-center justify-center">{getTagIcon(editIcon, 'w-4 h-4') || <span className="text-[10px] font-bold">字</span>}</span>
-                  </button>
-                  <input
-                    autoFocus
-                    className="w-full px-2 py-1 bg-[color:var(--surface)] border border-[color:var(--line)] rounded text-sm focus:outline-none focus:border-[color:var(--accent)] text-[color:var(--text-primary)]"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleUpdate(tag.id); }}
-                    placeholder="分类名"
-                  />
-                  <input
-                    className="w-full px-2 py-1 bg-[color:var(--surface)] border border-[color:var(--line)] rounded text-sm focus:outline-none focus:border-[color:var(--accent)] text-[color:var(--text-secondary)]"
-                    value={editSlug}
-                    onChange={(e) => setEditSlug(e.target.value)}
-                    placeholder="英文标识"
-                  />
-                <button onClick={() => handleUpdate(tag.id)} className="p-1.5 bg-emerald-100 text-emerald-600 rounded hover:bg-emerald-200"><Check size={14} /></button>
-                <button onClick={() => setEditingId(null)} className="p-1.5 bg-[color:var(--surface)] text-[color:var(--text-secondary)] rounded hover:bg-[color:var(--accent-soft)]"><X size={14} /></button>
+      <AdminPanel title="分类列表" bodyClassName="p-0">
+        <div className="hidden grid-cols-[minmax(0,1fr)_minmax(0,1fr)_96px_86px] gap-3 border-b border-[color:var(--line)] px-4 py-3 text-xs font-semibold uppercase text-[color:var(--text-secondary)] md:grid">
+          <div>分类</div>
+          <div>路径</div>
+          <div>关联</div>
+          <div className="text-right">操作</div>
+        </div>
+
+        <div className="divide-y divide-[color:var(--line)]">
+          {data.tags.length === 0 ? (
+            <div className="px-4 py-10 text-center text-sm text-[color:var(--text-secondary)]">暂无分类</div>
+          ) : data.tags.map((tag) => {
+            const usage = usageMap.get(tag.id) || 0;
+            const slug = normalizeTagSlug(tag.slug, tag.name);
+            const isEditing = editingId === tag.id;
+
+            return (
+              <div key={tag.id} className="grid gap-3 px-4 py-3 transition-colors hover:bg-[color:var(--bg-soft)] md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_96px_86px] md:items-center">
+                {isEditing ? (
+                  <>
+                    <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIconPickerTarget('edit')}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-[6px] border border-[color:var(--line)] bg-[color:var(--surface)] text-[color:var(--text-secondary)] transition-colors hover:border-[color:var(--accent)] hover:text-[color:var(--text-primary)]"
+                        title="选择分类图标"
+                        aria-label="选择分类图标"
+                      >
+                        {getTagIcon(editIcon, 'w-4 h-4') || <span className="text-xs font-semibold">字</span>}
+                      </button>
+                      <input
+                        autoFocus
+                        className="h-10 w-full rounded-[6px] border border-[color:var(--line)] bg-[color:var(--surface)] px-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)] focus:ring-4 focus:ring-[color:var(--accent-soft)]"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleUpdate(tag.id);
+                        }}
+                        placeholder="分类名称"
+                      />
+                    </div>
+                    <input
+                      className="h-10 w-full rounded-[6px] border border-[color:var(--line)] bg-[color:var(--surface)] px-3 text-sm text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)] focus:ring-4 focus:ring-[color:var(--accent-soft)]"
+                      value={editSlug}
+                      onChange={(e) => setEditSlug(e.target.value)}
+                      placeholder="英文标识"
+                    />
+                    <AdminBadge>{usage} 张</AdminBadge>
+                    <div className="flex items-center justify-end gap-1">
+                      <AdminIconButton label="保存" tone="success" onClick={() => handleUpdate(tag.id)}>
+                        <Check size={15} />
+                      </AdminIconButton>
+                      <AdminIconButton label="取消" onClick={() => setEditingId(null)}>
+                        <X size={15} />
+                      </AdminIconButton>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] border border-[color:var(--line)] bg-[color:var(--bg-soft)] text-[color:var(--text-secondary)]">
+                        {getTagIcon(tag.icon, 'w-4 h-4') || <span className="text-sm font-semibold">{tag.name.slice(0, 1)}</span>}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-[color:var(--text-primary)]">{tag.name}</div>
+                        <div className="mt-1 text-xs text-[color:var(--text-secondary)] md:hidden">/{slug}</div>
+                      </div>
+                    </div>
+                    <div className="hidden min-w-0 font-mono text-sm text-[color:var(--text-secondary)] md:block">/{slug}</div>
+                    <AdminBadge tone={usage > 0 ? 'accent' : 'neutral'}>{usage} 张</AdminBadge>
+                    <div className="flex items-center justify-end gap-1">
+                      <AdminIconButton label="编辑" tone="accent" onClick={() => startEdit(tag)}>
+                        <Edit2 size={15} />
+                      </AdminIconButton>
+                      <AdminIconButton label="删除" tone="danger" onClick={() => handleDelete(tag.id)}>
+                        <Trash2 size={15} />
+                      </AdminIconButton>
+                    </div>
+                  </>
+                )}
               </div>
-            ) : (
-              <>
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-[color:var(--surface)] rounded-lg border border-[color:var(--line)] flex items-center justify-center text-[color:var(--text-secondary)] font-bold text-sm">
-                    {getTagIcon(tag.icon, 'w-4 h-4') || tag.name.slice(0, 1)}
-                  </div>
-                  <div className="min-w-0 flex items-center gap-2">
-                    <span className="font-bold text-[color:var(--text-primary)] truncate">{tag.name}</span>
-                    <span className="text-[11px] text-[color:var(--text-secondary)]/80 font-mono truncate">/{normalizeTagSlug(tag.slug, tag.name)}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => { setEditingId(tag.id); setEditName(tag.name); setEditSlug(tag.slug || ''); setEditIcon(tag.icon || ''); }} className="p-2 text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:bg-[color:var(--accent-soft)] rounded-lg transition-colors"><Edit2 size={16} /></button>
-                  <button onClick={() => handleDelete(tag.id)} className="p-2 text-[color:var(--text-secondary)] hover:text-red-500 hover:bg-red-50/80 rounded-lg transition-colors"><Trash2 size={16} /></button>
-                </div>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      </AdminPanel>
 
       <Modal
         isOpen={iconPickerTarget !== null}
@@ -149,22 +223,22 @@ export const AdminTagsSection: React.FC<AdminTagsSectionProps> = ({ data, onUpda
         className="max-w-3xl w-full"
       >
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-[color:var(--text-secondary)] uppercase tracking-[0.16em]">点击图标即可应用</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-secondary)]">选择图标</p>
             <button
               type="button"
               onClick={() => {
                 setCurrentIconValue('');
                 setIconPickerTarget(null);
               }}
-              className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${!currentIconValue ? 'border-[color:var(--accent)] bg-[color:var(--accent-soft)] text-[color:var(--text-primary)]' : 'border-[color:var(--line)] text-[color:var(--text-secondary)] hover:border-[color:var(--accent)] hover:text-[color:var(--text-primary)]'}`}
+              className={`rounded-[6px] border px-3 py-1.5 text-xs font-semibold transition-colors ${!currentIconValue ? 'border-[color:var(--accent)] bg-[color:var(--accent-soft)] text-[color:var(--text-primary)]' : 'border-[color:var(--line)] text-[color:var(--text-secondary)] hover:border-[color:var(--accent)] hover:text-[color:var(--text-primary)]'}`}
             >
               不使用图标
             </button>
           </div>
 
-          <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2">
-            {iconChoices.filter((item) => item.value).map((item) => (
+          <div className="grid grid-cols-6 gap-2 sm:grid-cols-8 md:grid-cols-10">
+            {TAG_ICON_OPTIONS.filter((item) => item.value).map((item) => (
               <button
                 key={item.value}
                 type="button"
@@ -172,7 +246,7 @@ export const AdminTagsSection: React.FC<AdminTagsSectionProps> = ({ data, onUpda
                   setCurrentIconValue(item.value);
                   setIconPickerTarget(null);
                 }}
-                className={`h-10 rounded-lg border inline-flex items-center justify-center transition-colors ${currentIconValue === item.value ? 'border-[color:var(--accent)] bg-[color:var(--accent-soft)] text-[color:var(--text-primary)]' : 'border-[color:var(--line)] text-[color:var(--text-secondary)] hover:border-[color:var(--accent)] hover:text-[color:var(--text-primary)]'}`}
+                className={`inline-flex h-10 items-center justify-center rounded-[6px] border transition-colors ${currentIconValue === item.value ? 'border-[color:var(--accent)] bg-[color:var(--accent-soft)] text-[color:var(--text-primary)]' : 'border-[color:var(--line)] text-[color:var(--text-secondary)] hover:border-[color:var(--accent)] hover:text-[color:var(--text-primary)]'}`}
                 title={item.label}
               >
                 {getTagIcon(item.value, 'w-4 h-4')}

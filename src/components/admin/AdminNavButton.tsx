@@ -17,7 +17,7 @@ export const AdminNavButton: React.FC<AdminNavButtonProps> = ({ to, icon, label,
   return (
     <button
       onClick={() => navigate(to)}
-      className={`group relative flex items-center justify-between px-3 py-3 w-full text-base font-bold rounded-xl border transition-all overflow-hidden ${isActive ? 'bg-[color:var(--surface)]/85 border-[color:var(--line)] text-[color:var(--text-primary)] shadow-sm' : 'border-transparent text-[color:var(--text-secondary)] hover:bg-[color:var(--surface)]/78 hover:border-[color:var(--line)] hover:text-[color:var(--text-primary)]'}`}
+      className={`group relative flex items-center justify-between px-3 py-3 w-full text-base font-bold rounded-[6px] border transition-all overflow-hidden ${isActive ? 'bg-[color:var(--surface)]/85 border-[color:var(--line)] text-[color:var(--text-primary)] shadow-sm' : 'border-transparent text-[color:var(--text-secondary)] hover:bg-[color:var(--surface)]/78 hover:border-[color:var(--line)] hover:text-[color:var(--text-primary)]'}`}
       title={collapsed ? label : undefined}
     >
       <span className={`absolute left-1 top-2 bottom-2 w-0.5 rounded-full bg-[color:var(--accent)] transition-opacity ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-70'}`} />
