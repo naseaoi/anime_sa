@@ -125,8 +125,8 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
         </div>
       </header>
 
-      <main className="flex-1 pt-20 pb-6 lg:pb-10">
-        <div className="max-w-7xl mx-auto px-5 lg:px-12 mt-2 lg:mt-5">
+      <main className="flex-1 pt-[4.5rem] pb-6 lg:pb-10">
+        <div className="max-w-7xl mx-auto px-5 lg:px-12 mt-0 lg:mt-2">
           <div className="grid grid-cols-1 lg:grid-cols-[1.25fr_1fr] gap-6 lg:gap-10 mb-4 lg:mb-6">
             <section className="order-1 lg:order-none lg:col-start-2 lg:row-start-1 flex flex-col justify-center gap-4">
               <div className="space-y-3">

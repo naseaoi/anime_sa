@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, PlayCircle, Star, ThumbsUp } from 'lucide-react';
 import { CardData, Tag } from '../../types';
 import { ImagePreview } from '../Common';
+import { CardSkeleton } from './PublicSkeletons';
 import { getCardCoverSourceSet } from '../../utils/cardCover';
 
 // 卡片白色文字在亮/暗封面上的可读性增强：纯文字阴影方案
@@ -24,7 +25,7 @@ interface PublicCardGridProps {
   onTouchEnd: () => void;
   getCardHref?: (card: CardData) => string;
   getCardState?: (card: CardData) => unknown;
-  staggerCards?: boolean;
+  trailingSkeletonCount?: number;
   tags?: Tag[];
 }
 
@@ -42,7 +43,7 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
   onTouchEnd,
   getCardHref,
   getCardState,
-  staggerCards = false,
+  trailingSkeletonCount = 0,
   tags
 }) => {
   const resolveHref = (card: CardData) => (getCardHref ? getCardHref(card) : `/card/${card.id}`);
@@ -112,8 +113,7 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
           key={card.id}
           to={resolveHref(card)}
           state={resolveState(card)}
-          className="group cursor-pointer fill-mode-both fade-up card-visibility-hint transition-transform duration-500 hover:scale-[1.02]"
-          style={staggerCards ? { animationDelay: `${Math.min(index, 18) * 35 + (showHero ? 120 : 0)}ms` } : undefined}
+          className="group cursor-pointer fill-mode-both card-fade-in card-visibility-hint transition-transform duration-500 hover:scale-[1.02]"
         >
           <div className={`relative rounded-2xl transition-all duration-500 h-full w-full aspect-video overflow-hidden ${
             card.isWatching
@@ -139,7 +139,7 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
             </div>
 
             {/* 文字层在 mask 之外，仅受外层 overflow-hidden 直角裁切，阴影完整保留 */}
-            <div className="absolute bottom-0 left-0 right-0 text-white flex flex-col justify-end p-4 z-10">
+            <div className="absolute bottom-0 left-0 right-0 text-white flex flex-col justify-end pt-4 pr-4 pb-3 pl-3 md:group-hover:pb-1.5 md:group-focus:pb-1.5 md:group-focus-visible:pb-1.5 transition-[padding] duration-[400ms] ease-out z-10">
               {/* 第一行：评分 + 分类标签——统一像素级样式（同字号/padding/圆角），单行水平排列，溢出裁切 */}
               <div className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap">
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/40 border border-white/15 backdrop-blur-sm text-[10px] font-semibold leading-none flex-shrink-0">
@@ -162,7 +162,7 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
                   grid 容器 -mx-2 让 inner div 向外扩 8px，配合 <p> 的 px-2 抵消位置；
                   truncate 替代 line-clamp-1 规避 webkit-box+padding 的 1.5 行渲染 bug；
                   py-1.5 给阴影留上下空间 */}
-              <div className="hidden md:grid grid-rows-[0fr] md:group-hover:grid-rows-[1fr] -mx-2 transition-[grid-template-rows] duration-400 ease-out">
+              <div className="hidden md:grid grid-rows-[0fr] md:group-hover:grid-rows-[1fr] md:group-focus:grid-rows-[1fr] md:group-focus-visible:grid-rows-[1fr] -mx-2 transition-[grid-template-rows] duration-[400ms] ease-out">
                 <div className="overflow-hidden">
                   <p className={`text-white px-2 py-1.5 truncate font-medium text-[11px] ${COVER_TEXT_SHADOW}`}>{card.description}</p>
                 </div>
@@ -184,6 +184,9 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
         </Link>
         );
       })}
+      {Array.from({ length: trailingSkeletonCount }).map((_, index) => (
+        <CardSkeleton key={`trailing-skeleton-${index}`} />
+      ))}
     </div>
   );
 };

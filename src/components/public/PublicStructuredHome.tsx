@@ -20,7 +20,6 @@ interface HeroProps {
 interface PublicStructuredHomeProps extends HeroProps {
   sections: StructuredHomeSections;
   gridKey: string;
-  staggerCards: boolean;
   sectionCardLimit: number;
   getCardHref: (card: CardData, forcedSection: string) => string;
   getCardState: () => { from: string };
@@ -30,8 +29,6 @@ interface PublicStructuredHomeProps extends HeroProps {
 
 // 非首屏分区的通用壳：标题 + 计数 + "查看更多" + 卡片网格
 interface HomeSectionProps {
-  animationDelay: string;
-  headerAnimationDelay: string;
   icon: React.ReactNode;
   titleClassName?: string;
   title: string;
@@ -39,7 +36,6 @@ interface HomeSectionProps {
   sectionCardLimit: number;
   sectionKey: string;
   gridKey: string;
-  staggerCards: boolean;
   setHeroIndex: React.Dispatch<React.SetStateAction<number>>;
   setIsHeroPaused: React.Dispatch<React.SetStateAction<boolean>>;
   onTouchStart: (e: React.TouchEvent) => void;
@@ -52,14 +48,14 @@ interface HomeSectionProps {
 }
 
 const HomeSection: React.FC<HomeSectionProps> = ({
-  animationDelay, headerAnimationDelay, icon, title, cards, sectionCardLimit,
-  sectionKey, gridKey, staggerCards, setHeroIndex, setIsHeroPaused,
+  icon, title, cards, sectionCardLimit,
+  sectionKey, gridKey, setHeroIndex, setIsHeroPaused,
   onTouchStart, onTouchMove, onTouchEnd, getCardHref, getCardState, onViewMore, tags
 }) => {
   const showViewMore = cards.length > sectionCardLimit;
   return (
-    <section className="space-y-4 fade-up home-section-visibility" style={{ animationDelay }}>
-      <div className="flex items-center justify-between gap-3 fade-up" style={{ animationDelay: headerAnimationDelay }}>
+    <section className="space-y-4 section-fade-in home-section-visibility">
+      <div className="flex items-center justify-between gap-3 section-fade-in">
         <div className="flex items-center gap-2">
           {icon}
           <h3 className="font-display text-2xl text-[color:var(--text-primary)]">{title}</h3>
@@ -76,7 +72,6 @@ const HomeSection: React.FC<HomeSectionProps> = ({
         gridKey={`${gridKey}-${sectionKey}`}
         filteredCards={cards.slice(0, sectionCardLimit)}
         visibleCount={Math.min(cards.length, sectionCardLimit)}
-        staggerCards={staggerCards}
         showHero={false}
         heroCards={[]}
         heroIndex={0}
@@ -102,12 +97,11 @@ const HomeSection: React.FC<HomeSectionProps> = ({
 };
 
 export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
-  sections, gridKey, staggerCards, sectionCardLimit, showHero, heroCards,
+  sections, gridKey, sectionCardLimit, showHero, heroCards,
   heroIndex, setHeroIndex, setIsHeroPaused, onTouchStart, onTouchMove, onTouchEnd,
   getCardHref, getCardState, onTagChange, tags
 }) => {
   const gridProps = {
-    staggerCards,
     setHeroIndex,
     setIsHeroPaused,
     onTouchStart,
@@ -119,7 +113,7 @@ export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
 
   return (
     <div key={`sections-${gridKey}`} className="space-y-12">
-      <section className="fade-up home-section-visibility" style={{ animationDelay: '0.02s' }}>
+      <section className="section-fade-in home-section-visibility">
         <PublicCardGrid
           gridKey={`${gridKey}-hero-block`}
           filteredCards={sections.topCards}
@@ -134,8 +128,6 @@ export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
 
       {sections.recommendedCards.length > 0 && (
         <HomeSection
-          animationDelay="0.08s"
-          headerAnimationDelay="0.1s"
           icon={<span className="w-6 h-6 inline-flex items-center justify-center text-amber-500"><ThumbsUp size={24} /></span>}
           title="精选推荐"
           cards={sections.recommendedCards}
@@ -150,8 +142,6 @@ export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
 
       {sections.watchingCards.length > 0 && (
         <HomeSection
-          animationDelay="0.12s"
-          headerAnimationDelay="0.14s"
           icon={<span className="w-6 h-6 inline-flex items-center justify-center text-sky-500"><PlayCircle size={24} /></span>}
           title="正在观看"
           cards={sections.watchingCards}
@@ -164,11 +154,9 @@ export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
         />
       )}
 
-      {sections.tagSections.map((section: { tag: Tag; cards: CardData[] }, index: number) => (
+      {sections.tagSections.map((section: { tag: Tag; cards: CardData[] }) => (
         <HomeSection
           key={section.tag.id}
-          animationDelay={`${0.18 + index * 0.04}s`}
-          headerAnimationDelay={`${0.2 + index * 0.04}s`}
           icon={<span className="w-6 h-6 inline-flex items-center justify-center text-[color:var(--accent)]">{getTagIcon(section.tag.icon, 'w-6 h-6') || <span className="text-2xl font-bold leading-none">|</span>}</span>}
           title={section.tag.name}
           cards={section.cards}

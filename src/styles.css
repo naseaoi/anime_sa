@@ -193,6 +193,21 @@
     box-shadow: var(--shadow-lg);
   }
 
+  .skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  }
+
+  .skeleton-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--surface) 72%, transparent), transparent);
+    animation: skeletonShimmer 1.35s ease-in-out infinite;
+  }
+
   /* 观后感 Markdown 渲染：仅作用于 .markdown-body 容器内，避免污染全局
      Tailwind base 已 reset 了标题/列表样式，这里按观后感场景重新建立排版层级 */
   .markdown-body > *:first-child {
@@ -393,6 +408,10 @@
     animation: fadeUp 0.55s ease-out 0.16s both;
   }
 
+  .card-fade-in {
+    animation: cardFadeIn 0.36s ease-out both;
+  }
+
   .hero-standalone-intro {
     animation: heroStandaloneIntro 0.45s ease-out both;
   }
@@ -400,24 +419,43 @@
   @keyframes fadeUp {
     0% {
       opacity: 0;
-      transform: translateY(18px);
     }
 
     100% {
       opacity: 1;
-      transform: translateY(0);
     }
   }
 
   @keyframes heroStandaloneIntro {
     0% {
       opacity: 0;
-      transform: scale(0.985);
     }
 
     100% {
       opacity: 1;
-      transform: scale(1);
+    }
+  }
+
+  @keyframes cardFadeIn {
+    0% {
+      opacity: 0;
+    }
+
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes skeletonShimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-shimmer::after {
+      animation: none;
+      transform: none;
     }
   }
 }

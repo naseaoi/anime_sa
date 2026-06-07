@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, Suspense } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ThumbsUp, PlayCircle, Grid, Loader2, ArrowUp } from 'lucide-react';
+import { ThumbsUp, PlayCircle, Grid, ArrowUp } from 'lucide-react';
 import { PublicData, CardData } from '../types';
 import { useToast, useTheme } from './Common';
 import { getStorage } from '../services/storageFactory';
@@ -11,6 +11,7 @@ import { PublicSidebar } from './public/PublicSidebar';
 import { PublicMobileTagBar } from './public/PublicMobileTagBar';
 import { PublicToolbar, type SortKey, type SortOrder } from './public/PublicToolbar';
 import { PublicStructuredHome } from './public/PublicStructuredHome';
+import { CardGridSkeleton } from './public/PublicSkeletons';
 import { useGridColumns } from '../hooks/useGridColumns';
 import { useBackToTop } from '../hooks/useBackToTop';
 import { useHeroRotation } from '../hooks/useHeroRotation';
@@ -23,6 +24,12 @@ const CardEditModal = React.lazy(() => import('./CardEditModal').then((m) => ({ 
 
 const INITIAL_LOAD_COUNT = 32;
 const LOAD_MORE_COUNT = 20;
+const GRID_TRANSITION_MS = 420;
+
+type GridSortConfig = { key: SortKey; order: SortOrder };
+
+const getGridKey = (tagId: string, term: string, sort: GridSortConfig) =>
+  `${tagId}-${term}-${sort.key}-${sort.order}`;
 
 interface PublicHomeProps {
   data: PublicData;
@@ -59,8 +66,8 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
 
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isGridTransitioning, setIsGridTransitioning] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [staggerCards, setStaggerCards] = useState(() => window.scrollY < 120);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       return localStorage.getItem('tat_public_sidebar_collapsed') === '1';
@@ -80,6 +87,8 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   // 瀑布流滚动位置记忆：按当前路径+查询作 key 区分，避免不同列表互相串扰
   const scrollStorageKey = `tat_home_scroll:${location.pathname}${location.search}`;
   const hasRestoredScrollRef = useRef(false);
+  const gridTransitionTimerRef = useRef<number | null>(null);
+  const visitedGridKeysRef = useRef<Set<string>>(new Set());
 
   // 接管历史滚动恢复，确保由我们在 DOM 渲染后精确还原
   useEffect(() => {
@@ -141,10 +150,13 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     return tagSlugMap.get(section) || 'all';
   }, [section, tagSlugMap]);
 
-  // 切换活动分区 / 搜索 / 排序时，如果已滚出列表头部则不再用 stagger 动画
   useEffect(() => {
-    setStaggerCards(window.scrollY < 120);
-  }, [activeTag, searchTerm, sortConfig.key, sortConfig.order]);
+    return () => {
+      if (gridTransitionTimerRef.current !== null) {
+        window.clearTimeout(gridTransitionTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (data.settings.title) {
@@ -197,6 +209,25 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     setIsLoadingMore(false);
   };
 
+  const startGridTransition = (nextGridKey: string, nextTagId: string, nextSearchTerm = searchTerm) => {
+    if (gridTransitionTimerRef.current !== null) {
+      window.clearTimeout(gridTransitionTimerRef.current);
+    }
+    setIsLoadingMore(false);
+
+    if ((nextTagId === 'all' && !nextSearchTerm) || visitedGridKeysRef.current.has(nextGridKey)) {
+      setIsGridTransitioning(false);
+      gridTransitionTimerRef.current = null;
+      return;
+    }
+
+    setIsGridTransitioning(true);
+    gridTransitionTimerRef.current = window.setTimeout(() => {
+      setIsGridTransitioning(false);
+      gridTransitionTimerRef.current = null;
+    }, GRID_TRANSITION_MS);
+  };
+
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -236,15 +267,18 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
                 const tag = data.tags.find((item) => item.id === tagId);
                 return tag ? `/${getTagSlug(tag)}` : '/';
               })();
+    if (tagId !== activeTag) {
+      startGridTransition(getGridKey(tagId, searchTerm, sortConfig), tagId);
+    }
     navigate(path + location.search);
     resetListView();
   };
 
   const handleSortChange = (key: SortKey) => {
-    setSortConfig(prev => ({
+    setSortConfig({
       key,
-      order: prev.key === key ? (prev.order === 'desc' ? 'asc' : 'desc') : 'desc'
-    }));
+      order: sortConfig.key === key ? (sortConfig.order === 'desc' ? 'asc' : 'desc') : 'desc'
+    });
     resetListView();
   };
 
@@ -341,7 +375,10 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
 
   // --- 瀑布流加载 ---
   const loadRef = useRef<HTMLDivElement>(null);
-  const hasMore = !isStructuredHome && visibleCount < filteredCards.length;
+  const hasMore = !isStructuredHome && !isGridTransitioning && visibleCount < filteredCards.length;
+  const loadMoreSkeletonCount = isLoadingMore ? Math.min(LOAD_MORE_COUNT, Math.max(filteredCards.length - visibleCount, 0)) : 0;
+  const showGridSkeleton = !isStructuredHome && isGridTransitioning && filteredCards.length > 0;
+  const gridSkeletonCount = Math.min(visibleCount, filteredCards.length);
 
   useEffect(() => {
     if (!hasMore || isLoadingMore) return;
@@ -361,7 +398,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
 
     if (loadRef.current) observer.observe(loadRef.current);
     return () => observer.disconnect();
-  }, [hasMore, isLoadingMore, filteredCards.length]);
+  }, [hasMore, isLoadingMore, filteredCards.length, visibleCount]);
 
   // --- 创建卡片 ---
   const handleCreateSave = async (cardData: Partial<CardData>) => {
@@ -400,7 +437,12 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     }
   };
 
-  const gridKey = `${activeTag}-${searchTerm}-${sortConfig.key}-${sortConfig.order}`;
+  const gridKey = getGridKey(activeTag, searchTerm, sortConfig);
+
+  useEffect(() => {
+    if (isStructuredHome || filteredCards.length === 0) return;
+    visitedGridKeysRef.current.add(gridKey);
+  }, [filteredCards.length, gridKey, isStructuredHome]);
 
   const activeSectionSlug = useMemo(() => {
     if (activeTag === 'recommended' || activeTag === 'watching') return activeTag;
@@ -483,7 +525,6 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
           <PublicStructuredHome
             sections={structuredHomeSections}
             gridKey={gridKey}
-            staggerCards={staggerCards}
             sectionCardLimit={sectionCardLimit}
             showHero={showHero}
             heroCards={heroCards}
@@ -508,44 +549,39 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
                 </h3>
               </div>
             )}
-            <PublicCardGrid
-              gridKey={gridKey}
-              filteredCards={filteredCards}
-              visibleCount={visibleCount}
-              staggerCards={staggerCards}
-              showHero={showHero}
-              heroCards={heroCards}
-              heroIndex={hero.heroIndex}
-              setHeroIndex={hero.setHeroIndex}
-              setIsHeroPaused={hero.setIsHeroPaused}
-              onTouchStart={hero.onTouchStart}
-              onTouchMove={hero.onTouchMove}
-              onTouchEnd={hero.onTouchEnd}
-              getCardHref={(card) =>
-                activeSectionSlug ? getCardHrefBySection(card, activeSectionSlug) : getCardHrefBySection(card)
-              }
-              getCardState={getCardLinkState}
-              tags={data.tags}
-            />
+            <div className="relative">
+              {showGridSkeleton && (
+                <div className="absolute inset-0 z-0 pointer-events-none" aria-hidden="true">
+                  <CardGridSkeleton count={gridSkeletonCount} />
+                </div>
+              )}
+              <div className="relative z-10">
+                <PublicCardGrid
+                  gridKey={gridKey}
+                  filteredCards={filteredCards}
+                  visibleCount={visibleCount}
+                  showHero={showHero}
+                  heroCards={heroCards}
+                  heroIndex={hero.heroIndex}
+                  setHeroIndex={hero.setHeroIndex}
+                  setIsHeroPaused={hero.setIsHeroPaused}
+                  onTouchStart={hero.onTouchStart}
+                  onTouchMove={hero.onTouchMove}
+                  onTouchEnd={hero.onTouchEnd}
+                  getCardHref={(card) =>
+                    activeSectionSlug ? getCardHrefBySection(card, activeSectionSlug) : getCardHrefBySection(card)
+                  }
+                  getCardState={getCardLinkState}
+                  trailingSkeletonCount={loadMoreSkeletonCount}
+                  tags={data.tags}
+                />
+              </div>
+            </div>
           </>
         )}
 
         {!isStructuredHome && (hasMore || isLoadingMore) && (
-          <div ref={loadRef} className="flex justify-center mt-16 pb-8 min-h-[50px]">
-            {isLoadingMore && (
-              <div className="flex items-center gap-2 text-[color:var(--text-secondary)]/80 text-xs font-semibold uppercase tracking-[0.2em]">
-                <Loader2 className="animate-spin" size={14} />
-                <span>Loading More</span>
-              </div>
-            )}
-            {!isLoadingMore && hasMore && <div className="h-4 w-full" />}
-          </div>
-        )}
-
-        {!isStructuredHome && !hasMore && filteredCards.length > 0 && (
-          <div className="text-center mt-16 pb-8 text-xs font-semibold text-[color:var(--text-secondary)]/70 uppercase tracking-[0.24em] fade-up" style={{ animationDelay: '0.08s' }}>
-            End of Collection
-          </div>
+          <div ref={loadRef} className="h-20 w-full" />
         )}
 
         <footer className="mt-auto pt-16 pb-8">
@@ -559,7 +595,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
 
         <button
           onClick={scrollToTop}
-          className={`fixed bottom-20 right-6 z-50 w-11 h-11 glass-panel text-[color:var(--text-primary)] rounded-2xl shadow-lg border border-[color:var(--line)] transition-all duration-300 transform flex items-center justify-center ${showBackToTop ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}
+          className={`fixed bottom-20 right-6 z-50 w-11 h-11 glass-panel text-[color:var(--text-primary)] rounded-2xl shadow-lg border border-[color:var(--line)] transition-opacity duration-300 flex items-center justify-center ${showBackToTop ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         >
           <ArrowUp size={18} />
         </button>

@@ -24,8 +24,8 @@ export const ImagePreview: React.FC<{
   }, [src]);
 
   const showImage = !!src && !error;
-  // 占位条件：无 src / 报错 / 还在加载——三态都用同一"无封面"样式
-  const showPlaceholder = !showImage || !loaded;
+  const showSkeleton = showImage && !loaded;
+  const showFallback = !showImage;
 
   return (
     <div className={`relative overflow-hidden bg-stone-100 dark:bg-zinc-800 flex items-center justify-center ${className}`}>
@@ -46,7 +46,10 @@ export const ImagePreview: React.FC<{
           onError={() => setError(true)}
         />
       )}
-      {showPlaceholder && (
+      {showSkeleton && (
+        <div className="absolute inset-0 skeleton-shimmer pointer-events-none" />
+      )}
+      {showFallback && (
         <div className="absolute inset-0 flex items-center justify-center text-stone-300 dark:text-zinc-600 pointer-events-none">
           <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
         </div>
