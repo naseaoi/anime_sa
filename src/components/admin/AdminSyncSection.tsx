@@ -1,32 +1,37 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronRight, CloudUpload, Database, Loader2, RefreshCw, WandSparkles } from 'lucide-react';
-import { AuditLogEntry, PublicData } from '../../types';
-import { getAuditLogs, getStorage, logoutServerSession, runCoverGarbageCollectionBatch, setServerStorageMode, sqliteAdapter, syncAdminCredentialsToTarget, webdavAdapter } from '../../services/storageFactory';
-import { CoverProcessFailure, forceOptimizeUrlCardCovers, migrateCardCoversToStorage, optimizeCardCoverVariants } from '../../services/coverAssetService';
+import { AuditLogEntry } from '../../types';
+import { getAuditLogs, getStorage, logoutServerSession, setServerStorageMode, sqliteAdapter, webdavAdapter } from '../../services/storageFactory';
 import { Button, ConfirmModal, useToast } from '../Common';
 import { AdminBadge, AdminPanel } from './ui';
+import { SyncDirection, SyncOperations, StorageMode } from './hooks/useSyncOperations';
 
 interface AdminSyncSectionProps {
-  data: PublicData;
-  onPersistData: (nextData: PublicData, successMessage: string) => Promise<boolean>;
+  syncOps: SyncOperations;
+  syncInfoToken: number;
 }
 
-type SyncDirection = 'to_sqlite' | 'to_webdav';
-type StorageMode = 'webdav' | 'sqlite';
-
-export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPersistData }) => {
+export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syncInfoToken }) => {
   const [currentMode] = useState<StorageMode>(getStorage().type);
-  const [migrating, setMigrating] = useState(false);
-  const [gcRunning, setGcRunning] = useState(false);
-  const [gcProgress, setGcProgress] = useState<{ target: StorageMode; rounds: number; removed: number; checked: number; pending: number } | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
-  const [optimizingCovers, setOptimizingCovers] = useState(false);
-  const [optimizeProgress, setOptimizeProgress] = useState<{ total: number; done: number; optimized: number; failed: number } | null>(null);
-  const [optimizeFailures, setOptimizeFailures] = useState<CoverProcessFailure[]>([]);
   const [syncInfo, setSyncInfo] = useState<{ webdav?: number; sqlite?: number } | null>(null);
   const [syncConfirm, setSyncConfirm] = useState<{ isOpen: boolean; direction: SyncDirection | null }>({ isOpen: false, direction: null });
   const { showToast } = useToast();
+
+  const {
+    migrating,
+    gcRunning,
+    optimizingCovers,
+    gcProgress,
+    optimizeProgress,
+    optimizeFailures,
+    busy: actionDisabled,
+    runSync,
+    runGc,
+    runOptimizeCovers,
+    runForceUrlOptimize
+  } = syncOps;
 
   const loadSyncInfo = async () => {
     setSyncInfo(null);
@@ -52,7 +57,7 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
   useEffect(() => {
     loadSyncInfo();
     loadAudit();
-  }, []);
+  }, [syncInfoToken]);
 
   const handleModeSwitch = async (mode: StorageMode) => {
     if (mode === currentMode) return;
@@ -67,131 +72,6 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
     window.location.reload();
   };
 
-  const executeCoverOptimize = async () => {
-    setOptimizingCovers(true);
-    setOptimizeProgress({ total: data.cards.length, done: 0, optimized: 0, failed: 0 });
-    setOptimizeFailures([]);
-
-    try {
-      const result = await optimizeCardCoverVariants(data.cards, setOptimizeProgress);
-      setOptimizeFailures(result.failures);
-      if (result.optimized === 0 && result.failed === 0) {
-        showToast('当前封面已全部具备缩略图，无需优化', 'info');
-        return;
-      }
-
-      const success = await onPersistData(
-        { ...data, cards: result.cards },
-        `封面优化完成：新增 ${result.optimized} 张缩略图${result.failed > 0 ? `，失败 ${result.failed} 张` : ''}`
-      );
-
-      if (!success && result.failed > 0) {
-        showToast(`封面优化未完整保存，失败 ${result.failed} 张`, 'error');
-      }
-      loadAudit();
-    } catch (e: any) {
-      showToast(`封面优化失败: ${e?.message || '未知错误'}`, 'error');
-    } finally {
-      setOptimizingCovers(false);
-    }
-  };
-
-  const executeForceUrlCoverOptimize = async () => {
-    setOptimizingCovers(true);
-    setOptimizeProgress({ total: data.cards.length, done: 0, optimized: 0, failed: 0 });
-    setOptimizeFailures([]);
-
-    try {
-      const result = await forceOptimizeUrlCardCovers(data.cards, setOptimizeProgress);
-      setOptimizeFailures(result.failures);
-      if (result.optimized === 0 && result.failed === 0) {
-        showToast('当前没有可强制优化的 URL 封面', 'info');
-        return;
-      }
-
-      const success = await onPersistData(
-        { ...data, cards: result.cards },
-        `URL 封面优化完成：转存 ${result.optimized} 张${result.failed > 0 ? `，失败 ${result.failed} 张` : ''}`
-      );
-
-      if (!success && result.failed > 0) {
-        showToast(`URL 封面优化未完整保存，失败 ${result.failed} 张`, 'error');
-      }
-      loadAudit();
-    } catch (e: any) {
-      showToast(`URL 封面优化失败: ${e?.message || '未知错误'}`, 'error');
-    } finally {
-      setOptimizingCovers(false);
-    }
-  };
-
-  const executeGc = async (target: StorageMode) => {
-    setGcRunning(true);
-    let totalRemoved = 0;
-    let totalChecked = 0;
-    let rounds = 0;
-    let pending = 0;
-
-    try {
-      while (true) {
-        const result = await runCoverGarbageCollectionBatch(target, 80);
-        if (!result.success) throw new Error(result.error);
-
-        rounds += 1;
-        totalRemoved += result.removed;
-        totalChecked = Math.max(totalChecked, result.checked);
-        pending = result.pending;
-        setGcProgress({ target, rounds, removed: totalRemoved, checked: totalChecked, pending });
-
-        if (!result.hasMore) break;
-      }
-
-      showToast(`封面清理完成：删除 ${totalRemoved} 个未引用资源`, 'success');
-      loadAudit();
-    } catch (e: any) {
-      showToast(`封面清理失败: ${e.message}`, 'error');
-    } finally {
-      setGcRunning(false);
-    }
-  };
-
-  const executeSync = async (direction: SyncDirection) => {
-    setMigrating(true);
-    try {
-      const sourceAdapter = direction === 'to_sqlite' ? webdavAdapter : sqliteAdapter;
-      const targetAdapter = direction === 'to_sqlite' ? sqliteAdapter : webdavAdapter;
-      const targetMode = direction === 'to_sqlite' ? 'sqlite' : 'webdav';
-
-      showToast('正在读取源数据...', 'info');
-      const publicData = await sourceAdapter.getPublicData();
-      const privateData = await sourceAdapter.getPrivateData();
-
-      showToast('正在迁移封面资源...', 'info');
-      const migratedCovers = await migrateCardCoversToStorage(publicData.cards, sourceAdapter.type, targetMode);
-      const nextPublicData = { ...publicData, cards: migratedCovers.cards };
-
-      showToast('正在写入目标...', 'info');
-      const publicResult = await targetAdapter.savePublicData(nextPublicData);
-      if (!publicResult.success) throw new Error(publicResult.error);
-
-      if (privateData?.username) {
-        const privateResult = await syncAdminCredentialsToTarget(targetMode, privateData);
-        if (!privateResult.success) throw new Error(privateResult.error);
-      }
-
-      const coverSummary = migratedCovers.migrated > 0 || migratedCovers.failed > 0
-        ? ` 封面迁移 ${migratedCovers.migrated} 张${migratedCovers.failed > 0 ? `，失败 ${migratedCovers.failed} 张` : ''}。`
-        : ' ';
-      showToast(`数据同步成功！${coverSummary}可按需执行封面清理。`, migratedCovers.failed > 0 ? 'info' : 'success');
-      loadSyncInfo();
-      loadAudit();
-    } catch (e: any) {
-      showToast(`同步失败: ${e.message}`, 'error');
-    } finally {
-      setMigrating(false);
-      setSyncConfirm({ isOpen: false, direction: null });
-    }
-  };
 
   const formatDate = (ts?: number) => (ts && ts > 0 ? new Date(ts).toLocaleString() : '未知/无数据');
   const formatAction = (action: string) => {
@@ -205,8 +85,6 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
     };
     return map[action] || action;
   };
-
-  const actionDisabled = migrating || gcRunning || optimizingCovers;
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -266,28 +144,28 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
               title="清理 SQLite 封面"
               disabled={actionDisabled}
               loading={gcRunning && gcProgress?.target === 'sqlite'}
-              onClick={() => executeGc('sqlite')}
+              onClick={() => runGc('sqlite')}
             />
             <ActionButton
               icon={<CloudUpload size={17} />}
               title="清理 WebDAV 封面"
               disabled={actionDisabled}
               loading={gcRunning && gcProgress?.target === 'webdav'}
-              onClick={() => executeGc('webdav')}
+              onClick={() => runGc('webdav')}
             />
             <ActionButton
               icon={<WandSparkles size={17} />}
               title="优化已有封面"
               disabled={actionDisabled}
               loading={optimizingCovers}
-              onClick={executeCoverOptimize}
+              onClick={runOptimizeCovers}
             />
             <ActionButton
               icon={<RefreshCw size={17} />}
               title="优化 URL 封面"
               disabled={actionDisabled}
               loading={optimizingCovers}
-              onClick={executeForceUrlCoverOptimize}
+              onClick={runForceUrlOptimize}
             />
           </div>
 
@@ -366,7 +244,7 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
       <ConfirmModal
         isOpen={syncConfirm.isOpen}
         onClose={() => setSyncConfirm({ isOpen: false, direction: null })}
-        onConfirm={() => syncConfirm.direction && executeSync(syncConfirm.direction)}
+        onConfirm={() => syncConfirm.direction && runSync(syncConfirm.direction)}
         title="数据覆盖确认"
         message={`确定要执行从 ${syncConfirm.direction === 'to_sqlite' ? 'WebDAV 到 SQLite' : 'SQLite 到 WebDAV'} 的覆盖同步吗？目标端现有数据将被永久覆盖且不可恢复。`}
         confirmText="确认覆盖"

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { PublicData } from '../types';
 import { getStorage, checkServerSession, logoutServerSession } from '../services/storageFactory';
@@ -12,6 +12,7 @@ import { AdminTagsSection } from './admin/AdminTagsSection';
 import { AdminSyncSection } from './admin/AdminSyncSection';
 import { AdminSettingsSection } from './admin/AdminSettingsSection';
 import { AdminShell } from './admin/layout/AdminShell';
+import { useSyncOperations } from './admin/hooks/useSyncOperations';
 
 interface AdminLayoutProps {
   initialData: PublicData;
@@ -24,8 +25,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
   const [isAuth, setIsAuth] = useState(false);
   const [checking, setChecking] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncInfoToken, setSyncInfoToken] = useState(0);
   const { showToast } = useToast();
   const storageType = getStorage().type;
+
+  const localDataRef = useRef(localData);
+  localDataRef.current = localData;
 
   useEffect(() => {
     let mounted = true;
@@ -55,7 +60,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
     setHasChanges(true);
   };
 
-  const persistData = async (nextData: PublicData, successMessage?: string) => {
+  const persistData = useCallback(async (nextData: PublicData, successMessage?: string) => {
     const storage = getStorage();
     const dataToSave = { ...nextData, updatedAt: Date.now() };
     const result = await storage.savePublicData(dataToSave);
@@ -70,7 +75,21 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
     setHasChanges(false);
     showToast(successMessage || (storageType === 'sqlite' ? '已保存更改' : '数据同步成功'), 'success');
     return true;
-  };
+  }, [refreshData, showToast, storageType]);
+
+  const syncOps = useSyncOperations({
+    getData: useCallback(() => localDataRef.current, []),
+    onPersistData: useCallback(async (nextData: PublicData, successMessage: string) => {
+      setSyncing(true);
+      try {
+        return await persistData(nextData, successMessage);
+      } finally {
+        setSyncing(false);
+      }
+    }, [persistData]),
+    showToast,
+    reloadInfo: useCallback(() => setSyncInfoToken((n) => n + 1), [])
+  });
 
   const handleSync = async () => {
     setSyncing(true);
@@ -113,15 +132,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
           path="sync"
           element={
             <AdminSyncSection
-              data={localData}
-              onPersistData={async (nextData, successMessage) => {
-                setSyncing(true);
-                try {
-                  return await persistData(nextData, successMessage);
-                } finally {
-                  setSyncing(false);
-                }
-              }}
+              syncOps={syncOps}
+              syncInfoToken={syncInfoToken}
             />
           }
         />

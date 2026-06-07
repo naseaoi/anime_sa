@@ -1,17 +1,30 @@
 
 import React, { useEffect, useState, useCallback, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { DEFAULT_PUBLIC_DATA } from './services/webdavService';
 import { getStorageAsync, checkServerSession } from './services/storageFactory';
 import { PublicData } from './types';
 import { ToastProvider, ThemeProvider } from './components/Common';
 import { applyThemeColor } from './utils/themeColor';
 import { PublicHome } from './components/PublicHome';
-import { PublicDetailSkeleton, PublicHomeSkeleton } from './components/public/PublicSkeletons';
+import { PublicHomeSkeleton } from './components/public/PublicSkeletons';
 
 const PublicDetail = React.lazy(() => import('./components/PublicDetail').then((m) => ({ default: m.PublicDetail })));
 const AdminLayout = React.lazy(() => import('./components/Admin').then((m) => ({ default: m.AdminLayout })));
 const LOADING_UNDERLAY_MS = 420;
+
+const skeletonForPath = (pathname: string): React.ReactElement | null => {
+  if (pathname.startsWith('/tat')) return null;
+
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length >= 2) return null;
+  return <PublicHomeSkeleton />;
+};
+
+const RouteFallback: React.FC = () => {
+  const { pathname } = useLocation();
+  return skeletonForPath(pathname);
+};
 
 const App: React.FC = () => {
   return (
@@ -82,15 +95,7 @@ const MainRouter: React.FC = () => {
     checkServerSession().then(setIsAdmin);
   }, []);
 
-  const getRouteFallback = () => {
-    const pathname = window.location.pathname;
-    if (pathname.startsWith('/tat')) return null;
-
-    const segments = pathname.split('/').filter(Boolean);
-    if (segments[0] === 'card' && segments.length >= 2) return <PublicDetailSkeleton />;
-    if (segments.length >= 2) return <PublicDetailSkeleton />;
-    return <PublicHomeSkeleton />;
-  };
+  const getRouteFallback = () => skeletonForPath(window.location.pathname);
 
   if (loading) return getRouteFallback();
 
@@ -105,7 +110,7 @@ const MainRouter: React.FC = () => {
       )}
       <div className={`relative z-10 ${loadingUnderlay ? 'card-fade-in' : ''}`}>
         <BrowserRouter>
-          <Suspense fallback={getRouteFallback()}>
+          <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route path="/tat/*" element={<AdminLayout initialData={data} refreshData={fetchData} />} />
               <Route path="/" element={<PublicHome data={data} refreshData={fetchData} isAdmin={isAdmin} />} />
