@@ -6,7 +6,7 @@ interface AdminToolbarProps {
 }
 
 export const AdminToolbar: React.FC<AdminToolbarProps> = ({ children, className = '' }) => (
-  <div className={`rounded-[8px] border border-[color:var(--line)] bg-[color:var(--surface)] p-3 shadow-sm ${className}`}>
+  <div className={`rounded-[8px] border border-[color:var(--line)] bg-[color:var(--surface)] p-3 ${className}`}>
     {children}
   </div>
 );

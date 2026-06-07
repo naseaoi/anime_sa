@@ -15,7 +15,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   className = '',
   bodyClassName = ''
 }) => (
-  <section className={`overflow-hidden rounded-[8px] border border-[color:var(--line)] bg-[color:var(--surface)] shadow-sm ${className}`}>
+  <section className={`overflow-hidden rounded-[8px] border border-[color:var(--line)] bg-[color:var(--surface)] ${className}`}>
     {(title || action) && (
       <div className="flex min-h-12 items-center justify-between gap-3 border-b border-[color:var(--line)] px-4 py-3">
         {title && <h3 className="text-sm font-semibold text-[color:var(--text-primary)]">{title}</h3>}

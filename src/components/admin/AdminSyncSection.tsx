@@ -231,16 +231,10 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
         </AdminPanel>
 
         <AdminPanel title="数据版本">
-          {!syncInfo ? (
-            <div className="flex h-28 items-center justify-center">
-              <Loader2 className="animate-spin text-[color:var(--text-secondary)]" size={24} />
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <VersionItem icon={<CloudUpload size={16} />} label="WebDAV" value={formatDate(syncInfo.webdav)} />
-              <VersionItem icon={<Database size={16} />} label="SQLite" value={formatDate(syncInfo.sqlite)} />
-            </div>
-          )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <VersionItem icon={<CloudUpload size={16} />} label="WebDAV" value={syncInfo ? formatDate(syncInfo.webdav) : null} />
+            <VersionItem icon={<Database size={16} />} label="SQLite" value={syncInfo ? formatDate(syncInfo.sqlite) : null} />
+          </div>
         </AdminPanel>
 
         <AdminPanel title="覆盖同步">
@@ -339,32 +333,35 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ data, onPers
         </AdminPanel>
       </div>
 
-      <AdminPanel
-        title="操作日志"
-        action={
-          <Button onClick={loadAudit} variant="ghost" size="sm" className="h-8 rounded-[6px] px-3" disabled={auditLoading}>
-            {auditLoading ? <Loader2 className="animate-spin" size={14} /> : '刷新'}
-          </Button>
-        }
-        bodyClassName="p-0"
-      >
-        <div className="divide-y divide-[color:var(--line)]">
-          {auditLogs.length === 0 ? (
-            <div className="px-4 py-10 text-center text-sm text-[color:var(--text-secondary)]">暂无日志</div>
-          ) : auditLogs.map((item) => (
-            <div key={item.id} className="px-4 py-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold text-[color:var(--text-primary)]">{formatAction(item.action)}</div>
-                  <div className="mt-1 truncate text-xs text-[color:var(--text-secondary)]">{item.details || '-'} {item.message ? `· ${item.message}` : ''}</div>
+      <div className="relative min-h-0">
+        <AdminPanel
+          title="操作日志"
+          action={
+            <Button onClick={loadAudit} variant="ghost" size="sm" className="h-8 rounded-[6px] px-3" disabled={auditLoading}>
+              {auditLoading ? <Loader2 className="animate-spin" size={14} /> : '刷新'}
+            </Button>
+          }
+          className="flex flex-col xl:absolute xl:inset-0"
+          bodyClassName="min-h-0 flex-1 overflow-y-auto p-0"
+        >
+          <div className="divide-y divide-[color:var(--line)]">
+            {auditLogs.length === 0 ? (
+              <div className="px-4 py-10 text-center text-sm text-[color:var(--text-secondary)]">暂无日志</div>
+            ) : auditLogs.map((item) => (
+              <div key={item.id} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-[color:var(--text-primary)]">{formatAction(item.action)}</div>
+                    <div className="mt-1 truncate text-xs text-[color:var(--text-secondary)]">{item.details || '-'} {item.message ? `· ${item.message}` : ''}</div>
+                  </div>
+                  <AdminBadge tone={item.status === 'success' ? 'success' : 'danger'}>{item.status === 'success' ? '成功' : '失败'}</AdminBadge>
                 </div>
-                <AdminBadge tone={item.status === 'success' ? 'success' : 'danger'}>{item.status === 'success' ? '成功' : '失败'}</AdminBadge>
+                <div className="mt-2 text-[11px] text-[color:var(--text-secondary)]">{new Date(item.ts).toLocaleString()}</div>
               </div>
-              <div className="mt-2 text-[11px] text-[color:var(--text-secondary)]">{new Date(item.ts).toLocaleString()}</div>
-            </div>
-          ))}
-        </div>
-      </AdminPanel>
+            ))}
+          </div>
+        </AdminPanel>
+      </div>
 
       <ConfirmModal
         isOpen={syncConfirm.isOpen}
@@ -399,13 +396,17 @@ const StorageModeButton: React.FC<{
   </button>
 );
 
-const VersionItem: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({ icon, label, value }) => (
+const VersionItem: React.FC<{ icon: React.ReactNode; label: string; value: string | null }> = ({ icon, label, value }) => (
   <div className="rounded-[8px] border border-[color:var(--line)] bg-[color:var(--bg-soft)] px-4 py-3">
     <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[color:var(--text-secondary)]">
       {icon}
       {label}
     </div>
-    <div className="break-all font-mono text-sm text-[color:var(--text-primary)]">{value}</div>
+    {value === null ? (
+      <div className="h-5 w-3/4 animate-pulse rounded-[4px] bg-[color:var(--line)]" />
+    ) : (
+      <div className="break-all font-mono text-sm text-[color:var(--text-primary)]">{value}</div>
+    )}
   </div>
 );
 

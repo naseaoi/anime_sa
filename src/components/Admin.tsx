@@ -95,7 +95,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
 
   return (
     <AdminShell
-      data={localData}
       hasChanges={hasChanges}
       syncing={syncing}
       storageType={storageType}
