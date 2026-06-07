@@ -77,6 +77,12 @@ docker run -d \
 
 > `-v ./data:/app/data` 将 SQLite 数据库持久化到宿主机，避免容器重建后数据丢失。
 
+### Vercel 部署
+
+`api/` 目录下的 Serverless 函数 + SPA 重写规则（见 `vercel.json`）支持直接部署到 Vercel。在 Vercel 项目中配置 `WEBDAV_*` 环境变量即可。
+
+> Vercel 为无持久磁盘环境，**仅支持 WebDAV 存储**；SQLite 接口返回 501。本地/Docker 走 `server/core/apiCore.js`，Vercel 走 `api/webdav.ts`，二者为相互独立的两套实现。
+
 ## 常用命令
 
 | 命令 | 说明 |
@@ -94,8 +100,10 @@ src/
 ├── components/        界面组件（前台 + 后台）
 ├── services/          存储适配与 API 封装
 └── utils/             工具函数
-server.js              生产服务器（HTTP、API 路由、静态文件）
-server/                服务端共享模块（密码哈希等）
+server.js              生产服务器（HTTP、静态文件，API 委托 server/core）
+server/core/apiCore.js 服务端全部 API 业务逻辑（SQLite + WebDAV 代理）
+server/sharedSecurity.js 密码哈希、输入校验等共享模块
+api/                   Vercel Serverless 函数（webdav.ts；sqlite.ts 为 501 占位）
 vite.config.ts         Vite 配置 + 开发态 API 中间件
 data/local.db          SQLite 数据文件（运行时自动创建）
 docs/MAINTENANCE.md    维护与运维手册

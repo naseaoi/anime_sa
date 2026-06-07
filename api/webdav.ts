@@ -2,6 +2,33 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Buffer } from 'buffer';
 
+export const config = {
+  api: {
+    bodyParser: false
+  }
+};
+
+const MEDIA_BODY_LIMIT_BYTES = 15 * 1024 * 1024;
+
+const readRawBody = (request: VercelRequest, limit: number): Promise<Buffer> => {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+
+    request.on('data', (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > limit) {
+        request.destroy();
+        reject(new Error('Payload too large'));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    request.on('end', () => resolve(Buffer.concat(chunks)));
+    request.on('error', (error) => reject(error));
+  });
+};
+
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   const { WEBDAV_URL, WEBDAV_USERNAME, WEBDAV_PASSWORD, WEBDAV_PATH } = process.env;
 
@@ -66,12 +93,18 @@ export default async function handler(request: VercelRequest, response: VercelRe
   };
 
   // Only pass body for specific methods
-  if (['PUT', 'PROPPATCH', 'POST'].includes(method)) {
-    // Vercel handles body parsing, so we might need to stringify it back if it's already an object
-    if (request.body && typeof request.body === 'object' && Object.keys(request.body).length > 0) {
-       fetchOptions.body = JSON.stringify(request.body);
-    } else if (request.body) {
-       fetchOptions.body = request.body;
+  let rawBody: Buffer | null = null;
+  if (['PUT', 'PROPPATCH', 'POST', 'DELETE', 'MKCOL', 'MOVE', 'COPY'].includes(method)) {
+    try {
+      rawBody = await readRawBody(request, MEDIA_BODY_LIMIT_BYTES);
+    } catch (error: any) {
+      if (error?.message === 'Payload too large') {
+        return response.status(413).json({ error: 'Payload too large' });
+      }
+      return response.status(500).json({ error: 'Proxy Error', message: error?.message });
+    }
+    if (rawBody.length > 0) {
+      fetchOptions.body = rawBody as unknown as BodyInit;
     }
   }
 

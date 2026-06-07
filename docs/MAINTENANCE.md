@@ -12,6 +12,8 @@
 
 SQLite 数据库路径：`data/local.db`（运行时自动创建）。
 
+API 业务逻辑入口：本地/Docker 在 `server/core/apiCore.js`；Vercel 部署走独立的 `api/webdav.ts`（仅 WebDAV）。前端存储适配在 `src/services/storageFactory.ts`。
+
 ## API 接口
 
 ### 认证
@@ -49,7 +51,7 @@ SQLite 数据库路径：`data/local.db`（运行时自动创建）。
 - Cookie 名：`tat_session`
 - Token：32 字节随机（64 字符 hex）
 - 过期：记住登录 30 天，否则 1 天
-- 属性：`HttpOnly; SameSite=Lax`，生产环境加 `Secure`
+- 属性：`HttpOnly; SameSite=Strict`，生产环境加 `Secure`
 
 ### 限流
 
