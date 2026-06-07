@@ -30,6 +30,7 @@ export interface CardData {
 export interface SiteSettings {
   title: string;
   iconUrl: string;
+  themeColor?: string;
   footerText?: string;
   footerLeft?: string;
   footerRight?: string;

@@ -7,6 +7,7 @@ export const DEFAULT_PUBLIC_DATA: PublicData = {
   settings: {
     title: "我的收藏",
     iconUrl: "https://lucide.dev/favicon.ico",
+    themeColor: "#c78c2b",
     footerText: "All rights reserved",
     footerLeft: "© 2026",
     footerRight: "All rights reserved"

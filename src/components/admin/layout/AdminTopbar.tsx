@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { CloudUpload, Database, Loader2, Menu, Save, X } from 'lucide-react';
-import { Button } from '../../Common';
+import { CloudUpload, Database, Loader2, Menu, Monitor, Moon, Save, Sun, X } from 'lucide-react';
+import { Button, useTheme } from '../../Common';
 import { AdminNavItem } from './adminNavigation';
 import { AdminTopNav, AdminMobileNav } from './AdminTopNav';
 import { AdminOverflowMenu } from './AdminOverflowMenu';
@@ -23,17 +23,31 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({
   onLogout
 }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
   const storageLabel = storageType === 'sqlite' ? 'SQLite' : 'WebDAV';
   const StorageIcon = storageType === 'sqlite' ? Database : CloudUpload;
+  const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
+  const themeLabel = theme === 'light' ? '浅色' : theme === 'dark' ? '深色' : '跟随系统';
 
   return (
     <header className="sticky top-0 z-30 border-b border-[color:var(--line)] bg-[color:var(--surface)]">
       <div className="relative flex h-16 items-center px-4 md:px-6">
-        <div className="absolute inset-x-0 hidden justify-center md:flex">
-          <AdminTopNav items={items} />
+        <div className="pointer-events-none absolute inset-x-0 hidden justify-center md:flex">
+          <div className="pointer-events-auto">
+            <AdminTopNav items={items} />
+          </div>
         </div>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title={`主题：${themeLabel}`}
+            aria-label={`切换主题，当前${themeLabel}`}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-[6px] border border-[color:var(--line)] text-[color:var(--text-secondary)] transition-colors hover:border-[color:var(--accent)] hover:text-[color:var(--text-primary)]"
+          >
+            <ThemeIcon size={15} />
+          </button>
           <Button
             variant="secondary"
             size="md"
@@ -42,11 +56,6 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({
             <StorageIcon size={15} />
             <span>{storageLabel}</span>
           </Button>
-          {hasChanges && (
-            <span className="inline-flex h-6 items-center rounded-[6px] border border-amber-200 bg-amber-50 px-2 text-xs font-medium text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/25 dark:text-amber-300">
-              未保存
-            </span>
-          )}
           <Button
             onClick={onSave}
             disabled={!hasChanges || syncing}

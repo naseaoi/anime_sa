@@ -1,11 +1,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, PlayCircle, ThumbsUp, Upload, Trash2, Eye } from 'lucide-react';
+import { Loader2, PlayCircle, ThumbsUp, Upload, Trash2, Eye, Star } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { CardData, Tag } from '../types';
 import { Modal, Input, Select, TextArea, Button, ImagePreview } from './Common';
 import { DateField } from './card/DateField';
 import { getCardCoverUrl } from '../utils/cardCover';
+
+const COVER_TEXT_SHADOW = '[text-shadow:0_0_2px_rgba(0,0,0,1),0_0_6px_rgba(0,0,0,0.65)]';
 
 interface CardEditModalProps {
   isOpen: boolean;
@@ -57,6 +59,9 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
   };
 
   const coverPreviewSrc = getCardCoverUrl(card, 'card');
+  const previewTagNames = (card.tagIds || [])
+    .map((tid) => tags.find((t) => t.id === tid)?.name)
+    .filter((name): name is string => !!name);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} className="max-w-7xl w-full">
@@ -111,7 +116,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
             />
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-bold text-[color:var(--text-secondary)] uppercase">本地封面（优先显示）</span>
+                <span className="text-xs font-bold text-[color:var(--text-secondary)] uppercase">本地封面</span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -219,13 +224,43 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
                 关闭
               </button>
             </div>
-            <div className="relative rounded-2xl aspect-video overflow-hidden border border-white/25 shadow-2xl">
-              <ImagePreview src={coverPreviewSrc} alt={card.title || '封面预览'} className="w-full h-full" />
-              <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(120%_95%_at_0%_100%,rgba(0,0,0,0.80)_0%,rgba(0,0,0,0.54)_35%,rgba(0,0,0,0.16)_64%,rgba(0,0,0,0)_100%)]" />
-              <div className="absolute bottom-0 left-0 right-0 p-4 text-white drop-shadow-md">
-                <h3 className="font-display text-2xl leading-tight line-clamp-1">{card.title || '未命名作品'}</h3>
-                <p className="text-white/85 pt-2 line-clamp-2 font-medium text-[11px]">{card.description || '这里会显示卡片描述内容。'}</p>
+            <div className={`group relative rounded-2xl aspect-video overflow-hidden ${
+              card.isWatching
+                ? 'border border-sky-300/80 dark:border-sky-400/30 shadow-[0_10px_30px_rgba(56,189,248,0.18)]'
+                : card.isRecommended
+                  ? 'border border-amber-300/90 dark:border-amber-400/35 shadow-[0_12px_32px_rgba(217,140,38,0.24)]'
+                  : 'border border-[color:var(--line)] bg-black/5 dark:bg-white/5 shadow-sm'
+            }`}>
+              <div className="absolute inset-0 rounded-2xl overflow-hidden isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
+                <ImagePreview src={coverPreviewSrc} alt={card.title || '封面预览'} className="w-full h-full" />
               </div>
+
+              <div className="absolute bottom-0 left-0 right-0 text-white flex flex-col justify-end pt-4 pr-4 pb-3 pl-3 z-10">
+                <div className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/40 border border-white/15 backdrop-blur-sm text-[10px] font-semibold leading-none flex-shrink-0">
+                    <Star size={10} className="text-amber-300 fill-amber-300" />
+                    {(card.rating || 0).toFixed(1)}
+                  </span>
+                  {previewTagNames.map((name) => (
+                    <span key={name} className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-black/40 border border-white/15 backdrop-blur-sm text-[10px] font-semibold leading-none flex-shrink-0">
+                      {name}
+                    </span>
+                  ))}
+                </div>
+                <h3 className={`mt-1 -mx-2 px-2 font-display text-xl leading-tight line-clamp-1 ${COVER_TEXT_SHADOW}`}>{card.title || '未命名作品'}</h3>
+                <p className={`-mx-2 px-2 pt-1.5 truncate font-medium text-[11px] ${COVER_TEXT_SHADOW}`}>{card.description || '这里会显示卡片描述内容。'}</p>
+              </div>
+
+              {card.isRecommended && (
+                <div className="absolute top-0 left-0 bg-amber-500 text-white p-2.5 rounded-br-2xl shadow-lg z-20 pointer-events-none">
+                  <ThumbsUp size={16} />
+                </div>
+              )}
+              {card.isWatching && !card.isRecommended && (
+                <div className="absolute top-0 left-0 bg-sky-500 text-white p-2.5 rounded-br-2xl shadow-lg z-20 pointer-events-none">
+                  <PlayCircle size={16} />
+                </div>
+              )}
             </div>
           </div>
         </div>,

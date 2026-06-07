@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { PublicData, SiteSettings } from '../../types';
 import { getAdminProfile, logoutServerSession, updateAdminCredentials } from '../../services/storageFactory';
+import { DEFAULT_THEME_COLOR, isValidThemeColor } from '../../utils/themeColor';
 import { Button, ConfirmModal, Input, useToast } from '../Common';
 import { AdminIconButton, AdminPanel } from './ui';
 
@@ -9,6 +10,8 @@ interface AdminSettingsSectionProps {
   data: PublicData;
   onUpdate: (d: PublicData) => void;
 }
+
+const THEME_PRESETS = ['#c78c2b', '#2563eb', '#0ea5e9', '#10b981', '#ec4899', '#8b5cf6', '#ef4444', '#f97316'];
 
 export const AdminSettingsSection: React.FC<AdminSettingsSectionProps> = ({ data, onUpdate }) => {
   const [siteSettings, setSiteSettings] = useState(data.settings);
@@ -18,6 +21,7 @@ export const AdminSettingsSection: React.FC<AdminSettingsSectionProps> = ({ data
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingCreds, setSavingCreds] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [confirmLogoutModalOpen, setConfirmLogoutModalOpen] = useState(false);
   const { showToast } = useToast();
 
@@ -37,6 +41,23 @@ export const AdminSettingsSection: React.FC<AdminSettingsSectionProps> = ({ data
   const updateSettings = (nextSettings: SiteSettings) => {
     setSiteSettings(nextSettings);
     onUpdate({ ...data, settings: nextSettings });
+  };
+
+  const currentThemeColor = siteSettings.themeColor && isValidThemeColor(siteSettings.themeColor)
+    ? siteSettings.themeColor
+    : DEFAULT_THEME_COLOR;
+  const [themeColorInput, setThemeColorInput] = useState(currentThemeColor);
+
+  useEffect(() => {
+    setThemeColorInput(currentThemeColor);
+  }, [currentThemeColor]);
+
+  const setThemeColor = (color: string) => updateSettings({ ...siteSettings, themeColor: color });
+
+  const handleThemeColorText = (raw: string) => {
+    const value = raw.startsWith('#') ? raw : `#${raw}`;
+    setThemeColorInput(value);
+    if (isValidThemeColor(value)) setThemeColor(value.toLowerCase());
   };
 
   const willRequireRelogin = () => {
@@ -115,6 +136,53 @@ export const AdminSettingsSection: React.FC<AdminSettingsSectionProps> = ({ data
             className="h-10 rounded-[6px] text-sm"
           />
         </div>
+
+        <div className="mt-4 space-y-3 border-t border-[color:var(--line)] pt-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-[color:var(--text-primary)]">主题色</span>
+            <button
+              type="button"
+              onClick={() => setThemeColor(DEFAULT_THEME_COLOR)}
+              className="text-xs font-semibold text-[color:var(--text-secondary)] transition-colors hover:text-[color:var(--accent)]"
+            >
+              恢复默认
+            </button>
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="relative h-10 w-12 shrink-0 cursor-pointer overflow-hidden rounded-[6px] border border-[color:var(--line)]">
+              <input
+                type="color"
+                value={currentThemeColor}
+                onChange={(e) => setThemeColor(e.target.value.toLowerCase())}
+                className="absolute -left-2 -top-2 h-14 w-16 cursor-pointer border-0 bg-transparent p-0"
+              />
+            </label>
+            <input
+              type="text"
+              value={themeColorInput}
+              onChange={(e) => handleThemeColorText(e.target.value)}
+              spellCheck={false}
+              maxLength={7}
+              className="h-10 w-full rounded-[6px] border border-[color:var(--line)] bg-[color:var(--surface)] px-3 font-mono text-sm uppercase text-[color:var(--text-primary)] outline-none focus:border-[color:var(--accent)] focus:ring-4 focus:ring-[color:var(--accent-soft)]"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {THEME_PRESETS.map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setThemeColor(preset)}
+                title={preset}
+                className={`h-7 w-7 rounded-full border transition-transform hover:scale-110 ${
+                  currentThemeColor.toLowerCase() === preset.toLowerCase()
+                    ? 'border-[color:var(--text-primary)] ring-2 ring-[color:var(--accent-soft)]'
+                    : 'border-[color:var(--line)]'
+                }`}
+                style={{ backgroundColor: preset }}
+              />
+            ))}
+          </div>
+        </div>
       </AdminPanel>
 
       <AdminPanel title="安全配置">
@@ -142,13 +210,22 @@ export const AdminSettingsSection: React.FC<AdminSettingsSectionProps> = ({ data
               {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
             </AdminIconButton>
           </div>
-          <Input
-            label="确认新密码"
-            type={showPassword ? 'text' : 'password'}
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            className="h-10 rounded-[6px] text-sm"
-          />
+          <div className="relative">
+            <Input
+              label="确认新密码"
+              type={showConfirmPassword ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="h-10 rounded-[6px] pr-11 text-sm"
+            />
+            <AdminIconButton
+              label={showConfirmPassword ? '隐藏密码' : '显示密码'}
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              className="absolute right-1 top-[25px]"
+            >
+              {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+            </AdminIconButton>
+          </div>
           <Button
             className="h-10 w-full rounded-[6px] text-sm"
             onClick={() => saveCredentials()}

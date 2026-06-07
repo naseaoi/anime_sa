@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { PublicData } from '../types';
 import { getStorage, checkServerSession, logoutServerSession } from '../services/storageFactory';
 import { migrateEmbeddedCoverAssets } from '../services/coverAssetService';
+import { applyThemeColor } from '../utils/themeColor';
 import { useToast } from './Common';
 import { AdminLogin } from './admin/AdminLogin';
 import { AdminCardsSection } from './admin/AdminCardsSection';
@@ -46,6 +47,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
       const favicon = document.getElementById('favicon') as HTMLLinkElement;
       if (favicon) favicon.href = localData.settings.iconUrl;
     }
+    applyThemeColor(localData.settings.themeColor);
   }, [localData.settings]);
 
   const handleDataChange = (newData: PublicData) => {

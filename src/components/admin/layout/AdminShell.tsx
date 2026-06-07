@@ -1,6 +1,7 @@
 import React from 'react';
 import { ADMIN_NAV_ITEMS } from './adminNavigation';
 import { AdminTopbar } from './AdminTopbar';
+import { AdminUnsavedBanner } from './AdminUnsavedBanner';
 
 interface AdminShellProps {
   hasChanges: boolean;
@@ -31,5 +32,6 @@ export const AdminShell: React.FC<AdminShellProps> = ({
     <main className="flex-1 overflow-y-auto px-4 py-5 md:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-[1180px]">{children}</div>
     </main>
+    <AdminUnsavedBanner visible={hasChanges} syncing={syncing} onSave={onSave} />
   </div>
 );

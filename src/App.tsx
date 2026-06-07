@@ -5,6 +5,7 @@ import { DEFAULT_PUBLIC_DATA } from './services/webdavService';
 import { getStorageAsync, checkServerSession } from './services/storageFactory';
 import { PublicData } from './types';
 import { ToastProvider, ThemeProvider } from './components/Common';
+import { applyThemeColor } from './utils/themeColor';
 import { PublicHome } from './components/PublicHome';
 import { PublicDetailSkeleton, PublicHomeSkeleton } from './components/public/PublicSkeletons';
 
@@ -48,6 +49,8 @@ const MainRouter: React.FC = () => {
 
       // 缓存最新设置到本地
       localStorage.setItem('tat_site_settings', JSON.stringify(result.settings));
+
+      applyThemeColor(result.settings.themeColor);
 
       // 更新当前页面标题
       if (result.settings.title) document.title = result.settings.title;
