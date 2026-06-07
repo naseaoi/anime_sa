@@ -4,7 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { DEFAULT_PUBLIC_DATA } from './services/webdavService';
 import { getStorageAsync, checkServerSession } from './services/storageFactory';
 import { PublicData } from './types';
-import { PageLoader, ToastProvider, ThemeProvider } from './components/Common';
+import { ToastProvider, ThemeProvider } from './components/Common';
 import { PublicHome } from './components/PublicHome';
 import { PublicDetailSkeleton, PublicHomeSkeleton } from './components/public/PublicSkeletons';
 
@@ -81,7 +81,7 @@ const MainRouter: React.FC = () => {
 
   const getRouteFallback = () => {
     const pathname = window.location.pathname;
-    if (pathname.startsWith('/tat')) return <PageLoader />;
+    if (pathname.startsWith('/tat')) return null;
 
     const segments = pathname.split('/').filter(Boolean);
     if (segments[0] === 'card' && segments.length >= 2) return <PublicDetailSkeleton />;

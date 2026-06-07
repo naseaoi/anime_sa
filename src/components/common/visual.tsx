@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
-import { Camera, Star } from 'lucide-react';
+import { Star } from 'lucide-react';
 
-// --- 视觉组件：ImagePreview / PageLoader / Rating ---
+// --- 视觉组件：ImagePreview / Rating ---
 
 export const ImagePreview: React.FC<{
   src: string;
@@ -57,15 +57,6 @@ export const ImagePreview: React.FC<{
     </div>
   );
 };
-
-export const PageLoader: React.FC = () => (
-  <div className="flex h-screen w-full flex-col items-center justify-center bg-stone-50 dark:bg-[#0c0c0c] text-subtle dark:text-zinc-500 gap-4">
-    <div className="animate-bounce">
-      <Camera className="w-12 h-12 text-ink dark:text-white" />
-    </div>
-    <span className="text-sm font-bold tracking-widest uppercase text-stone-400 dark:text-zinc-600">全力加载中</span>
-  </div>
-);
 
 export const Rating: React.FC<{ value: number }> = ({ value }) => {
   return (

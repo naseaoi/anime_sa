@@ -66,7 +66,7 @@ export const AdminCardsSection: React.FC<AdminCardsSectionProps> = ({ data, onUp
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
-      <div className="glass-panel rounded-2xl p-4 md:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-[color:var(--surface-muted)] border border-[color:var(--line)] backdrop-blur-xl rounded-2xl p-4 md:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="relative max-w-sm w-full">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[color:var(--text-secondary)]" size={18} />
           <input

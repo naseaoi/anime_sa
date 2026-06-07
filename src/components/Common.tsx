@@ -3,5 +3,5 @@ export { ThemeProvider, useTheme } from './common/ThemeContext';
 export { ToastProvider, useToast } from './common/ToastContext';
 export { Button, Input, Select, TextArea, MultiSelect } from './common/primitives';
 export { Modal, ConfirmModal } from './common/overlays';
-export { ImagePreview, PageLoader, Rating } from './common/visual';
+export { ImagePreview, Rating } from './common/visual';
 export { AdminCard } from './common/AdminCard';

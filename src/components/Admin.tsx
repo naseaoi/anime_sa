@@ -5,7 +5,7 @@ import { Layout, Settings, Tags, Grid, LogOut, Loader2, CloudUpload, AlertCircle
 import { PublicData } from '../types';
 import { getStorage, checkServerSession, logoutServerSession } from '../services/storageFactory';
 import { migrateEmbeddedCoverAssets } from '../services/coverAssetService';
-import { Button, PageLoader, useToast } from './Common';
+import { Button, useToast } from './Common';
 import { AdminNavButton } from './admin/AdminNavButton';
 import { AdminLogin } from './admin/AdminLogin';
 import { AdminCardsSection } from './admin/AdminCardsSection';
@@ -93,7 +93,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
     }
   };
 
-  if (checking) return <PageLoader />;
+  if (checking) return null;
   if (!isAuth) return <AdminLogin onLogin={() => {
     setIsAuth(true);
   }} />;
