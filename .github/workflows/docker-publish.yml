@@ -3,6 +3,7 @@ name: Docker Publish
 on:
   push:
     branches: [main]
+    tags: ['v*']
 
 jobs:
   build:
@@ -24,10 +25,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/naseaoi/anime_sa
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
       - uses: docker/build-push-action@v6
         with:
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: |
-            ghcr.io/naseaoi/anime_sa:latest
-            ghcr.io/naseaoi/anime_sa:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
