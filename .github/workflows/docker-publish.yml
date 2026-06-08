@@ -2,7 +2,6 @@ name: Docker Publish
 
 on:
   push:
-    branches: [main]
     tags: ['v*']
 
 jobs:
@@ -30,7 +29,7 @@ jobs:
         with:
           images: ghcr.io/naseaoi/anime_sa
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
             type=sha
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
