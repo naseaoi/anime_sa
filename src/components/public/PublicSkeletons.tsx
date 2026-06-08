@@ -1,4 +1,5 @@
 import React from 'react';
+import { useGridColumns } from '../../hooks/useGridColumns';
 
 interface SkeletonBlockProps {
   className?: string;
@@ -97,8 +98,8 @@ export const CardSkeleton: React.FC = () => (
 export const CardGridSkeleton: React.FC<CardGridSkeletonProps> = ({ count = 10, showHero = false }) => (
   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 auto-rows-min">
     {showHero && (
-      <div className="relative sm:col-span-2 sm:row-span-2 aspect-[1.72/1] w-full">
-        <SkeletonBlock className="absolute inset-0 rounded-[1.4rem] shadow-[0_28px_60px_rgba(0,0,0,0.12)]" />
+      <div className="relative sm:col-span-2 sm:row-span-2 aspect-[1.72/1] w-full rounded-[1.4rem] overflow-hidden border border-[color:var(--line)] bg-black/5 dark:bg-white/5 shadow-sm">
+        <SkeletonBlock className="absolute inset-0" />
         <div className="absolute top-4 right-4 w-14 h-7 rounded-lg bg-white/20 dark:bg-white/10" />
         <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7 space-y-3">
           <SkeletonBlock className="w-28 h-3 rounded-md bg-white/20 dark:bg-white/10" />
@@ -118,29 +119,33 @@ export const CardGridSkeleton: React.FC<CardGridSkeletonProps> = ({ count = 10, 
   </div>
 );
 
-export const PublicHomeSkeleton: React.FC = () => (
-  <div className="min-h-screen flex flex-col lg:flex-row transition-colors duration-300" aria-busy="true">
-    <SidebarSkeleton />
-    <main className="flex-1 px-5 md:px-8 lg:px-10 pt-5 md:pt-8 lg:pt-10 overflow-x-hidden flex flex-col min-h-[100dvh]">
-      <MobileHeaderSkeleton />
-      <ToolbarSkeleton />
-      <div className="space-y-12">
-        <section>
-          <CardGridSkeleton count={8} showHero />
-        </section>
-        <section className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <SkeletonBlock className="w-6 h-6 rounded-md" />
-              <SkeletonBlock className="w-24 h-7 rounded-lg" />
-              <SkeletonBlock className="w-7 h-3 rounded-md" />
-            </div>
-            <SkeletonBlock className="hidden md:block w-20 h-5 rounded-md" />
-          </div>
-          <CardGridSkeleton count={5} />
-        </section>
-      </div>
-    </main>
-  </div>
-);
+export const PublicHomeSkeleton: React.FC = () => {
+  const gridColumns = useGridColumns();
+  const heroCardCount = gridColumns >= 2 ? Math.max(gridColumns * 2 - 4, 0) : 2;
 
+  return (
+    <div className="min-h-screen flex flex-col lg:flex-row transition-colors duration-300" aria-busy="true">
+      <SidebarSkeleton />
+      <main className="flex-1 px-5 md:px-8 lg:px-10 pt-5 md:pt-8 lg:pt-10 overflow-x-hidden flex flex-col min-h-[100dvh]">
+        <MobileHeaderSkeleton />
+        <ToolbarSkeleton />
+        <div className="space-y-12">
+          <section>
+            <CardGridSkeleton count={heroCardCount} showHero />
+          </section>
+          <section className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <SkeletonBlock className="w-6 h-6 rounded-md" />
+                <SkeletonBlock className="w-24 h-7 rounded-lg" />
+                <SkeletonBlock className="w-7 h-3 rounded-md" />
+              </div>
+              <SkeletonBlock className="hidden md:block w-20 h-5 rounded-md" />
+            </div>
+            <CardGridSkeleton count={5} />
+          </section>
+        </div>
+      </main>
+    </div>
+  );
+};
