@@ -6,31 +6,35 @@
 
 @layer base {
   :root {
-    /* 浅色：纯白中性方案，去除米黄色调 */
-    --bg: #ffffff;
-    --bg-soft: #f5f5f5;
+    /* 亮色「日场」：暖灰白，暗色主设计的适配变体 */
+    --bg: #f6f5f2;
+    --bg-soft: #edece8;
     --surface: #ffffff;
-    --surface-muted: rgba(255, 255, 255, 0.75);
-    --text-primary: #1a1a1a;
-    --text-secondary: #6b6b6b;
-    --line: rgba(0, 0, 0, 0.1);
+    --surface-muted: rgba(255, 255, 255, 0.78);
+    --text-primary: #1c1b18;
+    --text-secondary: #6e6c66;
+    --line: rgba(28, 27, 24, 0.1);
     --accent: var(--accent-light, #c78c2b);
     --accent-soft: var(--accent-soft-light, rgba(199, 140, 43, 0.16));
+    --ambient: var(--accent);
+    --ambient-soft: var(--accent-soft);
     --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.12);
   }
 
   html.dark {
-    /* 深色：无色调中性灰黑方案 */
-    --bg: #0a0a0a;
-    --bg-soft: #141414;
-    --surface: #1a1a1a;
-    --surface-muted: rgba(26, 26, 26, 0.72);
-    --text-primary: #fafafa;
-    --text-secondary: #a3a3a3;
-    --line: rgba(255, 255, 255, 0.12);
+    /* 暗色「放映厅」：冷蓝黑 + 银幕暖白，主场景 */
+    --bg: #0b0c10;
+    --bg-soft: #12141a;
+    --surface: #181b22;
+    --surface-muted: rgba(24, 27, 34, 0.72);
+    --text-primary: #f2f0eb;
+    --text-secondary: #9a9890;
+    --line: rgba(255, 255, 255, 0.08);
     --accent: var(--accent-dark, #e1b465);
     --accent-soft: var(--accent-soft-dark, rgba(225, 180, 101, 0.18));
-    --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.5);
+    --ambient: var(--accent);
+    --ambient-soft: var(--accent-soft);
+    --shadow-lg: 0 24px 56px rgba(0, 0, 0, 0.55);
   }
 
   html {
