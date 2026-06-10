@@ -13,21 +13,18 @@ interface Params {
   heroCards: CardData[];
   filteredCards: CardData[];
   tags: Tag[];
-  gridColumns: number;
-  showHero: boolean;
   sectionCardLimit: number;
 }
 
-// 结构化首页分区计算：先剔除轮播、再依次挑选"顶部/推荐/观看中/按标签"，保持全局排序
+// 结构化首页分区计算：先剔除轮播、再依次挑选"最新/推荐/观看中/按标签"，保持全局排序
 export const useStructuredHomeSections = (params: Params): StructuredHomeSections | null => {
-  const { isStructuredHome, heroCards, filteredCards, tags, gridColumns, showHero, sectionCardLimit } = params;
+  const { isStructuredHome, heroCards, filteredCards, tags, sectionCardLimit } = params;
 
   return useMemo(() => {
     if (!isStructuredHome) return null;
 
     const heroIds = new Set(heroCards.map((card) => card.id));
-    const heroArea = showHero && gridColumns >= 2 ? 4 : 0;
-    const topCardsTarget = Math.max(sectionCardLimit - heroArea, 0);
+    const topCardsTarget = sectionCardLimit;
 
     const nonHeroCards: CardData[] = [];
     const recommendedCards: CardData[] = [];
@@ -89,5 +86,5 @@ export const useStructuredHomeSections = (params: Params): StructuredHomeSection
       .filter((section) => section.cards.length > 0);
 
     return { topCards, recommendedCards, watchingCards, tagSections };
-  }, [isStructuredHome, heroCards, filteredCards, tags, gridColumns, showHero, sectionCardLimit]);
+  }, [isStructuredHome, heroCards, filteredCards, tags, sectionCardLimit]);
 };

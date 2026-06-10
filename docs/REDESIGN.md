@@ -75,7 +75,7 @@
 
 ### 保留（不动）
 
-- Hooks：`useHeroRotation`、`useBackToTop`、`useGridColumns`
+- Hooks：`useHeroRotation`、`useBackToTop`
 - `PublicHome.tsx` 内：滚动位置恢复、sessionStorage 持久化、路由迁移、无限加载逻辑
 - 数据层、`CardEditModal`、后台全部
 - `applyThemeColor` 与 index.html 内联防闪烁脚本
@@ -84,6 +84,7 @@
 ### 适配
 
 - `useStructuredHomeSections`：shelf 不受 `gridColumns × 2` 截断，`sectionCardLimit` 语义改为 shelf 容量
+- `useGridColumns`：随网格列数耦合解除而退役，文件与旧组件一并待删
 
 ### 重写
 
@@ -102,27 +103,27 @@
 - `[✅]` styles.css 变量层重写（暗色主 + 日场变体 + `--ambient` 系列）
 - `[✅]` 字体方案确认（沿用 Playfair Display / Noto Serif SC + Manrope）
 
-### 阶段 2：顶部导航 `[]`
-- `[]` 新建 `PublicTopNav`（桌面 + 移动一体）
-- `[]` 迁移：三连击 logo、主题切换、搜索、排序、快速添加
-- `[]` 分区计数移入下拉/溢出菜单
-- `[]` 移除 `PublicSidebar`、`PublicMobileTagBar`、`PublicToolbar` 引用
-- `[]` 对应骨架屏同步
+### 阶段 2：顶部导航 `[✅]`
+- `[✅]` 新建 `PublicTopNav`（桌面 + 移动一体）
+- `[✅]` 迁移：三连击 logo、主题切换、搜索、排序、快速添加
+- `[✅]` 分区计数移入「分区总览」下拉菜单
+- `[✅]` 移除 `PublicSidebar`、`PublicMobileTagBar`、`PublicToolbar` 引用（文件删除待确认）
+- `[✅]` 对应骨架屏同步
 
-### 阶段 3：Hero + 取色 `[]`
-- `[]` 新建 `utils/coverAmbientColor.ts`（canvas 取色 + cardId 缓存 + 回退）
-- `[]` 新建 `PublicHero`（全宽、氛围光、缩略图导航、触摸滑动沿用 useHeroRotation）
-- `[]` `prefers-reduced-motion` 下停轮播
-- `[]` 对应骨架屏同步
+### 阶段 3：Hero + 取色 `[✅]`
+- `[✅]` 新建 `utils/coverAmbientColor.ts`（canvas 取色 + cardId 缓存 + 回退）
+- `[✅]` 新建 `PublicHero`（全宽、氛围光、缩略图条带自动居中、触摸滑动沿用 useHeroRotation）
+- `[✅]` `prefers-reduced-motion` 下停轮播
+- `[✅]` 对应骨架屏同步
 
-### 阶段 4：Shelf + 首页重组 `[]`
-- `[]` 新建 `PublicShelf`（snap 滚动 + 桌面箭头）
-- `[]` `useStructuredHomeSections` 适配 shelf 容量
-- `[]` `PublicStructuredHome` 重写为 Hero + Shelf 组合
-- `[]` 对应骨架屏同步
+### 阶段 4：Shelf + 首页重组 `[✅]`
+- `[✅]` 新建 `PublicShelf`（snap 滚动 + 桌面箭头）
+- `[✅]` `useStructuredHomeSections` 适配 shelf 容量（新增「最新收录」shelf）
+- `[✅]` `PublicStructuredHome` 重写为 Hero + Shelf 组合
+- `[✅]` 对应骨架屏同步
 
 ### 阶段 5：分区页网格卡片 `[]`
-- `[]` `PublicCardGrid` 重绘（新 token、氛围光 hover、去彩色描边）
+- `[✅]` `PublicCardGrid` 重绘（共享 `PublicCard`，新 token、氛围光 hover、去彩色描边）
 - `[]` 空状态、加载更多骨架同步
 - `[]` 回归：首页 → 详情 → 返回滚动恢复
 
@@ -145,3 +146,9 @@
 - **取色 CORS**：WebDAV 模式封面跨域时 canvas 被 taint，已设计 `--accent` 回退
 - **亮色模式**：暗色优先最易把亮色做废，每阶段两主题都过一遍
 - **后台连带**：后台组件共用 `--bg/--surface` 等 token，阶段 1 改动后需目检后台
+
+## 六、施工备注
+
+- Tailwind v3 不支持 `bg-[color:var(--x)]/NN` 透明度修饰符（静默失效，input 等元素回退 UA 白底），统一写 `bg-[color:color-mix(in_srgb,var(--x)_NN%,transparent)]`
+- 待删文件（已无引用，删除需确认）：`PublicSidebar.tsx`、`PublicMobileTagBar.tsx`、`PublicToolbar.tsx`、`useGridColumns.ts`
+- `fetchPriority` React 告警为 ImagePreview 既有问题，与本次重构无关

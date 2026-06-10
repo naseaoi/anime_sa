@@ -4,6 +4,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 注册 --ambient 为颜色类型，取色切换时颜色值可过渡 */
+@property --ambient {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: transparent;
+}
+
 @layer base {
   :root {
     /* 亮色「日场」：暖灰白，暗色主设计的适配变体 */
@@ -386,6 +393,28 @@
   .cinematic-surface {
     background: color-mix(in srgb, var(--surface) 88%, transparent);
     border: 1px solid var(--line);
+  }
+
+  .hero-ambient {
+    transition: --ambient 900ms ease;
+  }
+
+  .hero-melt {
+    background: linear-gradient(
+      to top,
+      var(--bg) 0%,
+      color-mix(in srgb, var(--bg) 72%, transparent) 30%,
+      color-mix(in srgb, var(--bg) 30%, transparent) 50%,
+      transparent 72%
+    );
+  }
+
+  .hero-glow {
+    background: radial-gradient(
+      120% 100% at 50% 0%,
+      color-mix(in srgb, var(--ambient) 22%, transparent),
+      transparent 70%
+    );
   }
 
   /* 说明：content-visibility: auto 会在元素上启用 paint containment，

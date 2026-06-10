@@ -1,46 +1,24 @@
 import React, { useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, PlayCircle, Star, ThumbsUp } from 'lucide-react';
 import { CardData, Tag } from '../../types';
-import { ImagePreview } from '../Common';
+import { PublicCard } from './PublicCard';
 import { CardSkeleton } from './PublicSkeletons';
-import { getCardCoverSourceSet } from '../../utils/cardCover';
-
-// 卡片白色文字在亮/暗封面上的可读性增强：纯文字阴影方案
-// 双层均匀辐射：2px 紧贴硬阴影（提供对比） + 6px 远距软阴影（提供柔和氛围光）
-// 总外扩 ≤6px，配合简介 <p> 的 py-1.5 留出 6px+line-box 余量，规避 overflow-hidden 截断
-const COVER_TEXT_SHADOW = '[text-shadow:0_0_2px_rgba(0,0,0,1),0_0_6px_rgba(0,0,0,0.65)]';
 
 interface PublicCardGridProps {
   gridKey: string;
   filteredCards: CardData[];
   visibleCount: number;
-  showHero: boolean;
-  heroCards: CardData[];
-  heroIndex: number;
-  setHeroIndex: React.Dispatch<React.SetStateAction<number>>;
-  setIsHeroPaused: React.Dispatch<React.SetStateAction<boolean>>;
-  onTouchStart: (e: React.TouchEvent) => void;
-  onTouchMove: (e: React.TouchEvent) => void;
-  onTouchEnd: () => void;
   getCardHref?: (card: CardData) => string;
   getCardState?: (card: CardData) => unknown;
   trailingSkeletonCount?: number;
   tags?: Tag[];
 }
 
+const EAGER_COUNT = 6;
+
 const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
   gridKey,
   filteredCards,
   visibleCount,
-  showHero,
-  heroCards,
-  heroIndex,
-  setHeroIndex,
-  setIsHeroPaused,
-  onTouchStart,
-  onTouchMove,
-  onTouchEnd,
   getCardHref,
   getCardState,
   trailingSkeletonCount = 0,
@@ -48,13 +26,8 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
 }) => {
   const resolveHref = (card: CardData) => (getCardHref ? getCardHref(card) : `/card/${card.id}`);
   const resolveState = (card: CardData) => (getCardState ? getCardState(card) : undefined);
-  const heroLength = heroCards.length;
-  const heroNeighborIndexes = new Set<number>([
-    heroIndex,
-    (heroIndex + 1) % Math.max(heroLength, 1),
-    (heroIndex - 1 + Math.max(heroLength, 1)) % Math.max(heroLength, 1)
-  ]);
-  // 分类标签 id→name 映射，渲染期 O(1) 查找，避免每张卡 × 每个 tagId 都 .find
+
+  // 分类标签 id→name 映射，渲染期 O(1) 查找
   const tagNameById = useMemo(() => {
     const map = new Map<string, string>();
     (tags || []).forEach((t) => map.set(t.id, t.name));
@@ -63,127 +36,17 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
 
   return (
     <div key={gridKey} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 auto-rows-min">
-      {showHero && (
-        <div className="group relative sm:col-span-2 sm:row-span-2 aspect-[1.72/1] w-full isolate touch-pan-y hero-standalone-intro">
-          <div className="w-full h-full" onMouseEnter={() => setIsHeroPaused(true)} onMouseLeave={() => setIsHeroPaused(false)} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-            <div className="absolute inset-0 rounded-[1.4rem] overflow-hidden shadow-[0_28px_60px_rgba(0,0,0,0.28)] ring-1 ring-white/30 dark:ring-amber-100/20" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
-              {heroCards.map((card, idx) => {
-                const coverSource = getCardCoverSourceSet(card);
-                const showCover = heroNeighborIndexes.has(idx);
-                return (
-                <Link key={card.id} to={resolveHref(card)} state={resolveState(card)} className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out ${idx === heroIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'}`} draggable={false}>
-                  <ImagePreview
-                    src={showCover ? coverSource.src : ''}
-                    srcSet={showCover ? coverSource.srcSet : undefined}
-                    sizes="(max-width: 1023px) 100vw, (max-width: 1279px) 67vw, (max-width: 1535px) 50vw, 40vw"
-                    alt={card.title}
-                    className="w-full h-full object-cover select-none"
-                    loading={idx === heroIndex ? 'eager' : 'lazy'}
-                    fetchPriority={idx === heroIndex ? 'high' : 'low'}
-                    decoding="async"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/10 pointer-events-none" />
-                  <div className="absolute inset-0 bg-gradient-to-r from-black/25 via-transparent to-black/20 pointer-events-none" />
-                  <div className="absolute top-0 left-0 bg-amber-500 text-white p-2.5 rounded-br-2xl shadow-lg z-10"><ThumbsUp size={22} /></div>
-                  <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-lg flex items-center shadow-sm gap-1.5 text-white"><Star size={12} className="text-amber-300 fill-amber-300" /><span className="text-xs font-semibold">{card.rating.toFixed(1)}</span></div>
-                  <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7 text-white drop-shadow-md z-20">
-                    <p className="text-[11px] sm:text-xs uppercase tracking-[0.22em] text-white/85 mb-2">Featured Pick</p>
-                    <h3 className="font-display text-2xl sm:text-4xl leading-tight line-clamp-2 mb-2">{card.title}</h3>
-                    <p className="text-white/85 text-xs sm:text-sm line-clamp-1 sm:line-clamp-2 font-medium">{card.description}</p>
-                  </div>
-                </Link>
-                );
-              })}
-            </div>
-            {heroCards.length > 1 && (
-              <>
-                <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex((prev) => (prev - 1 + heroCards.length) % heroCards.length); }} className="absolute left-2 top-1/2 -translate-y-1/2 p-2.5 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 bg-black/30 hover:bg-black/50 backdrop-blur-sm rounded-full drop-shadow-md"><ChevronLeft size={20} /></button>
-                <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex((prev) => (prev + 1) % heroCards.length); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 text-white z-30 transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 bg-black/30 hover:bg-black/50 backdrop-blur-sm rounded-full drop-shadow-md"><ChevronRight size={20} /></button>
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-30 pointer-events-none">{heroCards.map((_, idx) => (<div key={idx} className={`h-1 rounded-full transition-all duration-300 ${idx === heroIndex ? 'w-8 bg-white' : 'w-2 bg-white/45'}`} />))}</div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {filteredCards.slice(0, visibleCount).map((card, index) => {
-        const coverSource = getCardCoverSourceSet(card);
-        return (
-        <Link
+      {filteredCards.slice(0, visibleCount).map((card, index) => (
+        <PublicCard
           key={card.id}
-          to={resolveHref(card)}
+          card={card}
+          href={resolveHref(card)}
           state={resolveState(card)}
-          className="group cursor-pointer fill-mode-both card-fade-in card-visibility-hint transition-transform duration-500 hover:scale-[1.02]"
-        >
-          <div className={`relative rounded-2xl transition-all duration-500 h-full w-full aspect-video overflow-hidden ${
-            card.isWatching
-              ? 'border border-sky-300/80 dark:border-sky-400/30 shadow-[0_10px_30px_rgba(56,189,248,0.18)] group-hover:shadow-[0_20px_44px_rgba(56,189,248,0.36)]'
-              : card.isRecommended
-                ? 'border border-amber-300/90 dark:border-amber-400/35 shadow-[0_12px_32px_rgba(217,140,38,0.24)] group-hover:shadow-[0_20px_44px_rgba(217,140,38,0.38)]'
-                : 'border border-[color:var(--line)] bg-black/5 dark:bg-white/5 shadow-sm group-hover:shadow-2xl'
-          }`}>
-            {/* mask 子层：仅包裹图片 + hover 蒙层。文字层不进入此容器，
-                避免 webkit-mask 边缘渐隐把贴近左/底的文字阴影衰减成"截断" */}
-            <div className="absolute inset-0 rounded-2xl overflow-hidden isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
-              <ImagePreview
-                src={coverSource.src}
-                srcSet={coverSource.srcSet}
-                sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, (max-width: 1279px) 33vw, (max-width: 1535px) 25vw, 20vw"
-                alt={card.title}
-                className="w-full h-full transition-transform duration-1000 group-hover:scale-110"
-                loading={index < (showHero ? 2 : 6) ? 'eager' : 'lazy'}
-                fetchPriority={index < (showHero ? 2 : 6) ? 'high' : 'auto'}
-                decoding="async"
-              />
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-r from-black/10 via-transparent to-amber-200/10 dark:to-amber-200/5" />
-            </div>
-
-            {/* 文字层在 mask 之外，仅受外层 overflow-hidden 直角裁切，阴影完整保留 */}
-            <div className="absolute bottom-0 left-0 right-0 text-white flex flex-col justify-end pt-4 pr-4 pb-3 pl-3 md:group-hover:pb-1.5 md:group-focus:pb-1.5 md:group-focus-visible:pb-1.5 transition-[padding] duration-[400ms] ease-out z-10">
-              {/* 第一行：评分 + 分类标签——统一像素级样式（同字号/padding/圆角），单行水平排列，溢出裁切 */}
-              <div className="flex items-center gap-1.5 overflow-hidden whitespace-nowrap">
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/40 border border-white/15 backdrop-blur-sm text-[10px] font-semibold leading-none flex-shrink-0">
-                  <Star size={10} className="text-amber-300 fill-amber-300" />
-                  {card.rating.toFixed(1)}
-                </span>
-                {card.tagIds.map((tid) => {
-                  const name = tagNameById.get(tid);
-                  if (!name) return null;
-                  return (
-                    <span key={tid} className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-black/40 border border-white/15 backdrop-blur-sm text-[10px] font-semibold leading-none flex-shrink-0">
-                      {name}
-                    </span>
-                  );
-                })}
-              </div>
-              {/* 第二行：标题。-mx-2 px-2 自抵消左右 padding：阴影向左右扩散 6px 留在 px-2 内部，不被 line-clamp 自身的 overflow:hidden 切 */}
-              <h3 className={`mt-1 -mx-2 px-2 font-display text-xl leading-tight line-clamp-1 origin-bottom-left transition-transform duration-300 ${COVER_TEXT_SHADOW}`}>{card.title}</h3>
-              {/* 第三行：简介，默认折叠（grid-rows 0fr），仅桌面端 hover 展开为单行
-                  grid 容器 -mx-2 让 inner div 向外扩 8px，配合 <p> 的 px-2 抵消位置；
-                  truncate 替代 line-clamp-1 规避 webkit-box+padding 的 1.5 行渲染 bug；
-                  py-1.5 给阴影留上下空间 */}
-              <div className="hidden md:grid grid-rows-[0fr] md:group-hover:grid-rows-[1fr] md:group-focus:grid-rows-[1fr] md:group-focus-visible:grid-rows-[1fr] -mx-2 transition-[grid-template-rows] duration-[400ms] ease-out">
-                <div className="overflow-hidden">
-                  <p className={`text-white px-2 py-1.5 truncate font-medium text-[11px] ${COVER_TEXT_SHADOW}`}>{card.description}</p>
-                </div>
-              </div>
-            </div>
-
-            {card.isRecommended && (
-              <div className="absolute top-0 left-0 bg-amber-500 text-white p-2.5 rounded-br-2xl shadow-lg z-20 pointer-events-none">
-                <ThumbsUp size={16} />
-              </div>
-            )}
-
-            {card.isWatching && !card.isRecommended && (
-              <div className="absolute top-0 left-0 bg-sky-500 text-white p-2.5 rounded-br-2xl shadow-lg z-20 pointer-events-none">
-                <PlayCircle size={16} />
-              </div>
-            )}
-          </div>
-        </Link>
-        );
-      })}
+          tagNameById={tagNameById}
+          eager={index < EAGER_COUNT}
+          className="card-fade-in fill-mode-both card-visibility-hint"
+        />
+      ))}
       {Array.from({ length: trailingSkeletonCount }).map((_, index) => (
         <CardSkeleton key={`trailing-skeleton-${index}`} />
       ))}

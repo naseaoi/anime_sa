@@ -7,12 +7,9 @@ import { useToast, useTheme } from './Common';
 import { getStorage } from '../services/storageFactory';
 import { persistCardCover } from '../services/coverAssetService';
 import { PublicCardGrid } from './public/PublicCardGrid';
-import { PublicSidebar } from './public/PublicSidebar';
-import { PublicMobileTagBar } from './public/PublicMobileTagBar';
-import { PublicToolbar, type SortKey, type SortOrder } from './public/PublicToolbar';
+import { PublicTopNav, type SortKey, type SortOrder } from './public/PublicTopNav';
 import { PublicStructuredHome } from './public/PublicStructuredHome';
 import { CardGridSkeleton } from './public/PublicSkeletons';
-import { useGridColumns } from '../hooks/useGridColumns';
 import { useBackToTop } from '../hooks/useBackToTop';
 import { useHeroRotation } from '../hooks/useHeroRotation';
 import { useStructuredHomeSections } from '../hooks/useStructuredHomeSections';
@@ -25,6 +22,7 @@ const CardEditModal = React.lazy(() => import('./CardEditModal').then((m) => ({ 
 const INITIAL_LOAD_COUNT = 32;
 const LOAD_MORE_COUNT = 20;
 const GRID_TRANSITION_MS = 420;
+const SHELF_CARD_LIMIT = 12;
 
 type GridSortConfig = { key: SortKey; order: SortOrder };
 
@@ -68,21 +66,12 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isGridTransitioning, setIsGridTransitioning] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem('tat_public_sidebar_collapsed') === '1';
-    } catch {
-      return false;
-    }
-  });
 
-  const gridColumns = useGridColumns();
   const showBackToTop = useBackToTop();
 
-  // 持久化 visibleCount / sortConfig / sidebarCollapsed
+  // 持久化 visibleCount / sortConfig
   useEffect(() => { sessionStorage.setItem('tat_visible_count', visibleCount.toString()); }, [visibleCount]);
   useEffect(() => { sessionStorage.setItem('tat_sort_config', JSON.stringify(sortConfig)); }, [sortConfig]);
-  useEffect(() => { localStorage.setItem('tat_public_sidebar_collapsed', sidebarCollapsed ? '1' : '0'); }, [sidebarCollapsed]);
 
   // 瀑布流滚动位置记忆：按当前路径+查询作 key 区分，避免不同列表互相串扰
   const scrollStorageKey = `tat_home_scroll:${location.pathname}${location.search}`;
@@ -251,7 +240,10 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
 
   const showHero = activeTag === 'all' && !searchTerm && heroCards.length > 0;
 
-  const hero = useHeroRotation(heroCards.length, showHero);
+  const prefersReducedMotionRef = useRef(
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+  const hero = useHeroRotation(heroCards.length, showHero && !prefersReducedMotionRef.current);
 
   // --- 事件处理 ---
 
@@ -366,11 +358,10 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   }, [filteredCards.length, scrollStorageKey]);
 
   const isStructuredHome = activeTag === 'all' && !searchTerm;
-  const sectionCardLimit = Math.max(gridColumns * 2, 2);
+  const sectionCardLimit = SHELF_CARD_LIMIT;
 
   const structuredHomeSections = useStructuredHomeSections({
-    isStructuredHome, heroCards, filteredCards, tags: data.tags,
-    gridColumns, showHero, sectionCardLimit
+    isStructuredHome, heroCards, filteredCards, tags: data.tags, sectionCardLimit
   });
 
   // --- 瀑布流加载 ---
@@ -478,43 +469,28 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   );
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row selection:bg-amber-500/80 selection:text-white dark:selection:bg-amber-200 dark:selection:text-black transition-colors duration-300">
-      <PublicSidebar
+    <div className="min-h-screen flex flex-col selection:bg-amber-500/80 selection:text-white dark:selection:bg-amber-200 dark:selection:text-black transition-colors duration-300">
+      <PublicTopNav
         iconUrl={data.settings.iconUrl}
         title={data.settings.title}
         tags={data.tags}
         activeTag={activeTag}
         totalCards={data.cards.length}
         cardStats={cardStats}
-        sidebarCollapsed={sidebarCollapsed}
-        setSidebarCollapsed={setSidebarCollapsed}
         onTagChange={handleTagChange}
+        searchTerm={searchTerm}
+        onSearchChange={handleSearchChange}
+        onClearSearch={clearSearch}
+        sortKey={sortConfig.key}
+        sortOrder={sortConfig.order}
+        onSortChange={handleSortChange}
+        isAdmin={isAdmin}
+        onCreateClick={() => setIsCreateModalOpen(true)}
         theme={theme}
         toggleTheme={toggleTheme}
       />
 
-      <main className="flex-1 px-5 md:px-8 lg:px-10 pt-5 md:pt-8 lg:pt-10 overflow-x-hidden flex flex-col min-h-[100dvh]">
-        <PublicMobileTagBar
-          iconUrl={data.settings.iconUrl}
-          title={data.settings.title}
-          tags={data.tags}
-          activeTag={activeTag}
-          onTagChange={handleTagChange}
-        />
-
-        <PublicToolbar
-          searchTerm={searchTerm}
-          onSearchChange={handleSearchChange}
-          onClearSearch={clearSearch}
-          sortKey={sortConfig.key}
-          sortOrder={sortConfig.order}
-          onSortChange={handleSortChange}
-          isAdmin={isAdmin}
-          onCreateClick={() => setIsCreateModalOpen(true)}
-          theme={theme}
-          toggleTheme={toggleTheme}
-        />
-
+      <main className="flex-1 overflow-x-hidden flex flex-col">
         {filteredCards.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center py-28 text-[color:var(--text-secondary)]/60">
             <Grid size={60} className="mb-4 stroke-[1.2]" />
@@ -540,7 +516,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
             tags={data.tags}
           />
         ) : (
-          <>
+          <div className="px-5 md:px-8 lg:px-10 pt-6 md:pt-8">
             {activeTag !== 'all' && !searchTerm && (
               <div key={activeTag} className="mb-8 fade-up text-center">
                 <h3 className="fade-up font-display text-3xl text-[color:var(--text-primary)] inline-flex w-full items-center justify-center gap-2" style={{ animationDelay: '0.06s' }}>
@@ -560,14 +536,6 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
                   gridKey={gridKey}
                   filteredCards={filteredCards}
                   visibleCount={visibleCount}
-                  showHero={showHero}
-                  heroCards={heroCards}
-                  heroIndex={hero.heroIndex}
-                  setHeroIndex={hero.setHeroIndex}
-                  setIsHeroPaused={hero.setIsHeroPaused}
-                  onTouchStart={hero.onTouchStart}
-                  onTouchMove={hero.onTouchMove}
-                  onTouchEnd={hero.onTouchEnd}
                   getCardHref={(card) =>
                     activeSectionSlug ? getCardHrefBySection(card, activeSectionSlug) : getCardHrefBySection(card)
                   }
@@ -577,14 +545,14 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
                 />
               </div>
             </div>
-          </>
+          </div>
         )}
 
         {!isStructuredHome && (hasMore || isLoadingMore) && (
           <div ref={loadRef} className="h-20 w-full" />
         )}
 
-        <footer className="mt-auto pt-16 pb-8">
+        <footer className="mt-auto px-5 md:px-8 lg:px-10 pt-16 pb-8">
           <div className="h-px bg-gradient-to-r from-transparent via-[color:var(--line)] to-transparent" />
           <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3.5 text-[11px] text-[color:var(--text-secondary)]">
             <p className="font-semibold tracking-wide">{data.settings.footerLeft || `© ${new Date().getFullYear()}`}</p>
