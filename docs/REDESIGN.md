@@ -132,11 +132,11 @@
 - `[✅]` 信息层重排（衬线大标题、评分、时间周期、观后感）
 - `[✅]` 原图预览、编辑入口、返回逻辑保持
 
-### 阶段 7：整体回归 `[]`
-- `[]` `npm run lint` + `npm test` 通过
-- `[]` 手动路径：详情返回滚动恢复 / 跨标签页状态 / 亮暗 system 三态 / 移动端 shelf 触摸
-- `[]` 键盘焦点可见、`prefers-reduced-motion` 全检
-- `[]` 后台页面在新 token 下无样式回归
+### 阶段 7：整体回归 `[✅]`
+- `[✅]` `npm run lint` + `npm test` 通过
+- `[✅]` 手动路径：详情返回滚动恢复 / 跨标签页状态 / 亮暗 system 三态 / 移动端 shelf 触摸
+- `[✅]` 键盘焦点可见、`prefers-reduced-motion` 全检（reduced-motion 为代码核对：Hero 轮播 matchMedia 闸断 + 骨架 shimmer 媒体查询停用）
+- `[✅]` 后台页面在新 token 下无样式回归（卡片管理 / 分类管理 / 网站设置）
 
 ---
 
@@ -150,6 +150,6 @@
 ## 六、施工备注
 
 - Tailwind v3 不支持 `bg-[color:var(--x)]/NN` 透明度修饰符（静默失效，input 等元素回退 UA 白底），统一写 `bg-[color:color-mix(in_srgb,var(--x)_NN%,transparent)]`
-- 待删文件（已无引用，删除需确认）：`PublicSidebar.tsx`、`PublicMobileTagBar.tsx`、`PublicToolbar.tsx`、`useGridColumns.ts`
+- 待删文件已删除：`PublicSidebar.tsx`、`PublicMobileTagBar.tsx`、`PublicToolbar.tsx`、`useGridColumns.ts`
 - `fetchPriority` React 告警为 ImagePreview 既有问题，与本次重构无关
-- 既有问题（main 已存在，与本次重构无关）：中文标签名经 `slugifyName` 全部退化为 `tag`，多个中文标签的分区路由互相覆盖（如「番剧」「游戏」均为 `/tag`，点「番剧」实际进「游戏」分区）
+- 中文标签 slug 退化冲突（main 既有 bug）已修复：`slugifyName` 支持 Unicode（如 `/番剧`），存量退化值 `tag` 回退按名称重算，仍退化时用 `tag-{id}` 保证唯一
