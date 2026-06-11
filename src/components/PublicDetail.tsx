@@ -10,6 +10,7 @@ import { Button, ImagePreview, Rating, useToast } from './Common';
 import { getStorage, checkServerSession } from '../services/storageFactory';
 import { persistCardCover } from '../services/coverAssetService';
 import { getCardCoverUrl } from '../utils/cardCover';
+import { getCoverAmbientColor } from '../utils/coverAmbientColor';
 
 const CardEditModal = React.lazy(() => import('./CardEditModal').then((m) => ({ default: m.CardEditModal })));
 
@@ -26,6 +27,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
   const [isAdmin, setIsAdmin] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isOriginalPreviewOpen, setIsOriginalPreviewOpen] = useState(false);
+  const [ambient, setAmbient] = useState<string | null>(null);
   // 记录卡片封面的原始宽高比，原图模态框沿用此比例做占位容器，避免加载期间塌缩为 0 高度
   const [coverAspect, setCoverAspect] = useState<number | null>(null);
   const { showToast } = useToast();
@@ -50,6 +52,15 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
       }
     };
   }, [card, data.settings.title]);
+
+  useEffect(() => {
+    if (!card) return;
+    let cancelled = false;
+    getCoverAmbientColor(card.id, getCardCoverUrl(card, 'thumb')).then((color) => {
+      if (!cancelled && color) setAmbient(color);
+    });
+    return () => { cancelled = true; };
+  }, [card]);
 
   const handleBack = () => {
     const from = (location.state as { from?: string } | null)?.from;
@@ -101,15 +112,29 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
     }
   };
 
-  if (!card) return <div className="h-screen flex flex-col items-center justify-center gap-4 text-subtle dark:text-zinc-400">
+  if (!card) return <div className="h-screen flex flex-col items-center justify-center gap-4 text-[color:var(--text-secondary)]">
     <AlertCircle size={48} className="opacity-20" />
     <p>该档案不存在或已被移除</p>
     <Button onClick={() => navigate('/')} variant="outline">返回首页</Button>
   </div>;
 
   return (
-    <div className="min-h-screen flex flex-col selection:bg-amber-500/80 selection:text-white dark:selection:bg-amber-200 dark:selection:text-black transition-colors duration-300">
-      <header className="fixed top-0 left-0 right-0 h-16 z-50 bg-[color:var(--surface-muted)]/95 backdrop-blur-xl">
+    <div
+      className="relative min-h-screen flex flex-col selection:bg-amber-500/80 selection:text-white dark:selection:bg-amber-200 dark:selection:text-black transition-colors duration-300 hero-ambient"
+      style={ambient ? ({ '--ambient': ambient } as React.CSSProperties) : undefined}
+    >
+      <div aria-hidden className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+        <img
+          src={getCardCoverUrl(card, 'thumb')}
+          alt=""
+          className="w-full h-full object-cover detail-backdrop-img select-none"
+          decoding="async"
+          draggable={false}
+        />
+        <div className="absolute inset-0 detail-backdrop-veil" />
+      </div>
+
+      <header className="fixed top-0 left-0 right-0 h-16 z-50 border-b border-[color:var(--line)] bg-[color:var(--surface-muted)] backdrop-blur-xl">
         <div className="max-w-7xl mx-auto h-full px-5 lg:px-12 flex items-center justify-between">
           <button
             onClick={handleBack}
@@ -125,24 +150,11 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
         </div>
       </header>
 
-      <main className="flex-1 pt-[4.5rem] pb-6 lg:pb-10">
-        <div className="max-w-7xl mx-auto px-5 lg:px-12 mt-0 lg:mt-2">
-          <div className="grid grid-cols-1 lg:grid-cols-[1.25fr_1fr] gap-6 lg:gap-10 mb-4 lg:mb-6">
-            <section className="order-1 lg:order-none lg:col-start-2 lg:row-start-1 flex flex-col justify-center gap-4">
-              <div className="space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  {card.tagIds.map(tid => (
-                    <span key={tid} className="px-3 py-1 rounded-lg text-[11px] font-semibold bg-[color:var(--surface)]/80 border border-[color:var(--line)] text-[color:var(--text-secondary)]">
-                      {data.tags.find(t => t.id === tid)?.name}
-                    </span>
-                  ))}
-                </div>
-                <h1 className="font-display text-3xl lg:text-5xl text-[color:var(--text-primary)] leading-tight tracking-tight">{card.title}</h1>
-              </div>
-            </section>
-
-            <section className="order-2 lg:order-none lg:col-start-1 lg:row-span-2">
-              <div className={`relative aspect-video rounded-[1.8rem] overflow-hidden border ${card.isWatching ? 'border-sky-300/80 dark:border-sky-400/30 shadow-[0_14px_42px_rgba(56,189,248,0.18)]' : card.isRecommended ? 'border-amber-300/90 dark:border-amber-400/35 shadow-[0_14px_42px_rgba(217,140,38,0.24)]' : 'border-[color:var(--line)] shadow-[0_20px_48px_rgba(0,0,0,0.16)]'}`}>
+      <main className="relative z-10 flex-1 pt-[5.5rem] lg:pt-28 pb-6 lg:pb-10">
+        <div className="max-w-7xl mx-auto px-5 lg:px-12">
+          <div className="grid grid-cols-1 lg:grid-cols-[1.25fr_1fr] gap-7 lg:gap-12 items-center mb-8 lg:mb-12 fade-up">
+            <section>
+              <div className="relative aspect-video rounded-[1.8rem] overflow-hidden border border-[color:var(--line)] shadow-[var(--shadow-lg)] bg-[color:var(--surface)]">
                 <ImagePreview
                   src={getCardCoverUrl(card, 'card')}
                   alt={card.title}
@@ -152,7 +164,6 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                   decoding="async"
                   onLoad={handleCardCoverLoad}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/86 via-black/25 to-transparent pointer-events-none" />
 
                 {getCardCoverUrl(card, 'original') && (
                   <button
@@ -181,32 +192,38 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
                     <Edit2 size={13} />
                   </button>
                 )}
-
               </div>
             </section>
 
-            <section className="order-3 lg:order-none lg:col-start-2 lg:row-start-2 lg:flex lg:flex-col lg:justify-end">
-              <div className="glass-panel rounded-2xl p-5 lg:p-6 space-y-5">
-                <div>
-                  <span className="text-[11px] font-semibold text-[color:var(--text-secondary)] uppercase tracking-[0.2em] block mb-2">个人评分</span>
-                  <div className="flex items-center gap-3">
-                    <Rating value={card.rating} />
-                    <span className="text-2xl font-bold text-amber-500">{(card.rating || 0).toFixed(1)}</span>
-                  </div>
+            <section className="flex flex-col justify-center gap-5 lg:gap-6">
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-[color:var(--accent)]">Archive · 观影档案</span>
+                  {card.tagIds.map(tid => (
+                    <span key={tid} className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[color:color-mix(in_srgb,var(--surface)_72%,transparent)] border border-[color:var(--line)] backdrop-blur-sm text-[color:var(--text-secondary)]">
+                      {data.tags.find(t => t.id === tid)?.name}
+                    </span>
+                  ))}
                 </div>
+                <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl xl:text-6xl text-[color:var(--text-primary)] leading-tight tracking-tight">{card.title}</h1>
+              </div>
 
-                <div>
-                  <span className="text-[11px] font-semibold text-[color:var(--text-secondary)] uppercase tracking-[0.2em] block mb-2">时间周期</span>
-                  <div className="flex items-center gap-2 text-[color:var(--text-primary)] font-semibold">
-                    <Calendar size={15} className="text-[color:var(--text-secondary)]" />
-                    <span className="text-sm">{card.startDate || '未知'} → {card.endDate || '至今'}</span>
-                  </div>
+              <div className="flex items-end gap-4">
+                <span className="font-display text-5xl lg:text-6xl leading-none text-[color:var(--text-primary)]">{(card.rating || 0).toFixed(1)}</span>
+                <div className="pb-1 space-y-1.5">
+                  <Rating value={card.rating} />
+                  <span className="block text-[10px] font-semibold uppercase tracking-[0.25em] text-[color:var(--text-secondary)]">个人评分</span>
                 </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 text-[color:var(--text-primary)] font-semibold">
+                <Calendar size={15} className="text-[color:var(--text-secondary)]" />
+                <span className="text-sm tracking-wide">{card.startDate || '未知'} → {card.endDate || '至今'}</span>
               </div>
             </section>
           </div>
 
-          <section className="glass-panel rounded-[1.6rem] p-6 lg:p-8">
+          <section className="glass-panel rounded-[1.6rem] p-6 lg:p-8 fade-up-delay-1">
             <span className="text-[11px] font-semibold text-[color:var(--text-secondary)] uppercase tracking-[0.2em] block mb-4">观后感</span>
             <div className="markdown-body text-base lg:text-lg text-[color:var(--text-primary)] leading-relaxed font-medium">
               {card.description ? (
@@ -220,10 +237,10 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
 
       </main>
 
-      <footer className="mt-auto px-5 lg:px-12 pb-8">
+      <footer className="relative z-10 mt-auto px-5 lg:px-12 pb-8">
         <div className="max-w-7xl mx-auto pt-3 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3.5 text-[11px] text-[color:var(--text-secondary)]">
           <p className="font-semibold tracking-wide">{data.settings.footerLeft || `© ${new Date().getFullYear()}`}</p>
-          <span aria-hidden className="hidden sm:block w-1 h-1 rounded-full bg-[color:var(--text-secondary)]/40" />
+          <span aria-hidden className="hidden sm:block w-1 h-1 rounded-full bg-[color:color-mix(in_srgb,var(--text-secondary)_40%,transparent)]" />
           <p className="tracking-wide opacity-85">{data.settings.footerRight || data.settings.footerText || 'All rights reserved'}</p>
         </div>
       </footer>

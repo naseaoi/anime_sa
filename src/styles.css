@@ -417,6 +417,22 @@
     );
   }
 
+  .detail-backdrop-img {
+    filter: blur(64px) saturate(1.2);
+    transform: scale(1.25);
+    opacity: 0.35;
+  }
+
+  html.dark .detail-backdrop-img {
+    opacity: 0.5;
+  }
+
+  .detail-backdrop-veil {
+    background:
+      radial-gradient(110% 80% at 50% 0%, color-mix(in srgb, var(--ambient) 16%, transparent), transparent 65%),
+      linear-gradient(to bottom, transparent 0%, color-mix(in srgb, var(--bg) 55%, transparent) 55%, var(--bg) 96%);
+  }
+
   /* 说明：content-visibility: auto 会在元素上启用 paint containment，
      导致子元素（如卡片的彩色阴影）在元素边界被直角裁切，在“推荐/观看中”
      这类带较大彩色阴影的卡片上会表现为底部一条直角半透明层。
