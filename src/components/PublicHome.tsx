@@ -492,7 +492,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
 
       <main className="flex-1 overflow-x-hidden flex flex-col">
         {filteredCards.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center py-28 text-[color:var(--text-secondary)]/60">
+          <div className="flex-1 flex flex-col items-center justify-center py-28 text-[color:color-mix(in_srgb,var(--text-secondary)_60%,transparent)]">
             <Grid size={60} className="mb-4 stroke-[1.2]" />
             <p className="font-display text-2xl mb-2">暂无匹配内容</p>
             <p className="text-sm tracking-[0.18em] uppercase">Try another filter</p>
@@ -556,7 +556,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
           <div className="h-px bg-gradient-to-r from-transparent via-[color:var(--line)] to-transparent" />
           <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3.5 text-[11px] text-[color:var(--text-secondary)]">
             <p className="font-semibold tracking-wide">{data.settings.footerLeft || `© ${new Date().getFullYear()}`}</p>
-            <span aria-hidden className="hidden sm:block w-1 h-1 rounded-full bg-[color:var(--text-secondary)]/40" />
+            <span aria-hidden className="hidden sm:block w-1 h-1 rounded-full bg-[color:color-mix(in_srgb,var(--text-secondary)_40%,transparent)]" />
             <p className="tracking-wide opacity-85">{data.settings.footerRight || data.settings.footerText || 'All rights reserved'}</p>
           </div>
         </footer>

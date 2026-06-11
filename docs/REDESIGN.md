@@ -122,10 +122,10 @@
 - `[✅]` `PublicStructuredHome` 重写为 Hero + Shelf 组合
 - `[✅]` 对应骨架屏同步
 
-### 阶段 5：分区页网格卡片 `[]`
+### 阶段 5：分区页网格卡片 `[✅]`
 - `[✅]` `PublicCardGrid` 重绘（共享 `PublicCard`，新 token、氛围光 hover、去彩色描边）
-- `[]` 空状态、加载更多骨架同步
-- `[]` 回归：首页 → 详情 → 返回滚动恢复
+- `[✅]` 空状态、加载更多骨架同步
+- `[✅]` 回归：首页 → 详情 → 返回滚动恢复
 
 ### 阶段 6：详情页剧场化 `[]`
 - `[]` 全屏模糊 backdrop + 取色氛围
@@ -152,3 +152,4 @@
 - Tailwind v3 不支持 `bg-[color:var(--x)]/NN` 透明度修饰符（静默失效，input 等元素回退 UA 白底），统一写 `bg-[color:color-mix(in_srgb,var(--x)_NN%,transparent)]`
 - 待删文件（已无引用，删除需确认）：`PublicSidebar.tsx`、`PublicMobileTagBar.tsx`、`PublicToolbar.tsx`、`useGridColumns.ts`
 - `fetchPriority` React 告警为 ImagePreview 既有问题，与本次重构无关
+- 既有问题（main 已存在，与本次重构无关）：中文标签名经 `slugifyName` 全部退化为 `tag`，多个中文标签的分区路由互相覆盖（如「番剧」「游戏」均为 `/tag`，点「番剧」实际进「游戏」分区）
