@@ -134,19 +134,15 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
         <div className="absolute inset-0 detail-backdrop-veil" />
       </div>
 
-      <header className="fixed top-0 left-0 right-0 h-16 z-50 border-b border-[color:var(--line)] bg-[color:var(--surface-muted)] backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto h-full px-5 lg:px-12 flex items-center justify-between">
+      <header className="fixed inset-y-0 left-0 z-50 w-[calc(var(--page-x)+5rem)] group/detail-back">
+        <div className="absolute left-[var(--page-x)] top-5">
           <button
             onClick={handleBack}
-            className="group w-10 h-10 inline-flex items-center justify-center rounded-xl text-[color:var(--text-primary)] hover:bg-[color:var(--accent-soft)] transition-all"
+            className="group w-14 h-14 md:opacity-0 md:-translate-x-2 md:group-hover/detail-back:opacity-100 md:group-hover/detail-back:translate-x-0 md:group-focus-within/detail-back:opacity-100 md:group-focus-within/detail-back:translate-x-0 inline-flex items-center justify-center rounded-2xl bg-[color:color-mix(in_srgb,var(--surface)_52%,transparent)] border border-[color:var(--line)] backdrop-blur-xl text-[color:var(--text-primary)] shadow-[0_18px_48px_rgba(0,0,0,0.22)] hover:bg-[color:var(--accent-soft)] transition-all duration-300"
             title="返回"
           >
-            <ArrowLeft size={18} className="transition-transform duration-200 group-hover:scale-110" />
+            <ArrowLeft size={23} className="transition-transform duration-200 group-hover:-translate-x-0.5 group-hover:scale-110" />
           </button>
-          <div className="flex items-center gap-3">
-            <img src={data.settings.iconUrl} alt="Logo" className="w-7 h-7 rounded-lg object-cover shadow-sm" />
-            <span className="text-xs font-semibold text-[color:var(--text-secondary)] uppercase tracking-[0.2em]">{data.settings.title}</span>
-          </div>
         </div>
       </header>
 
