@@ -325,11 +325,21 @@ const fetchImageBytesFromUrl = async (url: string) => {
 const backfillMissingCoverVariants = async (card: Partial<CardData> & { id: string }) => {
   const normalized = normalizeCoverVariants(card);
   if (!normalized || !normalized.original) return normalized;
-  if (!needVariantUpgradeToWebp(normalized)) return normalized;
-  if (!isCanvasSupported()) return normalized;
+  const canonicalCoverUrl = getNetworkCoverUrl(card) || normalized.original;
+  const canonicalVariants = normalizeCoverVariants({
+    ...card,
+    coverUrl: canonicalCoverUrl,
+    coverVariants: {
+      ...normalized,
+      original: canonicalCoverUrl
+    }
+  });
+  if (!canonicalVariants) return normalized;
+  if (!needVariantUpgradeToWebp(canonicalVariants)) return canonicalVariants;
+  if (!isCanvasSupported()) return canonicalVariants;
 
   try {
-    const source = await fetchImageBytesFromUrl(normalized.original);
+    const source = await fetchImageBytesFromUrl(canonicalCoverUrl);
     const renditions = await buildCoverRenditions(source.mime, source.bytes);
     const uploaded: Partial<Record<'thumb' | 'card', string>> = {};
 
@@ -341,15 +351,15 @@ const backfillMissingCoverVariants = async (card: Partial<CardData> & { id: stri
 
     return normalizeCoverVariants({
       ...card,
-      coverUrl: normalized.original,
+      coverUrl: canonicalCoverUrl,
       coverVariants: {
-        ...normalized,
+        ...canonicalVariants,
         ...uploaded,
-        original: normalized.original
+        original: canonicalCoverUrl
       }
     });
   } catch {
-    return normalized;
+    return canonicalVariants;
   }
 };
 
@@ -369,6 +379,28 @@ const getNetworkCoverUrl = (card: Partial<CardData>) => {
   const normalized = normalizeCoverVariants(card);
   const candidates = [card.coverUrl, normalized?.original, normalized?.card, normalized?.thumb];
   return candidates.map((value) => String(value || '').trim()).find((value) => hasNetworkUrlCover(value)) || '';
+};
+
+const restoreNetworkCoverUrl = <T extends Partial<CardData>>(card: T, options?: { clearLocalData?: boolean }): T | null => {
+  const coverUrl = getNetworkCoverUrl(card);
+  if (!coverUrl) return null;
+
+  const normalized = normalizeCoverVariants(card);
+  const coverVariants = normalizeCoverVariants({
+    ...card,
+    coverUrl,
+    coverVariants: {
+      ...(normalized || {}),
+      original: coverUrl
+    }
+  });
+
+  return {
+    ...card,
+    coverUrl,
+    ...(options?.clearLocalData ? { coverLocalData: '' } : {}),
+    coverVariants
+  } as T;
 };
 
 const isStorageMediaUrl = (value: string | undefined, storage: StorageType) => {
@@ -608,8 +640,15 @@ const needVariantUpgradeToWebp = (normalized: { thumb?: string; card?: string; o
   return !isProcessedVariantUrl(normalized.thumb) || !isProcessedVariantUrl(normalized.card);
 };
 
+const needNetworkCoverUrlRestore = (card: Partial<CardData>) => {
+  const coverUrl = String(card.coverUrl || '').trim();
+  const networkCoverUrl = getNetworkCoverUrl(card);
+  return !!networkCoverUrl && coverUrl !== networkCoverUrl;
+};
+
 const needCoverVariantBackfill = (card: Partial<CardData>) => {
   if (hasDataUrlCover(card.coverLocalData)) return true;
+  if (needNetworkCoverUrlRestore(card)) return true;
   const normalized = normalizeCoverVariants(card);
   if (!normalized) return false;
   return needVariantUpgradeToWebp(normalized);
@@ -620,18 +659,21 @@ export const persistCardCover = async <T extends Partial<CardData> & { id: strin
   const parsed = imageDataUrlToBytes(local);
   if (!parsed) {
     const mergedVariants = await backfillMissingCoverVariants(card);
-    return { ...card, coverLocalData: '', coverVariants: mergedVariants };
+    const restoredCard = restoreNetworkCoverUrl({ ...card, coverVariants: mergedVariants }, { clearLocalData: true });
+    return restoredCard || { ...card, coverLocalData: '', coverVariants: mergedVariants };
   }
 
   const renditions = await buildCoverRenditions(parsed.mime, parsed.bytes);
   const coverMap: Partial<Record<'thumb' | 'card' | 'original', string>> = {};
+  const networkCoverUrl = getNetworkCoverUrl(card);
 
   for (const rendition of renditions) {
+    if (networkCoverUrl && rendition.key === 'original') continue;
     if (coverMap[rendition.key]) continue;
     coverMap[rendition.key] = await uploadCoverBytes(card.id, rendition.mime, rendition.bytes, rendition.key);
   }
 
-  const originalCoverUrl = coverMap.original || card.coverUrl || '';
+  const originalCoverUrl = networkCoverUrl || coverMap.original || card.coverUrl || '';
   const normalizedCoverVariants = normalizeCoverVariants({
     ...card,
     coverUrl: originalCoverUrl,
@@ -695,7 +737,7 @@ export const migrateCardCoversToStorage = async (
       nextCards.push(nextCard);
       migrated += 1;
     } catch (error) {
-      nextCards.push(card);
+      nextCards.push(restoreNetworkCoverUrl(card) || card);
       failed += 1;
       failures.push(toCoverProcessFailure(card, error));
     }
@@ -729,7 +771,7 @@ export const forceOptimizeUrlCardCovers = async (
       nextCards.push(nextCard);
       optimized += 1;
     } catch (error) {
-      nextCards.push(card);
+      nextCards.push(restoreNetworkCoverUrl(card) || card);
       failed += 1;
       failures.push(toCoverProcessFailure(card, error));
     }
@@ -766,7 +808,7 @@ export const optimizeCardCoverVariants = async (
       nextCards.push(nextCard);
       optimized += 1;
     } catch (error) {
-      nextCards.push(card);
+      nextCards.push(restoreNetworkCoverUrl(card) || card);
       failed += 1;
       failures.push(toCoverProcessFailure(card, error));
     }

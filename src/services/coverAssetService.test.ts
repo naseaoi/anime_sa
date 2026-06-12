@@ -223,6 +223,8 @@ describe('coverAssetService', () => {
     const thirdHeaders = fetchMock.mock.calls[2][1]?.headers as Record<string, string>;
     expect(secondHeaders['Content-Type']).toBe('image/webp');
     expect(thirdHeaders['Content-Type']).toBe('image/webp');
+    expect(result.coverUrl).toBe('https://cdn.example.com/original.jpg');
+    expect(result.coverVariants?.original).toBe('https://cdn.example.com/original.jpg');
     expect(result.coverVariants?.thumb).toContain('.webp');
     expect(result.coverVariants?.card).toContain('.webp');
   });
@@ -311,6 +313,59 @@ describe('coverAssetService', () => {
     expect(result.coverVariants?.card).toContain('/api/sqlite/media?name=');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toContain('/api/sqlite/media?name=');
+  });
+
+  it('persistCardCover keeps network coverUrl when uploading embedded cache', async () => {
+    getStorageMock.mockReturnValue({ type: 'sqlite' } as any);
+
+    class MockImage {
+      onload: null | (() => void) = null;
+      onerror: null | (() => void) = null;
+      naturalWidth = 1200;
+      naturalHeight = 1800;
+
+      set src(_value: string) {
+        this.onload?.();
+      }
+    }
+
+    const createElementMock = vi.fn((tag: string) => {
+      if (tag !== 'canvas') throw new Error(`unexpected element ${tag}`);
+      return {
+        width: 0,
+        height: 0,
+        getContext: vi.fn(() => ({ drawImage: vi.fn() })),
+        toBlob: vi.fn((cb: (blob: Blob | null) => void, mime?: string) => {
+          cb(new Blob([new Uint8Array([1, 2, 3])], { type: mime || 'image/png' }));
+        })
+      };
+    });
+
+    vi.stubGlobal('window', { location: { origin: 'http://localhost' } });
+    vi.stubGlobal('document', { createElement: createElementMock });
+    vi.stubGlobal('Image', MockImage as any);
+    const UrlCtor = URL;
+    vi.stubGlobal('URL', Object.assign(UrlCtor, {
+      createObjectURL: vi.fn(() => 'blob:mock'),
+      revokeObjectURL: vi.fn()
+    }));
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const inputCard: Partial<CardData> & { id: string } = {
+      id: 'card-url-upload',
+      coverUrl: 'https://cdn.example.com/original.jpg',
+      coverLocalData: 'data:image/png;base64,AA=='
+    };
+    const result = await persistCardCover(inputCard);
+
+    expect(result.coverLocalData).toBe('');
+    expect(result.coverUrl).toBe('https://cdn.example.com/original.jpg');
+    expect(result.coverVariants?.original).toBe('https://cdn.example.com/original.jpg');
+    expect(result.coverVariants?.thumb).toContain('/api/sqlite/media?name=');
+    expect(result.coverVariants?.card).toContain('/api/sqlite/media?name=');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('migrateEmbeddedCoverAssets migrates successful items only', async () => {
@@ -471,6 +526,58 @@ describe('coverAssetService', () => {
     expect(result.cards[0].coverVariants?.card).toContain('/api/sqlite/media?name=');
     expect(String(fetchMock.mock.calls[0][0])).toContain(encodeURIComponent('https://cdn.example.com/original.jpg'));
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('forceOptimizeUrlCardCovers restores network coverUrl when cache generation fails', async () => {
+    getStorageMock.mockReturnValue({ type: 'sqlite' } as any);
+    vi.stubGlobal('window', { location: { origin: 'http://localhost' } });
+    const fetchMock = vi.fn().mockResolvedValue(new Response('missing', { status: 404 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await forceOptimizeUrlCardCovers([
+      makeCard({
+        id: 'restore-url-cache-failed',
+        coverUrl: '/api/sqlite/media?name=legacy-original.png',
+        coverVariants: {
+          original: 'https://cdn.example.com/original.jpg',
+          thumb: '/api/sqlite/media?name=legacy-thumb.webp',
+          card: '/api/sqlite/media?name=legacy-card.webp'
+        }
+      })
+    ]);
+
+    expect(result.optimized).toBe(0);
+    expect(result.failed).toBe(1);
+    expect(result.cards[0].coverUrl).toBe('https://cdn.example.com/original.jpg');
+    expect(result.cards[0].coverVariants?.original).toBe('https://cdn.example.com/original.jpg');
+    expect(result.cards[0].coverVariants?.thumb).toBe('/api/sqlite/media?name=legacy-thumb.webp');
+    expect(result.cards[0].coverVariants?.card).toBe('/api/sqlite/media?name=legacy-card.webp');
+  });
+
+  it('optimizeCardCoverVariants restores network coverUrl from variants', async () => {
+    getStorageMock.mockReturnValue({ type: 'sqlite' } as any);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await optimizeCardCoverVariants([
+      makeCard({
+        id: 'restore-url-1',
+        coverUrl: '/api/sqlite/media?name=legacy-original.png',
+        coverVariants: {
+          original: 'https://cdn.example.com/original.jpg',
+          thumb: '/api/sqlite/media?name=legacy-thumb.webp',
+          card: '/api/sqlite/media?name=legacy-card.webp'
+        }
+      })
+    ]);
+
+    expect(result.optimized).toBe(1);
+    expect(result.failed).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.cards[0].coverUrl).toBe('https://cdn.example.com/original.jpg');
+    expect(result.cards[0].coverVariants?.original).toBe('https://cdn.example.com/original.jpg');
+    expect(result.cards[0].coverVariants?.thumb).toBe('/api/sqlite/media?name=legacy-thumb.webp');
+    expect(result.cards[0].coverVariants?.card).toBe('/api/sqlite/media?name=legacy-card.webp');
   });
 
   it('optimizeCardCoverVariants returns failure reasons', async () => {
