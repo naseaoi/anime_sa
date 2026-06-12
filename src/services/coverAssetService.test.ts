@@ -371,6 +371,9 @@ describe('coverAssetService', () => {
           headers: { 'Content-Type': 'image/png' }
         })
       )
+      .mockResolvedValueOnce(new Response('', { status: 207 }))
+      .mockResolvedValueOnce(new Response('', { status: 404 }))
+      .mockResolvedValueOnce(new Response('', { status: 201 }))
       .mockResolvedValueOnce(new Response('', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
     vi.stubGlobal('window', { location: { origin: 'http://localhost' } });
@@ -389,7 +392,15 @@ describe('coverAssetService', () => {
     expect(result.failed).toBe(0);
     expect(result.cards[0].coverUrl).toContain('/api/webdav?filename=');
     expect(result.cards[0].coverVariants?.original).toContain('/api/webdav?filename=');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(String(fetchMock.mock.calls[1][0])).toBe('/api/webdav?filename=');
+    expect((fetchMock.mock.calls[1][1]?.headers as Record<string, string>)['x-dav-method']).toBe('PROPFIND');
+    expect(String(fetchMock.mock.calls[2][0])).toBe('/api/webdav?filename=covers');
+    expect((fetchMock.mock.calls[2][1]?.headers as Record<string, string>)['x-dav-method']).toBe('PROPFIND');
+    expect(String(fetchMock.mock.calls[3][0])).toBe('/api/webdav?filename=covers');
+    expect((fetchMock.mock.calls[3][1]?.headers as Record<string, string>)['x-dav-method']).toBe('MKCOL');
+    expect(String(fetchMock.mock.calls[4][0])).toContain('/api/webdav?filename=covers%2F');
+    expect((fetchMock.mock.calls[4][1]?.headers as Record<string, string>)['x-dav-method']).toBe('PUT');
   });
 
   it('forceOptimizeUrlCardCovers prefers coverUrl as source', async () => {

@@ -65,6 +65,57 @@ const ensureOk = async (res: Response) => {
   throw new Error(message || `上传失败（${res.status}）`);
 };
 
+const webDavFetch = (filename: string, method: 'PROPFIND' | 'MKCOL' | 'PUT', options: RequestInit = {}) => {
+  return fetch(`/api/webdav?filename=${encodeURIComponent(filename)}`, {
+    ...options,
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      ...(method === 'PROPFIND' ? { Depth: '0' } : {}),
+      ...(options.headers as Record<string, string> | undefined),
+      'x-dav-method': method
+    }
+  });
+};
+
+const isExistingWebDavDirectory = (status: number) => {
+  return status === 200 || status === 204 || status === 207;
+};
+
+const ensureWebDavDirectory = async (filename: string) => {
+  const checkRes = await webDavFetch(filename, 'PROPFIND');
+  if (isExistingWebDavDirectory(checkRes.status)) return;
+  if (checkRes.status !== 404) {
+    const message = (await checkRes.text().catch(() => '')).slice(0, 200);
+    throw new Error(message || `WebDAV 目录检查失败（${checkRes.status}）`);
+  }
+
+  const createRes = await webDavFetch(filename, 'MKCOL');
+  if (createRes.ok || createRes.status === 201 || createRes.status === 204) return;
+
+  const verifyRes = await webDavFetch(filename, 'PROPFIND');
+  if (isExistingWebDavDirectory(verifyRes.status)) return;
+
+  const message = (await createRes.text().catch(() => '')).slice(0, 200);
+  throw new Error(message || `WebDAV 目录创建失败（${createRes.status}）`);
+};
+
+let webDavCoverDirectoryPromise: Promise<void> | null = null;
+
+const ensureWebDavCoverDirectory = async () => {
+  if (!webDavCoverDirectoryPromise) {
+    webDavCoverDirectoryPromise = (async () => {
+      await ensureWebDavDirectory('');
+      await ensureWebDavDirectory('covers');
+    })().catch((error) => {
+      webDavCoverDirectoryPromise = null;
+      throw error;
+    });
+  }
+
+  return webDavCoverDirectoryPromise;
+};
+
 const toCoverProcessFailure = (card: Pick<CardData, 'id' | 'title'>, error: unknown): CoverProcessFailure => {
   const message = error instanceof Error ? error.message : String(error || '未知错误');
   return {
@@ -93,12 +144,10 @@ const uploadCoverBytes = async (
   const body = new Blob([copied.buffer], { type: mime });
 
   if (adapterType === 'webdav') {
+    await ensureWebDavCoverDirectory();
     const filename = `covers/${assetName}`;
-    const res = await fetch(`/api/webdav?filename=${encodeURIComponent(filename)}`, {
-      method: 'POST',
-      credentials: 'include',
+    const res = await webDavFetch(filename, 'PUT', {
       headers: {
-        'x-dav-method': 'PUT',
         'Content-Type': mime
       },
       body
