@@ -8,6 +8,7 @@ import {
 } from '../../../services/storageFactory';
 import {
   CoverProcessFailure,
+  countSqliteMediaReferences,
   forceOptimizeUrlCardCovers,
   migrateCardCoversToStorage,
   optimizeCardCoverVariants
@@ -83,6 +84,10 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
       showToast('正在迁移封面资源...', 'info');
       const migratedCovers = await migrateCardCoversToStorage(publicData.cards, sourceAdapter.type, targetMode);
       const nextPublicData = { ...publicData, cards: migratedCovers.cards };
+      const sqliteRefCount = targetMode === 'webdav' ? countSqliteMediaReferences(nextPublicData.cards) : 0;
+      if (sqliteRefCount > 0) {
+        throw new Error(`仍有 ${sqliteRefCount} 个 SQLite 本地封面引用，已停止写入 WebDAV`);
+      }
 
       showToast('正在写入目标...', 'info');
       const publicResult = await targetAdapter.savePublicData(nextPublicData);
@@ -188,7 +193,7 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
     () => runOptimize(
       forceOptimizeUrlCardCovers,
       '当前没有可强制优化的 URL 封面',
-      (optimized, failed) => `URL 封面优化完成：转存 ${optimized} 张${failed > 0 ? `，失败 ${failed} 张` : ''}`,
+      (optimized, failed) => `URL 封面优化完成：生成缓存 ${optimized} 张${failed > 0 ? `，失败 ${failed} 张` : ''}`,
       'URL 封面优化未完整保存',
       'URL 封面优化失败'
     ),
@@ -209,4 +214,3 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
     runForceUrlOptimize
   };
 };
-

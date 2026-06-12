@@ -316,6 +316,75 @@ const hasLocalMediaReference = (value?: string) => {
   return isLocalMediaUrl(value);
 };
 
+const getNetworkCoverUrl = (card: Partial<CardData>) => {
+  const normalized = normalizeCoverVariants(card);
+  const candidates = [card.coverUrl, normalized?.original, normalized?.card, normalized?.thumb];
+  return candidates.map((value) => String(value || '').trim()).find((value) => hasNetworkUrlCover(value)) || '';
+};
+
+const isStorageMediaUrl = (value: string | undefined, storage: StorageType) => {
+  const raw = String(value || '').trim();
+  if (!raw) return false;
+
+  try {
+    const parsed = new URL(raw, 'http://localhost');
+    if (storage === 'sqlite') return parsed.pathname === '/api/sqlite/media';
+    return parsed.pathname === '/api/webdav';
+  } catch {
+    if (storage === 'sqlite') return /^\/api\/sqlite\/media(\?|$|\/)/i.test(raw);
+    return /^\/api\/webdav(\?|$|\/)/i.test(raw);
+  }
+};
+
+const isSqliteMediaUrl = (value?: string) => {
+  return isStorageMediaUrl(value, 'sqlite');
+};
+
+const collectCardCoverValues = (card: Partial<CardData>) => {
+  return [
+    card.coverUrl,
+    card.coverVariants?.thumb,
+    card.coverVariants?.card,
+    card.coverVariants?.original
+  ];
+};
+
+const normalizeUrlBackedCoverForSync = <T extends Partial<CardData>>(card: T): T | null => {
+  const coverUrl = getNetworkCoverUrl(card);
+  if (!coverUrl) return null;
+
+  const input = card.coverVariants || {};
+  const nextVariants: CardData['coverVariants'] = {};
+
+  for (const key of ['thumb', 'card', 'original'] as const) {
+    const value = String(input[key] || '').trim();
+    if (!value || isSqliteMediaUrl(value)) continue;
+    nextVariants[key] = value;
+  }
+
+  if (!nextVariants.original) {
+    nextVariants.original = coverUrl;
+  }
+
+  const hasVariants = Object.values(nextVariants).some((value) => !!value);
+  return {
+    ...card,
+    coverUrl,
+    coverLocalData: '',
+    coverVariants: hasVariants ? nextVariants : undefined
+  };
+};
+
+export const countSqliteMediaReferences = (cards: CardData[]) => {
+  let total = 0;
+  for (const card of cards) {
+    for (const value of collectCardCoverValues(card)) {
+      if (isSqliteMediaUrl(value)) total += 1;
+    }
+  }
+  return total;
+};
+
 const shouldForceOptimizeUrlCover = (card: Partial<CardData>) => {
   const normalized = normalizeCoverVariants(card);
   if (!normalized && !card.coverUrl) return false;
@@ -406,6 +475,52 @@ const rebuildCardCoverForStorage = async <T extends Partial<CardData> & { id: st
   });
 
   return { ...card, coverUrl: originalCoverUrl, coverLocalData: '', coverVariants: normalizedCoverVariants };
+};
+
+const cacheUrlCoverVariantsForStorage = async <T extends Partial<CardData> & { id: string }>(
+  card: T,
+  target: StorageType
+): Promise<T> => {
+  const coverUrl = getNetworkCoverUrl(card);
+  if (!coverUrl) throw new Error('未找到可优化的 URL 封面');
+
+  let source: { mime: string; bytes: Uint8Array } | null = null;
+  let lastError: unknown = null;
+  const candidates = collectNetworkCoverSourceCandidates(card);
+
+  for (const candidate of candidates) {
+    try {
+      source = await fetchImageBytesFromUrl(candidate);
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (!source) {
+    throw lastError instanceof Error ? lastError : new Error('未找到可优化的 URL 封面');
+  }
+
+  const renditions = await buildCoverRenditions(source.mime, source.bytes);
+  const coverMap: Partial<Record<'thumb' | 'card', string>> = {};
+
+  for (const rendition of renditions) {
+    if (rendition.key === 'original') continue;
+    if (coverMap[rendition.key]) continue;
+    coverMap[rendition.key] = await uploadCoverBytes(card.id, rendition.mime, rendition.bytes, rendition.key, target);
+  }
+
+  const normalizedCoverVariants = normalizeCoverVariants({
+    ...card,
+    coverUrl,
+    coverVariants: {
+      thumb: coverMap.thumb || coverUrl,
+      card: coverMap.card || coverMap.thumb || coverUrl,
+      original: coverUrl
+    }
+  });
+
+  return { ...card, coverUrl, coverLocalData: '', coverVariants: normalizedCoverVariants };
 };
 
 const isWebpVariantUrl = (value?: string) => {
@@ -515,6 +630,12 @@ export const migrateCardCoversToStorage = async (
   const failures: CoverProcessFailure[] = [];
 
   for (const card of cards) {
+    const urlBackedCard = normalizeUrlBackedCoverForSync(card);
+    if (urlBackedCard) {
+      nextCards.push(urlBackedCard);
+      continue;
+    }
+
     if (!shouldMigrateCoverForStorage(card, source, target)) {
       nextCards.push(card);
       continue;
@@ -555,10 +676,7 @@ export const forceOptimizeUrlCardCovers = async (
     }
 
     try {
-      const nextCard = await rebuildCardCoverForStorage(card, targetStorage, {
-        sourceCandidates: collectNetworkCoverSourceCandidates(card),
-        includeEmbedded: false
-      });
+      const nextCard = await cacheUrlCoverVariantsForStorage(card, targetStorage);
       nextCards.push(nextCard);
       optimized += 1;
     } catch (error) {

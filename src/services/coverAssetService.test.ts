@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { forceOptimizeUrlCardCovers, migrateCardCoversToStorage, migrateEmbeddedCoverAssets, optimizeCardCoverVariants, persistCardCover } from './coverAssetService';
+import { countSqliteMediaReferences, forceOptimizeUrlCardCovers, migrateCardCoversToStorage, migrateEmbeddedCoverAssets, optimizeCardCoverVariants, persistCardCover } from './coverAssetService';
 import { CardData } from '../types';
 import { getStorage } from './storageFactory';
 
@@ -334,54 +334,7 @@ describe('coverAssetService', () => {
     expect(result.cards[2].coverVariants?.original).toContain('/api/sqlite/media?name=');
   });
 
-  it('migrateCardCoversToStorage repairs stale sqlite cover refs from webdav data', async () => {
-    getStorageMock.mockReturnValue({ type: 'sqlite' } as any);
-
-    class MockImage {
-      onload: null | (() => void) = null;
-      onerror: null | (() => void) = null;
-      naturalWidth = 1800;
-      naturalHeight = 1000;
-
-      set src(_value: string) {
-        this.onload?.();
-      }
-    }
-
-    const createElementMock = vi.fn((tag: string) => {
-      if (tag !== 'canvas') throw new Error(`unexpected element ${tag}`);
-      return {
-        width: 0,
-        height: 0,
-        getContext: vi.fn(() => ({ drawImage: vi.fn() })),
-        toBlob: vi.fn((cb: (blob: Blob | null) => void, mime?: string) => {
-          cb(new Blob([new Uint8Array([6, 7, 8])], { type: mime || 'image/jpeg' }));
-        })
-      };
-    });
-
-    vi.stubGlobal('window', { location: { origin: 'http://localhost' } });
-    vi.stubGlobal('document', { createElement: createElementMock });
-    vi.stubGlobal('Image', MockImage as any);
-    const UrlCtor = URL;
-    vi.stubGlobal('URL', Object.assign(UrlCtor, {
-      createObjectURL: vi.fn(() => 'blob:mock'),
-      revokeObjectURL: vi.fn()
-    }));
-
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(new Uint8Array([2, 2, 2]), {
-          status: 200,
-          headers: { 'Content-Type': 'image/jpeg' }
-        })
-      )
-      .mockResolvedValueOnce(new Response('', { status: 200 }))
-      .mockResolvedValueOnce(new Response('', { status: 200 }))
-      .mockResolvedValueOnce(new Response('', { status: 200 }));
-    vi.stubGlobal('fetch', fetchMock);
-
+  it('migrateCardCoversToStorage keeps URL cover and strips sqlite cache refs for webdav sync', async () => {
     const card = makeCard({
       id: 'repair-1',
       coverUrl: 'https://cdn.example.com/original.jpg',
@@ -392,17 +345,51 @@ describe('coverAssetService', () => {
       }
     });
 
-    const result = await migrateCardCoversToStorage([card], 'webdav', 'sqlite');
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await migrateCardCoversToStorage([card], 'sqlite', 'webdav');
+
+    expect(result.migrated).toBe(0);
+    expect(result.failed).toBe(0);
+    expect(result.cards[0].coverUrl).toBe('https://cdn.example.com/original.jpg');
+    expect(result.cards[0].coverVariants?.original).toBe('https://cdn.example.com/original.jpg');
+    expect(result.cards[0].coverVariants?.thumb).toBeUndefined();
+    expect(result.cards[0].coverVariants?.card).toBeUndefined();
+    expect(countSqliteMediaReferences(result.cards)).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('migrateCardCoversToStorage still migrates non-url local covers to webdav', async () => {
+    getStorageMock.mockReturnValue({ type: 'sqlite' } as any);
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([2, 2, 2]), {
+          status: 200,
+          headers: { 'Content-Type': 'image/png' }
+        })
+      )
+      .mockResolvedValueOnce(new Response('', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('window', { location: { origin: 'http://localhost' } });
+
+    const card = makeCard({
+      id: 'local-1',
+      coverUrl: '/api/sqlite/media?name=local-original.png',
+      coverVariants: {
+        original: '/api/sqlite/media?name=local-original.png'
+      }
+    });
+
+    const result = await migrateCardCoversToStorage([card], 'sqlite', 'webdav');
 
     expect(result.migrated).toBe(1);
     expect(result.failed).toBe(0);
-    expect(result.cards[0].coverUrl).toContain('/api/sqlite/media?name=');
-    expect(result.cards[0].coverVariants?.original).toContain('/api/sqlite/media?name=');
-    expect(result.cards[0].coverVariants?.thumb).toContain('/api/sqlite/media?name=');
-    expect(result.cards[0].coverVariants?.card).toContain('/api/sqlite/media?name=');
-    expect(String(fetchMock.mock.calls[0][0])).toContain('/api/sqlite/remote-image?url=');
-    expect(String(fetchMock.mock.calls[1][0])).toContain('/api/sqlite/media?name=');
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(result.cards[0].coverUrl).toContain('/api/webdav?filename=');
+    expect(result.cards[0].coverVariants?.original).toContain('/api/webdav?filename=');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('forceOptimizeUrlCardCovers prefers coverUrl as source', async () => {
@@ -467,12 +454,12 @@ describe('coverAssetService', () => {
 
     expect(result.optimized).toBe(1);
     expect(result.failed).toBe(0);
-    expect(result.cards[0].coverUrl).toContain('/api/sqlite/media?name=');
-    expect(result.cards[0].coverVariants?.original).toContain('/api/sqlite/media?name=');
+    expect(result.cards[0].coverUrl).toBe('https://cdn.example.com/original.jpg');
+    expect(result.cards[0].coverVariants?.original).toBe('https://cdn.example.com/original.jpg');
     expect(result.cards[0].coverVariants?.thumb).toContain('/api/sqlite/media?name=');
     expect(result.cards[0].coverVariants?.card).toContain('/api/sqlite/media?name=');
     expect(String(fetchMock.mock.calls[0][0])).toContain(encodeURIComponent('https://cdn.example.com/original.jpg'));
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('optimizeCardCoverVariants returns failure reasons', async () => {
