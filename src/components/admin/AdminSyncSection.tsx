@@ -78,6 +78,7 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syn
     const map: Record<string, string> = {
       update_admin_credentials: '更新管理员凭据',
       sync_admin_credentials: '同步管理员凭据',
+      sync_public_data: '同步公共数据',
       run_media_gc: '执行封面清理',
       write_public_data: '写入公共数据',
       write_storage_mode: '切换存储模式',
@@ -213,7 +214,7 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syn
 
       <div className="relative min-h-0">
         <AdminPanel
-          title="操作日志"
+          title="日志"
           action={
             <Button onClick={loadAudit} variant="ghost" size="sm" className="h-8 rounded-[6px] px-3" disabled={auditLoading}>
               {auditLoading ? <Loader2 className="animate-spin" size={14} /> : '刷新'}
@@ -230,7 +231,7 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syn
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-semibold text-[color:var(--text-primary)]">{formatAction(item.action)}</div>
-                    <div className="mt-1 truncate text-xs text-[color:var(--text-secondary)]">{item.details || '-'} {item.message ? `· ${item.message}` : ''}</div>
+                    <div className="mt-1 break-words text-xs leading-relaxed text-[color:var(--text-secondary)]">{item.details || '-'} {item.message ? `· ${item.message}` : ''}</div>
                   </div>
                   <AdminBadge tone={item.status === 'success' ? 'success' : 'danger'}>{item.status === 'success' ? '成功' : '失败'}</AdminBadge>
                 </div>

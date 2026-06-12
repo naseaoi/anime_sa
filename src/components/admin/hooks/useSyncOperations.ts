@@ -4,7 +4,8 @@ import {
   runCoverGarbageCollectionBatch,
   sqliteAdapter,
   syncAdminCredentialsToTarget,
-  webdavAdapter
+  webdavAdapter,
+  writeAuditLog
 } from '../../../services/storageFactory';
 import {
   CoverProcessFailure,
@@ -56,6 +57,28 @@ export interface SyncOperations {
   runForceUrlOptimize: () => Promise<void>;
 }
 
+const buildSyncDetails = (
+  direction: SyncDirection,
+  source: StorageMode,
+  target: StorageMode,
+  migrated = 0,
+  failed = 0,
+  sqliteRefs = 0
+) => {
+  return `direction=${direction} source=${source} target=${target} migrated=${migrated} failed=${failed} sqliteRefs=${sqliteRefs}`;
+};
+
+const buildSqliteRefError = (count: number, failures: CoverProcessFailure[]) => {
+  const base = `仍有 ${count} 个 SQLite 本地封面引用，已停止写入 WebDAV`;
+  if (failures.length === 0) return base;
+
+  const samples = failures
+    .slice(0, 3)
+    .map((item) => `${item.title}: ${item.reason}`)
+    .join('；');
+  return `${base}。封面迁移失败 ${failures.length} 张：${samples}`;
+};
+
 export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInfo }: SyncOperationsDeps): SyncOperations => {
   const [migrating, setMigrating] = useState(false);
   const [gcRunning, setGcRunning] = useState(false);
@@ -72,10 +95,12 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
   const runSync = useCallback(async (direction: SyncDirection) => {
     const { showToast, reloadInfo } = depsRef.current;
     setMigrating(true);
+    let auditDetails = `direction=${direction}`;
     try {
       const sourceAdapter = direction === 'to_sqlite' ? webdavAdapter : sqliteAdapter;
       const targetAdapter = direction === 'to_sqlite' ? sqliteAdapter : webdavAdapter;
       const targetMode: StorageMode = direction === 'to_sqlite' ? 'sqlite' : 'webdav';
+      auditDetails = buildSyncDetails(direction, sourceAdapter.type, targetMode);
 
       showToast('正在读取源数据...', 'info');
       const publicData = await sourceAdapter.getPublicData();
@@ -85,8 +110,9 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
       const migratedCovers = await migrateCardCoversToStorage(publicData.cards, sourceAdapter.type, targetMode);
       const nextPublicData = { ...publicData, cards: migratedCovers.cards };
       const sqliteRefCount = targetMode === 'webdav' ? countSqliteMediaReferences(nextPublicData.cards) : 0;
+      auditDetails = buildSyncDetails(direction, sourceAdapter.type, targetMode, migratedCovers.migrated, migratedCovers.failed, sqliteRefCount);
       if (sqliteRefCount > 0) {
-        throw new Error(`仍有 ${sqliteRefCount} 个 SQLite 本地封面引用，已停止写入 WebDAV`);
+        throw new Error(buildSqliteRefError(sqliteRefCount, migratedCovers.failures));
       }
 
       showToast('正在写入目标...', 'info');
@@ -101,10 +127,24 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
       const coverSummary = migratedCovers.migrated > 0 || migratedCovers.failed > 0
         ? ` 封面迁移 ${migratedCovers.migrated} 张${migratedCovers.failed > 0 ? `，失败 ${migratedCovers.failed} 张` : ''}。`
         : ' ';
+      await writeAuditLog({
+        action: 'sync_public_data',
+        status: 'success',
+        details: auditDetails,
+        message: '公共数据同步完成'
+      });
       showToast(`数据同步成功！${coverSummary}可按需执行封面清理。`, migratedCovers.failed > 0 ? 'info' : 'success');
       reloadInfo();
     } catch (e: any) {
-      showToast(`同步失败: ${e.message}`, 'error');
+      const message = e?.message || '未知错误';
+      await writeAuditLog({
+        action: 'sync_public_data',
+        status: 'failed',
+        details: auditDetails,
+        message
+      });
+      showToast(`同步失败: ${message}`, 'error');
+      reloadInfo();
     } finally {
       setMigrating(false);
     }

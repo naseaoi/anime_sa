@@ -32,7 +32,8 @@ API 业务逻辑入口：本地/Docker 在 `server/core/apiCore.js`；Vercel 部
 | `/api/sqlite/admin-credentials` | POST | 修改管理员账号/密码 |
 | `/api/sqlite/admin-credentials-sync?target=sqlite\|webdav` | POST | 跨存储同步凭据 |
 | `/api/sqlite/media-gc?target=sqlite\|webdav&limit=100` | POST | 清理未引用封面（默认 limit=100，范围 1-500） |
-| `/api/sqlite/audit-logs?limit=50` | GET | 查询审计日志（默认 limit=50，范围 1-200） |
+| `/api/sqlite/audit-logs?limit=50` | GET | 查询日志（默认 limit=50，范围 1-200） |
+| `/api/sqlite/audit-logs` | POST | 写入日志（需认证，供前端同步流程记录失败） |
 | `/api/sqlite/media?name=xxx` | GET/POST/DELETE | 封面 CRUD（POST/DELETE 需认证） |
 | `/api/sqlite?key=xxx` | GET/POST | KV 读写（写操作及 private_data 读取需认证） |
 | `/api/webdav` | * | WebDAV 代理（写操作及 private_data 需认证） |
@@ -67,7 +68,7 @@ API 业务逻辑入口：本地/Docker 在 `server/core/apiCore.js`；Vercel 部
 - 通用：1 MB
 - 媒体上传：10 MB
 
-## 审计日志
+## 日志
 
 保留最新 200 条（环形裁剪）。
 
@@ -77,6 +78,7 @@ action 类型：
 |---|---|
 | `update_admin_credentials` | 修改管理员账号或密码 |
 | `sync_admin_credentials` | 跨存储同步凭据 |
+| `sync_public_data` | 跨存储同步公共数据 |
 | `run_media_gc` | 执行封面清理 |
 | `write_public_data` | 写入公开数据 |
 | `write_private_data` | 写入私有数据 |
@@ -98,7 +100,7 @@ npm run build
 2. 卡片新增/编辑/同步正常
 3. 修改账号或密码后能重新登录
 4. 封面清理可执行并有进度
-5. 审计日志可查看
+5. 日志可查看
 
 ## 常见故障
 
@@ -111,5 +113,5 @@ npm run build
 - 确认 WebDAV 服务端支持 `PROPFIND` / `PUT` / `DELETE` 方法
 
 **封面清理失败**
-- 查看审计日志中 `run_media_gc` 的失败记录
+- 查看日志中 `run_media_gc` 的失败记录
 - WebDAV 模式下优先排查目录权限与方法限制

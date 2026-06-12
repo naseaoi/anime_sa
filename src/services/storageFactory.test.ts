@@ -136,4 +136,37 @@ describe('storageFactory session and save flow', () => {
       expect(result.items[0].action).toBe('run_media_gc');
     }
   });
+
+  it('writeAuditLog posts sync failure details', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    Object.defineProperty(globalThis, 'localStorage', { value: createLocalStorageMock(), configurable: true });
+
+    const { writeAuditLog } = await loadStorageFactory();
+    const result = await writeAuditLog({
+      action: 'sync_public_data',
+      status: 'failed',
+      details: 'direction=to_webdav sqliteRefs=264',
+      message: '仍有 264 个 SQLite 本地封面引用'
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/sqlite/audit-logs',
+      expect.objectContaining({ method: 'POST', credentials: 'include' })
+    );
+
+    const request = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(request.body).toBe(JSON.stringify({
+      action: 'sync_public_data',
+      status: 'failed',
+      details: 'direction=to_webdav sqliteRefs=264',
+      message: '仍有 264 个 SQLite 本地封面引用'
+    }));
+  });
 });

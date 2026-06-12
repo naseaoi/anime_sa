@@ -146,7 +146,7 @@ export const dbDelete = (db, key) => {
   db.prepare('DELETE FROM kv_store WHERE key = ?').run(key);
 };
 
-// 审计日志：保留最近 200 条
+// 日志：保留最近 200 条
 export const appendAuditLog = (db, entry) => {
   const current = dbGetJson(db, 'audit_logs');
   const list = Array.isArray(current) ? current : [];
@@ -159,6 +159,10 @@ export const appendAuditLog = (db, entry) => {
     message: entry.message ? String(entry.message) : ''
   });
   dbSetJson(db, 'audit_logs', list.slice(0, 200));
+};
+
+const cleanAuditText = (value, maxLength) => {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, maxLength);
 };
 
 export const getStorageMode = (db) => {
@@ -790,12 +794,38 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
 
     // /audit-logs
     if (url.pathname.endsWith('/audit-logs')) {
-      if (req.method !== 'GET') { res.statusCode = 405; res.end(); return; }
       if (!requireAuth(req, res, db)) return;
-      const limitRaw = Number(url.searchParams.get('limit') || 50);
-      const limit = Math.min(200, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 50));
-      const logs = dbGetJson(db, 'audit_logs');
-      return jsonResponse(res, 200, { items: Array.isArray(logs) ? logs.slice(0, limit) : [] });
+
+      if (req.method === 'GET') {
+        const limitRaw = Number(url.searchParams.get('limit') || 50);
+        const limit = Math.min(200, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 50));
+        const logs = dbGetJson(db, 'audit_logs');
+        return jsonResponse(res, 200, { items: Array.isArray(logs) ? logs.slice(0, limit) : [] });
+      }
+
+      if (req.method === 'POST') {
+        const rawBody = await readBody(req);
+        let body;
+        try { body = JSON.parse(rawBody.toString() || '{}'); }
+        catch { return jsonResponse(res, 400, { success: false, error: 'Invalid JSON body' }); }
+
+        const action = cleanAuditText(body?.action, 64);
+        if (!/^[a-z0-9_:-]+$/i.test(action)) {
+          return jsonResponse(res, 400, { success: false, error: 'Invalid action' });
+        }
+
+        appendAuditLog(db, {
+          action,
+          status: body?.status === 'failed' ? 'failed' : 'success',
+          details: cleanAuditText(body?.details, 300),
+          message: cleanAuditText(body?.message, 800)
+        });
+        return jsonResponse(res, 200, { success: true });
+      }
+
+      res.statusCode = 405;
+      res.end();
+      return;
     }
 
     // /admin-credentials

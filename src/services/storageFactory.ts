@@ -273,9 +273,26 @@ export const getAuditLogs = async (limit = 50) => {
     const res = await authFetch(`/api/sqlite/audit-logs?limit=${encodeURIComponent(String(limit))}`);
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !Array.isArray(data?.items)) {
-      return { success: false as const, error: data?.error || '读取操作日志失败' };
+      return { success: false as const, error: data?.error || '读取日志失败' };
     }
     return { success: true as const, items: data.items as AuditLogEntry[] };
+  } catch (e: any) {
+    return { success: false as const, error: e.message };
+  }
+};
+
+export const writeAuditLog = async (payload: Pick<AuditLogEntry, 'action' | 'status'> & Partial<Pick<AuditLogEntry, 'details' | 'message'>>) => {
+  try {
+    const res = await authFetch('/api/sqlite/audit-logs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.success) {
+      return { success: false as const, error: data?.error || '写入日志失败' };
+    }
+    return { success: true as const };
   } catch (e: any) {
     return { success: false as const, error: e.message };
   }
