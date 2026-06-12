@@ -127,6 +127,7 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
   };
 
   const iconButtonClass = 'w-9 h-9 inline-flex items-center justify-center rounded-xl border border-transparent text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:border-[color:var(--line)] hover:bg-[color:color-mix(in_srgb,var(--surface)_70%,transparent)] transition-all';
+  const dropdownPanelClass = 'bg-[color:color-mix(in_srgb,var(--surface)_94%,transparent)] border border-[color:var(--line)] backdrop-blur-2xl shadow-[var(--shadow-lg)]';
 
   const renderSearchInput = (inputRef?: React.RefObject<HTMLInputElement>) => (
     <div className="relative w-full group">
@@ -148,8 +149,8 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
   );
 
   return (
-    <header className={`sticky top-0 z-40 border-b border-[color:color-mix(in_srgb,var(--line)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--surface)_30%,transparent)] shadow-[0_10px_36px_rgba(0,0,0,0.10)] backdrop-blur-2xl ${overlay ? 'lg:-mb-16' : ''}`}>
-      <div className="px-[var(--page-x)]">
+    <header className={`sticky top-0 z-40 backdrop-blur-2xl ${overlay ? 'bg-transparent border-b border-transparent shadow-none lg:-mb-16' : 'border-b border-[color:color-mix(in_srgb,var(--line)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--surface)_30%,transparent)] shadow-[0_10px_36px_rgba(0,0,0,0.10)]'}`}>
+      <div className="relative z-10 px-[var(--page-x)]">
         <div className="h-14 lg:h-16 flex items-center gap-4 lg:gap-6">
           <div className="flex items-center gap-3 shrink-0 cursor-pointer select-none" onClick={handleLogoClick}>
             <img src={iconUrl} alt="Logo" className="w-8 h-8 object-contain" />
@@ -197,7 +198,7 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
                 <ArrowUpDown size={16} className={`transition-transform duration-300 ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
               </button>
               {openMenu === 'sort' && (
-                <div className="absolute right-0 top-full mt-2 w-44 glass-panel rounded-xl p-1.5 z-50">
+                <div className={`absolute right-0 top-full mt-2 w-44 ${dropdownPanelClass} rounded-xl p-1.5 z-50`}>
                   {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => {
                     const active = sortKey === key;
                     return (
@@ -224,7 +225,7 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
                 <Library size={16} />
               </button>
               {openMenu === 'overview' && (
-                <div className="absolute right-0 top-full mt-2 w-56 max-h-[62vh] overflow-y-auto scrollbar-thinest glass-panel rounded-xl p-1.5 z-50">
+                <div className={`absolute right-0 top-full mt-2 w-56 max-h-[62vh] overflow-y-auto scrollbar-thinest ${dropdownPanelClass} rounded-xl p-1.5 z-50`}>
                   {navItems.map((item, index) => {
                     const active = activeTag === item.id;
                     return (

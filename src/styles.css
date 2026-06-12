@@ -215,7 +215,11 @@
   }
 
   .shelf-scroller {
+    width: calc(100% + var(--shelf-bleed));
+    margin-left: calc(var(--shelf-bleed) * -1);
+    padding-left: var(--shelf-bleed);
     padding-right: var(--shelf-bleed);
+    scroll-padding-left: var(--shelf-bleed);
     scroll-padding-right: var(--shelf-bleed);
   }
 

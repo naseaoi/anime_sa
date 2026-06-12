@@ -14,6 +14,8 @@ import { useBackToTop } from '../hooks/useBackToTop';
 import { useHeroRotation } from '../hooks/useHeroRotation';
 import { useStructuredHomeSections } from '../hooks/useStructuredHomeSections';
 import { buildCardStats } from '../utils/cardStats';
+import { getCardCoverUrl } from '../utils/cardCover';
+import { getCoverAmbientColor } from '../utils/coverAmbientColor';
 import { getTagSlug, sectionFromCard } from '../utils/routeUtils';
 import { getTagIcon } from '../utils/tagIcons';
 
@@ -67,6 +69,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isGridTransitioning, setIsGridTransitioning] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [heroAmbient, setHeroAmbient] = useState<string | null>(null);
 
   const showBackToTop = useBackToTop();
 
@@ -245,6 +248,20 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
   const hero = useHeroRotation(heroCards.length, showHero && !prefersReducedMotionRef.current);
+  const currentHeroCard = showHero ? heroCards[hero.heroIndex] : undefined;
+
+  useEffect(() => {
+    if (!currentHeroCard) {
+      setHeroAmbient(null);
+      return;
+    }
+
+    let cancelled = false;
+    getCoverAmbientColor(currentHeroCard.id, getCardCoverUrl(currentHeroCard, 'thumb')).then((color) => {
+      if (!cancelled) setHeroAmbient(color);
+    });
+    return () => { cancelled = true; };
+  }, [currentHeroCard]);
 
   // --- 事件处理 ---
 
@@ -468,9 +485,15 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     () => ({ tagIds: [], rating: 0, description: '', startDate: '', endDate: '', isRecommended: false, isWatching: false }),
     []
   );
+  const homeStyle = {
+    ...(heroAmbient ? { '--ambient': heroAmbient } : {})
+  } as React.CSSProperties;
 
   return (
-    <div className="min-h-screen flex flex-col selection:bg-amber-500/80 selection:text-white dark:selection:bg-amber-200 dark:selection:text-black transition-colors duration-300">
+    <div
+      className="min-h-screen flex flex-col selection:bg-amber-500/80 selection:text-white dark:selection:bg-amber-200 dark:selection:text-black transition-colors duration-300 hero-ambient"
+      style={homeStyle}
+    >
       <PublicTopNav
         iconUrl={data.settings.iconUrl}
         title={data.settings.title}

@@ -67,7 +67,7 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
-      <div className="relative w-full h-[52vh] min-h-[380px] sm:min-h-[440px] max-h-[680px] overflow-hidden">
+      <div className="relative w-full h-[52vh] min-h-[380px] sm:min-h-[440px] max-h-[680px] lg:h-[calc(52vh+4rem)] lg:min-h-[calc(440px+4rem)] lg:max-h-[744px] overflow-hidden">
         <div aria-hidden className="absolute inset-0 hero-stage" />
         {heroCards.map((card, idx) => {
           const coverSource = getCardCoverSourceSet(card);
@@ -95,7 +95,7 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
                   />
                 </div>
               )}
-              <div className="absolute inset-0 lg:left-auto lg:right-[var(--page-x)] lg:aspect-video lg:overflow-hidden lg:hero-cover-mask">
+              <div className="absolute inset-0 lg:top-16 lg:left-auto lg:right-[var(--page-x)] lg:aspect-video lg:overflow-hidden lg:hero-cover-mask">
                 <ImagePreview
                   src={showCover ? coverSource.src : ''}
                   srcSet={showCover ? coverSource.srcSet : undefined}
@@ -109,7 +109,7 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
               </div>
               <div className="absolute inset-0 hero-melt pointer-events-none" />
 
-              <div className="absolute inset-x-0 bottom-0 z-20 px-[var(--page-x)] pb-10 sm:pb-12 lg:inset-y-0 lg:right-auto lg:w-[46%] lg:min-w-[24rem] lg:pb-0 lg:flex lg:flex-col lg:justify-center">
+              <div className="absolute inset-x-0 bottom-0 z-20 px-[var(--page-x)] pb-10 sm:pb-12 lg:top-16 lg:bottom-0 lg:right-auto lg:w-[46%] lg:min-w-[24rem] lg:pb-0 lg:flex lg:flex-col lg:justify-center">
                 <p className="text-[10px] sm:text-[11px] uppercase tracking-[0.3em] text-[color:var(--accent)] font-bold mb-2.5">
                   Featured · 精选推荐
                 </p>

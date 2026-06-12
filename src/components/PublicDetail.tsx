@@ -134,20 +134,25 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
         <div className="absolute inset-0 detail-backdrop-veil" />
       </div>
 
-      <header className="fixed inset-y-0 left-0 z-50 w-[calc(var(--page-x)+5rem)] group/detail-back">
-        <div className="absolute left-[var(--page-x)] top-5">
+      <aside
+        className="hidden lg:block fixed inset-y-0 z-50 group/detail-back"
+        style={{ left: 'max(2rem, calc((100vw - 100rem) / 2 + 2rem))', width: 'clamp(5rem, 9vw, 9rem)' }}
+      >
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <button
             onClick={handleBack}
-            className="group w-14 h-14 md:opacity-0 md:-translate-x-2 md:group-hover/detail-back:opacity-100 md:group-hover/detail-back:translate-x-0 md:group-focus-within/detail-back:opacity-100 md:group-focus-within/detail-back:translate-x-0 inline-flex items-center justify-center rounded-2xl bg-[color:color-mix(in_srgb,var(--surface)_52%,transparent)] border border-[color:var(--line)] backdrop-blur-xl text-[color:var(--text-primary)] shadow-[0_18px_48px_rgba(0,0,0,0.22)] hover:bg-[color:var(--accent-soft)] transition-all duration-300"
+            className="group w-14 aspect-[9/16] opacity-0 group-hover/detail-back:opacity-100 group-focus-within/detail-back:opacity-100 inline-flex items-center justify-center rounded-[1.35rem] bg-[color:color-mix(in_srgb,var(--surface)_52%,transparent)] border border-[color:var(--line)] backdrop-blur-xl text-[color:var(--text-primary)] shadow-[0_18px_48px_rgba(0,0,0,0.22)] hover:bg-[color:var(--accent-soft)] transition-all duration-300"
             title="返回"
           >
             <ArrowLeft size={23} className="transition-transform duration-200 group-hover:-translate-x-0.5 group-hover:scale-110" />
           </button>
         </div>
-      </header>
+      </aside>
 
-      <main className="relative z-10 flex-1 pt-[5.5rem] lg:pt-28 pb-6 lg:pb-10">
-        <div className="max-w-7xl mx-auto px-5 lg:px-12">
+      <main className="relative z-10 flex-1 pt-8 lg:pt-16 pb-6 lg:pb-10">
+        <div className="w-full max-w-[100rem] mx-auto px-5 lg:px-8 grid grid-cols-1 lg:grid-cols-[clamp(5rem,9vw,9rem)_minmax(0,80rem)_clamp(5rem,9vw,9rem)] gap-6 lg:gap-8">
+          <div className="hidden lg:block" aria-hidden="true" />
+          <div className="min-w-0">
           <div className="grid grid-cols-1 lg:grid-cols-[1.25fr_1fr] gap-7 lg:gap-12 items-center mb-8 lg:mb-12 fade-up">
             <section>
               <div className="relative aspect-video rounded-[1.8rem] overflow-hidden border border-[color:var(--line)] shadow-[var(--shadow-lg)] bg-[color:var(--surface)]">
@@ -229,6 +234,8 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
               )}
             </div>
           </section>
+          </div>
+          <div className="hidden lg:block" aria-hidden="true" />
         </div>
 
       </main>
