@@ -9,8 +9,8 @@ const SkeletonBlock: React.FC<SkeletonBlockProps> = ({ className = '' }) => (
 );
 
 const TopNavSkeleton: React.FC = () => (
-  <header className="sticky top-0 z-40 border-b border-[color:var(--line)] bg-[color:var(--surface-muted)] backdrop-blur-xl">
-    <div className="px-5 md:px-8 lg:px-10">
+  <header className="sticky top-0 z-40 border-b border-[color:color-mix(in_srgb,var(--line)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--surface)_36%,transparent)] shadow-[0_10px_36px_rgba(0,0,0,0.10)] backdrop-blur-2xl">
+    <div className="px-[var(--page-x)]">
       <div className="h-14 lg:h-16 flex items-center gap-4 lg:gap-6">
         <div className="flex items-center gap-3 shrink-0">
           <SkeletonBlock className="w-8 h-8 rounded-lg" />
@@ -42,17 +42,17 @@ const TopNavSkeleton: React.FC = () => (
 );
 
 export const HeroSkeleton: React.FC = () => (
-  <div className="relative w-full h-[52vh] min-h-[380px] sm:min-h-[440px] max-h-[680px] overflow-hidden">
-    <SkeletonBlock className="absolute inset-0" />
-    <div className="absolute inset-x-0 bottom-0 px-5 md:px-8 lg:px-10 pb-10 sm:pb-12 lg:pb-14 space-y-3">
+  <div className="relative w-full h-[52vh] min-h-[380px] sm:min-h-[440px] max-h-[680px] overflow-hidden bg-[color:var(--bg-soft)]">
+    <SkeletonBlock className="absolute inset-0 lg:left-auto lg:aspect-video" />
+    <div className="absolute inset-x-0 bottom-0 px-[var(--page-x)] pb-10 sm:pb-12 lg:inset-y-0 lg:right-auto lg:max-w-[46%] lg:pb-0 lg:flex lg:flex-col lg:justify-center space-y-3">
       <SkeletonBlock className="w-32 h-3 rounded-md" />
       <SkeletonBlock className="w-2/3 max-w-xl h-10 sm:h-14 rounded-lg" />
       <SkeletonBlock className="w-16 h-6 rounded-lg" />
       <SkeletonBlock className="w-1/2 max-w-md h-4 rounded-md" />
     </div>
-    <div className="hidden lg:flex absolute bottom-12 right-10 gap-2">
+    <div className="hidden lg:flex absolute bottom-9 left-[var(--page-x)] gap-4">
       {Array.from({ length: 5 }).map((_, index) => (
-        <SkeletonBlock key={index} className="w-20 aspect-video rounded-md" />
+        <SkeletonBlock key={index} className="w-36 xl:w-40 aspect-video rounded-lg" />
       ))}
     </div>
     <div className="lg:hidden absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
@@ -111,7 +111,7 @@ export const PublicHomeSkeleton: React.FC = () => (
     <TopNavSkeleton />
     <main className="flex-1 overflow-x-hidden">
       <HeroSkeleton />
-      <div className="px-5 md:px-8 lg:px-10 space-y-10 mt-2">
+      <div className="px-[var(--page-x)] space-y-10 mt-2">
         <ShelfSkeleton />
         <ShelfSkeleton />
       </div>

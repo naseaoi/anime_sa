@@ -26,6 +26,8 @@
     --ambient: var(--accent);
     --ambient-soft: var(--accent-soft);
     --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.12);
+    --page-x: 1.5rem;
+    --shelf-bleed: 1.5rem;
   }
 
   html.dark {
@@ -42,6 +44,25 @@
     --ambient: var(--accent);
     --ambient-soft: var(--accent-soft);
     --shadow-lg: 0 24px 56px rgba(0, 0, 0, 0.55);
+  }
+
+  @media (min-width: 768px) {
+    :root {
+      --page-x: 2.5rem;
+      --shelf-bleed: 2rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    :root {
+      --page-x: 3.5rem;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    :root {
+      --page-x: 4rem;
+    }
   }
 
   html {
@@ -191,6 +212,26 @@
   .mask-linear-fade {
     -webkit-mask-image: linear-gradient(to right, black 0, black calc(100% - 16px), transparent);
     mask-image: linear-gradient(to right, black 0, black calc(100% - 16px), transparent);
+  }
+
+  .shelf-scroller {
+    padding-right: var(--shelf-bleed);
+    scroll-padding-right: var(--shelf-bleed);
+  }
+
+  .mask-shelf-right {
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 32px), transparent);
+  }
+
+  .mask-shelf-left {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 32px, #000 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 32px, #000 100%);
+  }
+
+  .mask-shelf-both {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 32px, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to right, transparent 0, #000 32px, #000 calc(100% - 32px), transparent);
   }
 
   .font-display {
@@ -397,24 +438,49 @@
 
   .hero-ambient {
     transition: --ambient 900ms ease;
+    /* 左侧氛围留白底色 */
+    --hero-stage: color-mix(in srgb, var(--ambient) 14%, var(--bg));
+    /* melt 底缘与 glow 顶缘的共用接缝色 */
+    --hero-seam: color-mix(in srgb, var(--ambient) 22%, var(--bg));
+  }
+
+  .hero-stage {
+    background: var(--hero-stage);
+  }
+
+  /* 封面左缘渐隐，露出下层模糊铺底 */
+  .hero-cover-mask {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 26%, #000 88%, transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 26%, #000 88%, transparent 100%);
+  }
+
+  .hero-backdrop-img {
+    filter: blur(56px) saturate(1.15);
+    transform: scale(1.3);
+    opacity: 0.45;
+  }
+
+  .hero-thumb-strip {
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 34px, #000 calc(100% - 34px), transparent);
+    mask-image: linear-gradient(to right, transparent 0, #000 34px, #000 calc(100% - 34px), transparent);
+  }
+
+  html.dark .hero-backdrop-img {
+    opacity: 0.55;
   }
 
   .hero-melt {
     background: linear-gradient(
       to top,
-      var(--bg) 0%,
-      color-mix(in srgb, var(--bg) 72%, transparent) 30%,
-      color-mix(in srgb, var(--bg) 30%, transparent) 50%,
+      var(--hero-seam) 0%,
+      color-mix(in srgb, var(--hero-seam) 72%, transparent) 30%,
+      color-mix(in srgb, var(--hero-seam) 30%, transparent) 50%,
       transparent 72%
     );
   }
 
   .hero-glow {
-    background: radial-gradient(
-      120% 100% at 50% 0%,
-      color-mix(in srgb, var(--ambient) 22%, transparent),
-      transparent 70%
-    );
+    background: linear-gradient(to bottom, var(--hero-seam) 0%, transparent 75%);
   }
 
   .detail-backdrop-img {

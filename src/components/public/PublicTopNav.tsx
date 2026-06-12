@@ -34,6 +34,7 @@ interface PublicTopNavProps {
   onCreateClick: () => void;
   theme: 'light' | 'dark' | 'system';
   toggleTheme: () => void;
+  overlay?: boolean;
 }
 
 interface NavItem {
@@ -48,7 +49,7 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
   iconUrl, title, tags, activeTag, totalCards, cardStats, onTagChange,
   searchTerm, onSearchChange, onClearSearch,
   sortKey, sortOrder, onSortChange,
-  isAdmin, onCreateClick, theme, toggleTheme
+  isAdmin, onCreateClick, theme, toggleTheme, overlay = false
 }) => {
   const [openMenu, setOpenMenu] = useState<'sort' | 'overview' | null>(null);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(() => searchTerm.length > 0);
@@ -147,8 +148,8 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
   );
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[color:var(--line)] bg-[color:var(--surface-muted)] backdrop-blur-xl">
-      <div className="px-5 md:px-8 lg:px-10">
+    <header className={`sticky top-0 z-40 border-b border-[color:color-mix(in_srgb,var(--line)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--surface)_30%,transparent)] shadow-[0_10px_36px_rgba(0,0,0,0.10)] backdrop-blur-2xl ${overlay ? 'lg:-mb-16' : ''}`}>
+      <div className="px-[var(--page-x)]">
         <div className="h-14 lg:h-16 flex items-center gap-4 lg:gap-6">
           <div className="flex items-center gap-3 shrink-0 cursor-pointer select-none" onClick={handleLogoClick}>
             <img src={iconUrl} alt="Logo" className="w-8 h-8 object-contain" />

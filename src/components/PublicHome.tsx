@@ -23,6 +23,7 @@ const INITIAL_LOAD_COUNT = 32;
 const LOAD_MORE_COUNT = 20;
 const GRID_TRANSITION_MS = 420;
 const SHELF_CARD_LIMIT = 12;
+const HERO_CARD_LIMIT = 14;
 
 type GridSortConfig = { key: SortKey; order: SortOrder };
 
@@ -221,7 +222,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Hero 轮播卡片集合（只取前 10 个推荐）
+  // Hero 轮播卡片集合
   // 用 sessionId+cardId 哈希做稳定排序：同一会话内 data 刷新顺序不变，避免视觉跳动；新开页面才换序
   const heroSeedRef = useRef<number>(Math.floor(Math.random() * 0xffffffff) >>> 0);
   const heroCards = useMemo(() => {
@@ -235,7 +236,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
       return h;
     };
     const sorted = [...recommended].sort((a, b) => score(a.id) - score(b.id));
-    return sorted.slice(0, 10);
+    return sorted.slice(0, HERO_CARD_LIMIT);
   }, [data.cards]);
 
   const showHero = activeTag === 'all' && !searchTerm && heroCards.length > 0;
@@ -488,6 +489,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
         onCreateClick={() => setIsCreateModalOpen(true)}
         theme={theme}
         toggleTheme={toggleTheme}
+        overlay={showHero}
       />
 
       <main className="flex-1 overflow-x-hidden flex flex-col">
@@ -516,7 +518,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
             tags={data.tags}
           />
         ) : (
-          <div className="px-5 md:px-8 lg:px-10 pt-6 md:pt-8">
+          <div className="px-[var(--page-x)] pt-6 md:pt-8">
             {activeTag !== 'all' && !searchTerm && (
               <div key={activeTag} className="mb-8 fade-up text-center">
                 <h3 className="fade-up font-display text-3xl text-[color:var(--text-primary)] inline-flex w-full items-center justify-center gap-2" style={{ animationDelay: '0.06s' }}>
@@ -552,7 +554,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
           <div ref={loadRef} className="h-20 w-full" />
         )}
 
-        <footer className="mt-auto px-5 md:px-8 lg:px-10 pt-16 pb-8">
+        <footer className="mt-auto px-[var(--page-x)] pt-16 pb-8">
           <div className="h-px bg-gradient-to-r from-transparent via-[color:var(--line)] to-transparent" />
           <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3.5 text-[11px] text-[color:var(--text-secondary)]">
             <p className="font-semibold tracking-wide">{data.settings.footerLeft || `© ${new Date().getFullYear()}`}</p>
@@ -563,7 +565,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
 
         <button
           onClick={scrollToTop}
-          className={`fixed bottom-20 right-6 z-50 w-11 h-11 glass-panel text-[color:var(--text-primary)] rounded-2xl shadow-lg border border-[color:var(--line)] transition-opacity duration-300 flex items-center justify-center ${showBackToTop ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          className={`fixed bottom-20 right-[var(--page-x)] z-50 w-11 h-11 glass-panel text-[color:var(--text-primary)] rounded-2xl shadow-lg border border-[color:var(--line)] transition-opacity duration-300 flex items-center justify-center ${showBackToTop ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         >
           <ArrowUp size={18} />
         </button>

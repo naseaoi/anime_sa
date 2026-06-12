@@ -20,19 +20,31 @@ interface PublicCardProps {
   className?: string;
 }
 
-// 前台通用卡片：网格与 shelf 共用，hover 反馈走 --ambient 氛围光
+// 前台通用卡片：网格与 shelf 共用，hover 发光按推荐/在看/普通三态语义色
 const PublicCardInner: React.FC<PublicCardProps> = ({
   card, href, state, tagNameById, eager = false, sizes, className = ''
 }) => {
   const coverSource = getCardCoverSourceSet(card);
 
+  const frameTone = card.isRecommended
+    ? 'border-amber-300/90 dark:border-amber-400/35'
+    : card.isWatching
+      ? 'border-sky-300/80 dark:border-sky-400/30'
+      : 'border-[color:var(--line)]';
+
+  const glowTone = card.isRecommended
+    ? 'shadow-[0_0_20px_rgba(217,140,38,0.18)] hover:shadow-[0_0_32px_rgba(217,140,38,0.42)] focus-visible:shadow-[0_0_32px_rgba(217,140,38,0.42)]'
+    : card.isWatching
+      ? 'shadow-[0_0_20px_rgba(56,189,248,0.16)] hover:shadow-[0_0_32px_rgba(56,189,248,0.40)] focus-visible:shadow-[0_0_32px_rgba(56,189,248,0.40)]'
+      : 'shadow-[0_0_16px_rgba(15,23,42,0.08)] hover:shadow-[0_0_30px_rgba(199,140,43,0.24)] focus-visible:shadow-[0_0_30px_rgba(199,140,43,0.24)] dark:shadow-[0_0_16px_rgba(0,0,0,0.28)] dark:hover:shadow-[0_0_30px_rgba(225,180,101,0.22)] dark:focus-visible:shadow-[0_0_30px_rgba(225,180,101,0.22)]';
+
   return (
     <Link
       to={href}
       state={state}
-      className={`group block cursor-pointer transition-transform duration-500 hover:scale-[1.02] ${className}`}
+      className={`group relative z-0 block cursor-pointer rounded-xl transition-all duration-500 hover:z-10 hover:scale-[1.02] focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] focus-visible:ring-offset-4 focus-visible:ring-offset-[color:var(--bg)] ${glowTone} ${className}`}
     >
-      <div className="relative rounded-xl transition-all duration-500 w-full aspect-video overflow-hidden border border-[color:var(--line)] bg-[color:var(--surface)] shadow-sm group-hover:border-[color:color-mix(in_srgb,var(--ambient)_45%,var(--line))] group-hover:shadow-[0_18px_44px_-12px_var(--ambient)]">
+      <div className={`relative rounded-xl transition-all duration-500 w-full aspect-video overflow-hidden border bg-[color:var(--surface)] ${frameTone}`}>
         {/* mask 子层：仅包裹图片 + hover 蒙层。文字层不进入此容器，
             规避 webkit-mask 边缘渐隐把贴近左/底的文字阴影衰减成"截断" */}
         <div className="absolute inset-0 rounded-xl overflow-hidden isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>

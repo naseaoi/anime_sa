@@ -52,7 +52,7 @@ export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
         />
       )}
 
-      <div className={`relative px-5 md:px-8 lg:px-10 space-y-10 ${showHero ? 'mt-2' : 'mt-6'}`}>
+      <div className={`relative px-[var(--page-x)] space-y-10 ${showHero ? 'mt-2' : 'mt-6'}`}>
         {sections.topCards.length > 0 && (
           <PublicShelf
             icon={<span className="w-6 h-6 inline-flex items-center justify-center text-[color:var(--accent)]"><Clock3 size={22} /></span>}

@@ -18,7 +18,7 @@ interface PublicHeroProps {
   getCardState: () => { from: string };
 }
 
-// 全宽剧场 Hero：封面轮播 + 取色氛围光 + 底部熔接页面背景
+// 剧场 Hero：桌面端封面 16:9 右置 + 模糊封面铺底 + 信息层垂直居中，窄屏全宽裁切，底部熔接页面背景
 export const PublicHero: React.FC<PublicHeroProps> = ({
   heroCards, heroIndex, setHeroIndex, setIsHeroPaused,
   onTouchStart, onTouchMove, onTouchEnd, getCardHref, getCardState
@@ -68,6 +68,7 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
       onTouchEnd={onTouchEnd}
     >
       <div className="relative w-full h-[52vh] min-h-[380px] sm:min-h-[440px] max-h-[680px] overflow-hidden">
+        <div aria-hidden className="absolute inset-0 hero-stage" />
         {heroCards.map((card, idx) => {
           const coverSource = getCardCoverSourceSet(card);
           const showCover = neighborIndexes.has(idx);
@@ -82,23 +83,37 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
               tabIndex={active ? 0 : -1}
               aria-hidden={!active}
             >
-              <ImagePreview
-                src={showCover ? coverSource.src : ''}
-                srcSet={showCover ? coverSource.srcSet : undefined}
-                sizes="100vw"
-                alt={card.title}
-                className="w-full h-full object-cover select-none"
-                loading={active ? 'eager' : 'lazy'}
-                fetchPriority={active ? 'high' : 'low'}
-                decoding="async"
-              />
+              {showCover && (
+                <div aria-hidden className="absolute inset-0 hidden lg:block overflow-hidden">
+                  <img
+                    src={getCardCoverUrl(card, 'thumb')}
+                    alt=""
+                    className="w-full h-full object-cover hero-backdrop-img select-none"
+                    loading={active ? 'eager' : 'lazy'}
+                    decoding="async"
+                    draggable={false}
+                  />
+                </div>
+              )}
+              <div className="absolute inset-0 lg:left-auto lg:right-[var(--page-x)] lg:aspect-video lg:overflow-hidden lg:hero-cover-mask">
+                <ImagePreview
+                  src={showCover ? coverSource.src : ''}
+                  srcSet={showCover ? coverSource.srcSet : undefined}
+                  sizes="(min-width: 1024px) calc(75vw - 2.5rem), 100vw"
+                  alt={card.title}
+                  className="w-full h-full object-cover select-none"
+                  loading={active ? 'eager' : 'lazy'}
+                  fetchPriority={active ? 'high' : 'low'}
+                  decoding="async"
+                />
+              </div>
               <div className="absolute inset-0 hero-melt pointer-events-none" />
 
-              <div className="absolute inset-x-0 bottom-0 z-20 px-5 md:px-8 lg:px-10 pb-10 sm:pb-12 lg:pb-14 lg:pr-[21rem]">
+              <div className="absolute inset-x-0 bottom-0 z-20 px-[var(--page-x)] pb-10 sm:pb-12 lg:inset-y-0 lg:right-auto lg:w-[46%] lg:min-w-[24rem] lg:pb-0 lg:flex lg:flex-col lg:justify-center">
                 <p className="text-[10px] sm:text-[11px] uppercase tracking-[0.3em] text-[color:var(--accent)] font-bold mb-2.5">
                   Featured · 精选推荐
                 </p>
-                <h2 className="font-display text-3xl sm:text-5xl xl:text-6xl leading-tight text-[color:var(--text-primary)] line-clamp-2 max-w-3xl mb-3">
+                <h2 className="font-display text-3xl sm:text-5xl lg:text-4xl xl:text-5xl leading-tight text-[color:var(--text-primary)] line-clamp-2 max-w-3xl mb-3">
                   {card.title}
                 </h2>
                 <div className="flex items-center gap-3 mb-2.5">
@@ -107,7 +122,7 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
                     {card.rating.toFixed(1)}
                   </span>
                 </div>
-                <p className="text-[color:var(--text-secondary)] text-xs sm:text-sm line-clamp-1 sm:line-clamp-2 font-medium max-w-xl">
+                <p className="text-[color:var(--text-secondary)] text-xs sm:text-sm line-clamp-1 sm:line-clamp-2 lg:line-clamp-3 font-medium max-w-xl">
                   {card.description}
                 </p>
               </div>
@@ -119,33 +134,51 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
           <>
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex((prev) => (prev - 1 + heroLength) % heroLength); }}
-              className="absolute left-3 top-1/2 -translate-y-1/2 p-2.5 z-30 rounded-full bg-[color:color-mix(in_srgb,var(--surface)_55%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--surface)_80%,transparent)] border border-[color:var(--line)] backdrop-blur-sm text-[color:var(--text-primary)] transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+              className="lg:hidden absolute left-3 top-1/2 -translate-y-1/2 p-2.5 z-30 rounded-full bg-[color:color-mix(in_srgb,var(--surface)_55%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--surface)_80%,transparent)] border border-[color:var(--line)] backdrop-blur-sm text-[color:var(--text-primary)] transition-all"
               aria-label="上一张"
             >
               <ChevronLeft size={20} />
             </button>
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex((prev) => (prev + 1) % heroLength); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 z-30 rounded-full bg-[color:color-mix(in_srgb,var(--surface)_55%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--surface)_80%,transparent)] border border-[color:var(--line)] backdrop-blur-sm text-[color:var(--text-primary)] transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
+              className="lg:hidden absolute right-3 top-1/2 -translate-y-1/2 p-2.5 z-30 rounded-full bg-[color:color-mix(in_srgb,var(--surface)_55%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--surface)_80%,transparent)] border border-[color:var(--line)] backdrop-blur-sm text-[color:var(--text-primary)] transition-all"
               aria-label="下一张"
             >
               <ChevronRight size={20} />
             </button>
 
-            <div
-              ref={thumbStripRef}
-              className="hidden lg:flex absolute bottom-12 right-10 z-30 gap-2 max-w-[17rem] overflow-x-auto no-scrollbar"
-            >
-              {heroCards.map((card, idx) => (
-                <button
-                  key={card.id}
-                  onClick={() => setHeroIndex(idx)}
-                  className={`w-20 aspect-video shrink-0 rounded-md overflow-hidden border transition-all duration-300 ${idx === heroIndex ? 'border-[color:var(--accent)] ring-2 ring-[color:var(--accent-soft)] opacity-100' : 'border-[color:var(--line)] opacity-50 hover:opacity-90'}`}
-                  aria-label={`切换到 ${card.title}`}
+            <div className="hidden lg:block absolute bottom-9 left-[var(--page-x)] right-[var(--page-x)] z-30">
+              <div className="relative w-[min(64vw,62rem)] max-w-full">
+                <div
+                  ref={thumbStripRef}
+                  className="hero-thumb-strip flex gap-4 w-full overflow-x-auto no-scrollbar py-2"
                 >
-                  <img src={getCardCoverUrl(card, 'thumb')} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" draggable={false} />
+                  {heroCards.map((card, idx) => (
+                    <button
+                      key={card.id}
+                      onClick={() => setHeroIndex(idx)}
+                      className={`w-36 xl:w-40 aspect-video shrink-0 rounded-lg overflow-hidden border transition-all duration-300 ${idx === heroIndex ? 'border-[color:var(--accent)] ring-2 ring-[color:var(--accent-soft)] opacity-100' : 'border-[color:var(--line)] opacity-50 hover:opacity-90'}`}
+                      aria-label={`切换到 ${card.title}`}
+                    >
+                      <img src={getCardCoverUrl(card, 'thumb')} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" draggable={false} />
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setHeroIndex((prev) => (prev - 1 + heroLength) % heroLength)}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-[color:color-mix(in_srgb,var(--surface)_58%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--surface)_82%,transparent)] border border-[color:var(--line)] backdrop-blur-md text-[color:var(--text-primary)] shadow-[0_10px_30px_rgba(0,0,0,0.22)] transition-all"
+                  aria-label="上一张"
+                >
+                  <ChevronLeft size={19} />
                 </button>
-              ))}
+                <button
+                  onClick={() => setHeroIndex((prev) => (prev + 1) % heroLength)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-[color:color-mix(in_srgb,var(--surface)_58%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--surface)_82%,transparent)] border border-[color:var(--line)] backdrop-blur-md text-[color:var(--text-primary)] shadow-[0_10px_30px_rgba(0,0,0,0.22)] transition-all"
+                  aria-label="下一张"
+                >
+                  <ChevronRight size={19} />
+                </button>
+              </div>
             </div>
 
             <div className="lg:hidden absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-30 pointer-events-none">
