@@ -1,8 +1,7 @@
 import { CardData } from '../types';
+import { StorageMode } from '../domain/storage';
 import { getStorage } from './storageFactory';
 import { normalizeCoverVariants } from '../utils/cardCover';
-
-type StorageType = 'sqlite' | 'webdav';
 
 export interface CoverProcessFailure {
   id: string;
@@ -130,7 +129,7 @@ const uploadCoverBytes = async (
   mime: string,
   bytes: Uint8Array,
   suffix = 'original',
-  targetStorage?: StorageType
+  targetStorage?: StorageMode
 ) => {
   if (bytes.byteLength > MEDIA_UPLOAD_LIMIT_BYTES) {
     throw new Error('图片过大，请压缩后重试（最大 10MB）');
@@ -235,7 +234,6 @@ const buildCoverRenditions = async (mime: string, bytes: Uint8Array) => {
       continue;
     }
 
-    // 多级半采样：>2x 的一次性 bilinear 会出现明显锯齿/锐化，逐级 0.5x 可近似 Lanczos 效果
     drawWithHighQualityDownscale(ctx, image, sourceWidth, sourceHeight, targetWidth, targetHeight);
 
     try {
@@ -252,7 +250,7 @@ const buildCoverRenditions = async (mime: string, bytes: Uint8Array) => {
   return renditions;
 };
 
-// 高质量下采样：源尺寸与目标 >2x 时逐级 0.5x 缩小，最后一步到目标尺寸
+// 高质量下采样
 const drawWithHighQualityDownscale = (
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
@@ -313,7 +311,6 @@ const fetchImageBytesFromUrl = async (url: string) => {
       const response = await fetch(url, { credentials: 'include' });
       return await parseResponse(response);
     } catch {
-      // fallback to server-side fetch below
     }
   }
 
@@ -403,7 +400,7 @@ const restoreNetworkCoverUrl = <T extends Partial<CardData>>(card: T, options?: 
   } as T;
 };
 
-const isStorageMediaUrl = (value: string | undefined, storage: StorageType) => {
+const isStorageMediaUrl = (value: string | undefined, storage: StorageMode) => {
   const raw = String(value || '').trim();
   if (!raw) return false;
 
@@ -473,7 +470,7 @@ const shouldForceOptimizeUrlCover = (card: Partial<CardData>) => {
   return [normalized?.original, normalized?.card, normalized?.thumb, card.coverUrl].some((value) => hasNetworkUrlCover(value));
 };
 
-const shouldMigrateCoverForStorage = (card: Partial<CardData>, source: StorageType, target: StorageType) => {
+const shouldMigrateCoverForStorage = (card: Partial<CardData>, source: StorageMode, target: StorageMode) => {
   if (source === target) return false;
   if (hasDataUrlCover(card.coverLocalData)) return true;
   const normalized = normalizeCoverVariants(card);
@@ -508,7 +505,7 @@ const collectNetworkCoverSourceCandidates = (card: Partial<CardData>) => {
 
 const rebuildCardCoverForStorage = async <T extends Partial<CardData> & { id: string }>(
   card: T,
-  target: StorageType,
+  target: StorageMode,
   options?: {
     sourceCandidates?: string[];
     includeEmbedded?: boolean;
@@ -560,7 +557,7 @@ const rebuildCardCoverForStorage = async <T extends Partial<CardData> & { id: st
 
 const cacheUrlCoverVariantsForStorage = async <T extends Partial<CardData> & { id: string }>(
   card: T,
-  target: StorageType
+  target: StorageMode
 ): Promise<T> => {
   const coverUrl = getNetworkCoverUrl(card);
   if (!coverUrl) throw new Error('未找到可优化的 URL 封面');
@@ -617,7 +614,7 @@ const isWebpVariantUrl = (value?: string) => {
   }
 };
 
-// 仅匹配本站媒体端点,图床/CDN 等外链一律不算"已处理"
+// 本站媒体端点
 const isLocalMediaUrl = (value?: string) => {
   const raw = String(value || '').trim();
   if (!raw) return false;
@@ -630,7 +627,7 @@ const isLocalMediaUrl = (value?: string) => {
   }
 };
 
-// 已处理变体 = 本地存储 + .webp 后缀,二者缺一均需重建
+// 已处理封面变体
 const isProcessedVariantUrl = (value?: string) => {
   return isLocalMediaUrl(value) && isWebpVariantUrl(value);
 };
@@ -712,8 +709,8 @@ export const migrateEmbeddedCoverAssets = async (cards: CardData[]) => {
 
 export const migrateCardCoversToStorage = async (
   cards: CardData[],
-  source: StorageType,
-  target: StorageType
+  source: StorageMode,
+  target: StorageMode
 ) => {
   let migrated = 0;
   let failed = 0;

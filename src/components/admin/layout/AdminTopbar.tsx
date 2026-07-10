@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CloudUpload, Database, Loader2, Menu, Monitor, Moon, Save, Sun, X } from 'lucide-react';
+import { StorageMode } from '../../../domain/storage';
 import { Button, useTheme } from '../../Common';
 import { AdminNavItem } from './adminNavigation';
 import { AdminTopNav, AdminMobileNav } from './AdminTopNav';
@@ -9,7 +10,7 @@ interface AdminTopbarProps {
   items: AdminNavItem[];
   hasChanges: boolean;
   syncing: boolean;
-  storageType: 'sqlite' | 'webdav';
+  storageType: StorageMode;
   onSave: () => void;
   onLogout: () => void;
 }

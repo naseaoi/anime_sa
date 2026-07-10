@@ -6,6 +6,28 @@ import { getClientIp, jsonResponse, parseCookies, readBody } from './httpUtils.j
 import { isBlockedRemoteHost, safeFetchAgent } from './remoteSecurity.js';
 import { enforceSameOrigin } from './requestOrigin.js';
 import {
+  buildAdminCredentialsForSave,
+  buildPrivateDataForTarget,
+  ensureSqliteAdminFromEnv,
+  resolveAdminCredentials
+} from './adminCredentials.js';
+import {
+  cleanupSqliteUnusedMedia,
+  cleanupWebDavUnusedMedia,
+  collectSqliteMediaNames,
+  parseCoverReferenceSets
+} from './mediaGc.js';
+import {
+  buildWebDavUrl,
+  deleteWebDavCoverFile,
+  fetchWebDavJson,
+  getWebDavAuthHeader,
+  getWebDavConfig,
+  listWebDavCoverNames,
+  saveWebDavJson,
+  WEBDAV_USER_AGENT
+} from './webdavStore.js';
+import {
   buildCookie,
   clearAllSessions,
   clearCookie,
@@ -20,10 +42,7 @@ import {
   verifyPasswordHash,
   normalizeMediaName,
   normalizeWebDavFilename,
-  normalizePrivateDataPayload,
-  isValidUsername,
-  PASSWORD_MIN_LEN,
-  PASSWORD_MAX_LEN
+  normalizePrivateDataPayload
 } from '../sharedSecurity.js';
 
 export {
@@ -50,289 +69,22 @@ export {
   verifySession
 };
 
-// ===== WebDAV =====
-
-export const getWebDavConfig = (env) => {
-  const { WEBDAV_URL, WEBDAV_USERNAME, WEBDAV_PASSWORD, WEBDAV_PATH } = env;
-  if (!WEBDAV_URL || !WEBDAV_USERNAME || !WEBDAV_PASSWORD) return null;
-  return {
-    baseUrl: WEBDAV_URL.replace(/\/+$/, ''),
-    davPath: (WEBDAV_PATH || 'my-collection').replace(/^\/+|\/+$/g, ''),
-    username: WEBDAV_USERNAME,
-    password: WEBDAV_PASSWORD
-  };
+export {
+  buildAdminCredentialsForSave,
+  buildPrivateDataForTarget,
+  buildWebDavUrl,
+  cleanupSqliteUnusedMedia,
+  cleanupWebDavUnusedMedia,
+  collectSqliteMediaNames,
+  deleteWebDavCoverFile,
+  ensureSqliteAdminFromEnv,
+  fetchWebDavJson,
+  getWebDavConfig,
+  listWebDavCoverNames,
+  parseCoverReferenceSets,
+  resolveAdminCredentials,
+  saveWebDavJson
 };
-
-export const buildWebDavUrl = (env, filename = '') => {
-  const config = getWebDavConfig(env);
-  if (!config) return null;
-  const normalizedFilename = normalizeWebDavFilename(filename);
-  if (normalizedFilename === null) throw new Error('Invalid WebDAV filename');
-  const encodedFilename = normalizedFilename
-    .split('/')
-    .filter(Boolean)
-    .map((segment) => encodeURIComponent(segment))
-    .join('/');
-  return `${config.baseUrl}/${config.davPath}${encodedFilename ? `/${encodedFilename}` : '/'}`;
-};
-
-const webdavAuthHeader = (config) =>
-  `Basic ${Buffer.from(`${config.username}:${config.password}`).toString('base64')}`;
-
-const WEBDAV_UA = 'Mozilla/5.0 (Node.js) NicheCard/1.0';
-
-export const fetchWebDavJson = async (env, filename) => {
-  const config = getWebDavConfig(env);
-  if (!config) throw new Error('Missing WebDAV configuration in environment variables');
-  const response = await fetch(buildWebDavUrl(env, filename), {
-    method: 'GET',
-    headers: { Authorization: webdavAuthHeader(config), 'User-Agent': WEBDAV_UA }
-  });
-  if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`WebDAV request failed (${response.status})`);
-  const value = await response.json();
-  if (filename === 'public_data.json') {
-    const normalized = normalizePublicDataPayload(value);
-    if (!normalized) throw new Error('Stored WebDAV public_data is invalid');
-    return normalized;
-  }
-  return value;
-};
-
-export const saveWebDavJson = async (env, filename, payload) => {
-  const config = getWebDavConfig(env);
-  if (!config) throw new Error('Missing WebDAV configuration in environment variables');
-  const response = await fetch(buildWebDavUrl(env, filename), {
-    method: 'PUT',
-    headers: {
-      Authorization: webdavAuthHeader(config),
-      'User-Agent': WEBDAV_UA,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
-  if (!response.ok) throw new Error(`WebDAV write failed (${response.status})`);
-};
-
-// ===== 封面引用解析（GC 用） =====
-
-export const parseCoverReferenceSets = (publicData) => {
-  const sqliteNames = new Set();
-  const webdavNames = new Set();
-  const cards = Array.isArray(publicData?.cards) ? publicData.cards : [];
-
-  const collect = (rawUrl) => {
-    const raw = String(rawUrl || '');
-    if (!raw) return;
-    let parsed;
-    try { parsed = new URL(raw, 'http://local'); } catch { return; }
-
-    if (parsed.pathname === '/api/sqlite/media') {
-      const name = normalizeMediaName(parsed.searchParams.get('name'));
-      if (name) sqliteNames.add(name);
-    }
-    if (parsed.pathname === '/api/webdav') {
-      const filename = decodeURIComponent(parsed.searchParams.get('filename') || '');
-      if (filename.startsWith('covers/')) {
-        const name = normalizeMediaName(filename.slice('covers/'.length));
-        if (name) webdavNames.add(name);
-      }
-    }
-  };
-
-  for (const card of cards) {
-    collect(card?.coverUrl);
-    collect(card?.coverVariants?.thumb);
-    collect(card?.coverVariants?.card);
-    collect(card?.coverVariants?.original);
-  }
-  return { sqliteNames, webdavNames };
-};
-
-export const collectSqliteMediaNames = (db) => {
-  const rows = db.prepare("SELECT key FROM kv_store WHERE key LIKE 'media:%'").all();
-  const names = [];
-  for (const row of rows) {
-    const key = String(row.key || '');
-    if (!key.startsWith('media:')) continue;
-    const name = normalizeMediaName(key.slice('media:'.length));
-    if (name) names.push(name);
-  }
-  return names;
-};
-
-export const cleanupSqliteUnusedMedia = (db, referencedNames, limit = 100) => {
-  const allNames = collectSqliteMediaNames(db);
-  const removable = allNames.filter((name) => !referencedNames.has(name));
-  const candidates = removable.slice(0, Math.max(1, limit));
-  let removed = 0;
-  for (const name of candidates) {
-    dbDelete(db, `media:${name}`);
-    removed += 1;
-  }
-  const pending = Math.max(0, removable.length - removed);
-  return { checked: allNames.length, removed, pending, hasMore: pending > 0 };
-};
-
-// WebDAV 列目录：用 PROPFIND + XML 提取 href
-const decodeXmlEntities = (text) =>
-  String(text || '')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-
-const extractHrefValuesFromXml = (xml) => {
-  const values = [];
-  const cdataRegex = /<[^>]*:?href[^>]*>\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*<\/[^>]*:?href>/gi;
-  const plainRegex = /<[^>]*:?href[^>]*>([^<]*)<\/[^>]*:?href>/gi;
-  let m;
-  while ((m = cdataRegex.exec(xml))) values.push(m[1] || '');
-  while ((m = plainRegex.exec(xml))) values.push(m[1] || '');
-  return values;
-};
-
-export const listWebDavCoverNames = async (env) => {
-  const config = getWebDavConfig(env);
-  if (!config) throw new Error('Missing WebDAV configuration in environment variables');
-
-  const response = await fetch(buildWebDavUrl(env, 'covers'), {
-    method: 'PROPFIND',
-    headers: { Authorization: webdavAuthHeader(config), 'User-Agent': WEBDAV_UA, Depth: '1' }
-  });
-  if (response.status === 404) return [];
-  if (!response.ok && response.status !== 207) {
-    throw new Error(`WebDAV list failed (${response.status})`);
-  }
-
-  const xml = await response.text();
-  const names = new Set();
-  for (const rawValue of extractHrefValuesFromXml(xml)) {
-    const href = decodeXmlEntities(rawValue || '').trim();
-    try {
-      const parsed = new URL(href, config.baseUrl);
-      const pathPart = decodeURIComponent(parsed.pathname);
-      const marker = '/covers/';
-      const idx = pathPart.lastIndexOf(marker);
-      if (idx >= 0) {
-        const name = pathPart.slice(idx + marker.length).replace(/\/+$/, '');
-        const normalized = normalizeMediaName(name);
-        if (normalized) names.add(normalized);
-      }
-    } catch {}
-  }
-  return [...names];
-};
-
-export const deleteWebDavCoverFile = async (env, name) => {
-  const config = getWebDavConfig(env);
-  if (!config) throw new Error('Missing WebDAV configuration in environment variables');
-  const response = await fetch(buildWebDavUrl(env, `covers/${name}`), {
-    method: 'DELETE',
-    headers: { Authorization: webdavAuthHeader(config), 'User-Agent': WEBDAV_UA }
-  });
-  if (response.status === 404) return;
-  if (!response.ok) throw new Error(`WebDAV delete failed (${response.status})`);
-};
-
-export const cleanupWebDavUnusedMedia = async (env, referencedNames, limit = 100) => {
-  const allNames = await listWebDavCoverNames(env);
-  const removable = allNames.filter((name) => !referencedNames.has(name));
-  const candidates = removable.slice(0, Math.max(1, limit));
-  let removed = 0;
-  for (const name of candidates) {
-    await deleteWebDavCoverFile(env, name);
-    removed += 1;
-  }
-  const pending = Math.max(0, removable.length - removed);
-  return { checked: allNames.length, removed, pending, hasMore: pending > 0 };
-};
-
-// ===== 管理员凭据解析 =====
-
-export const ensureSqliteAdminFromEnv = async (db, env) => {
-  const username = (env.ADMIN_USERNAME || '').trim();
-  const password = env.ADMIN_PASSWORD || '';
-  if (!username || !password) return null;
-  const creds = { username, passwordHash: await hashPassword(password), passwordUpdatedAt: Date.now() };
-  dbSetJson(db, 'private_data', creds);
-  return creds;
-};
-
-export const resolveAdminCredentials = async (db, env) => {
-  const mode = getStorageMode(db);
-  if (mode === 'webdav') {
-    try {
-      const webdavCreds = await fetchWebDavJson(env, 'private_data.json');
-      if (webdavCreds?.username && (webdavCreds?.password || webdavCreds?.passwordHash)) {
-        return { creds: webdavCreds, source: 'webdav' };
-      }
-    } catch {
-      return { error: 'WebDAV 凭据读取失败，请检查 WebDAV 配置' };
-    }
-  }
-
-  const sqliteCreds = dbGetJson(db, 'private_data');
-  if (sqliteCreds?.username && (sqliteCreds?.password || sqliteCreds?.passwordHash)) {
-    return { creds: sqliteCreds, source: 'sqlite' };
-  }
-
-  const seeded = await ensureSqliteAdminFromEnv(db, env);
-  if (seeded) return { creds: seeded, source: 'sqlite' };
-
-  return { error: '管理员账号未初始化，请先配置 ADMIN_USERNAME 和 ADMIN_PASSWORD' };
-};
-
-export const buildAdminCredentialsForSave = async (existing, payload) => {
-  const username = String(payload?.username || '').trim();
-  if (!isValidUsername(username)) {
-    return { error: '账号需由 3–64 位字母、数字、下划线或横线组成' };
-  }
-
-  const newPassword = typeof payload?.newPassword === 'string' ? payload.newPassword : '';
-  const hasNewPassword = newPassword.length > 0;
-  if (hasNewPassword && (newPassword.length < PASSWORD_MIN_LEN || newPassword.length > PASSWORD_MAX_LEN)) {
-    return { error: `密码长度需在 ${PASSWORD_MIN_LEN}–${PASSWORD_MAX_LEN} 之间` };
-  }
-
-  const existingHash = typeof existing?.passwordHash === 'string' ? existing.passwordHash : '';
-  const legacyPassword = typeof existing?.password === 'string' ? existing.password : '';
-
-  let passwordHash = existingHash;
-  const usernameChanged = username !== String(existing?.username || '');
-  if (hasNewPassword) {
-    passwordHash = await hashPassword(newPassword);
-  } else if (!passwordHash && legacyPassword) {
-    passwordHash = await hashPassword(legacyPassword);
-  }
-
-  if (!passwordHash) return { error: '请提供新密码' };
-
-  return {
-    data: {
-      username,
-      passwordHash,
-      passwordUpdatedAt: hasNewPassword ? Date.now() : Number(existing?.passwordUpdatedAt || Date.now())
-    },
-    passwordChanged: hasNewPassword,
-    changed: usernameChanged || hasNewPassword
-  };
-};
-
-export const buildPrivateDataForTarget = async (payload) => {
-  const normalized = normalizePrivateDataPayload(payload);
-  if (!normalized) return { error: 'Invalid private_data payload' };
-  return {
-    data: {
-      username: normalized.username,
-      passwordHash: normalized.passwordHash,
-      passwordUpdatedAt: normalized.passwordUpdatedAt || Date.now()
-    }
-  };
-};
-
-// ===== SSRF 防护（/remote-image 用） =====
 
 // ===== 主 handler：WebDAV 代理 =====
 
@@ -358,8 +110,8 @@ export const handleWebDavApi = async (req, res, { env }) => {
     if (needsAuth && !requireAuth(req, res, db)) return;
 
     const headers = {
-      Authorization: webdavAuthHeader(config),
-      'User-Agent': WEBDAV_UA
+      Authorization: getWebDavAuthHeader(config),
+      'User-Agent': WEBDAV_USER_AGENT
     };
     if (req.headers.depth) headers.Depth = req.headers.depth;
     if (req.headers['content-type']) headers['Content-Type'] = req.headers['content-type'];
@@ -444,7 +196,7 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
       const upstream = await fetch(target.toString(), {
         method: 'GET',
         redirect: 'follow',
-        headers: { 'User-Agent': WEBDAV_UA, Accept: 'image/*,*/*;q=0.8' },
+        headers: { 'User-Agent': WEBDAV_USER_AGENT, Accept: 'image/*,*/*;q=0.8' },
         dispatcher: safeFetchAgent
       });
 

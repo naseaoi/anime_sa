@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { PublicData } from '../../../types';
+import { StorageMode } from '../../../domain/storage';
 import {
   runCoverGarbageCollectionBatch,
   sqliteAdapter,
@@ -16,7 +17,6 @@ import {
 } from '../../../services/coverAssetService';
 
 export type SyncDirection = 'to_sqlite' | 'to_webdav';
-export type StorageMode = 'webdav' | 'sqlite';
 
 export interface GcProgress {
   target: StorageMode;

@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useCallback, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { DEFAULT_PUBLIC_DATA } from './services/webdavService';
+import { DEFAULT_PUBLIC_DATA } from './domain/publicData';
 import { getStorageAsync, checkServerSession } from './services/storageFactory';
 import { PublicData } from './types';
 import { ToastProvider, ThemeProvider } from './components/Common';

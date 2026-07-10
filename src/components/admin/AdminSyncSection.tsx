@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ChevronRight, CloudUpload, Database, Loader2, RefreshCw, WandSparkles } from 'lucide-react';
 import { AuditLogEntry } from '../../types';
+import { StorageMode } from '../../domain/storage';
 import { getAuditLogs, getStorage, logoutServerSession, setServerStorageMode, sqliteAdapter, webdavAdapter } from '../../services/storageFactory';
 import { Button, ConfirmModal, useToast } from '../Common';
 import { AdminBadge, AdminPanel } from './ui';
-import { SyncDirection, SyncOperations, StorageMode } from './hooks/useSyncOperations';
+import { SyncDirection, SyncOperations } from './hooks/useSyncOperations';
 
 interface AdminSyncSectionProps {
   syncOps: SyncOperations;

@@ -1,31 +1,16 @@
 import { PublicData, PrivateData } from '../types';
+import {
+  applyDerivedPublicDataVersion,
+  DEFAULT_PRIVATE_DATA,
+  DEFAULT_PUBLIC_DATA
+} from '../domain/publicData';
 import type { SavePublicDataOptions, StorageWriteResult } from './storageAdapter';
 
 const PROXY_URL = '/api/webdav';
 
-export const DEFAULT_PUBLIC_DATA: PublicData = {
-  version: 0,
-  settings: {
-    title: "我的收藏",
-    iconUrl: "https://lucide.dev/favicon.ico",
-    themeColor: "#c78c2b",
-    footerText: "All rights reserved",
-    footerLeft: "© 2026",
-    footerRight: "All rights reserved"
-  },
-  tags: [
-    { id: '1', name: '番剧', icon: 'tv' },
-    { id: '2', name: '游戏', icon: 'gamepad' }
-  ],
-  cards: []
-};
+export { DEFAULT_PRIVATE_DATA, DEFAULT_PUBLIC_DATA } from '../domain/publicData';
 
-export const DEFAULT_PRIVATE_DATA: PrivateData = {
-  username: '',
-  password: ''
-};
-
-// Helper to clean up error messages which may contain HTML/XML
+// WebDAV 错误文本
 const cleanErrorText = (text: string): string => {
   if (!text) return '';
 
@@ -45,14 +30,14 @@ const fetchProxy = async (filename: string, options: RequestInit = {}) => {
   const url = `${PROXY_URL}?filename=${encodeURIComponent(filename)}`;
   const realMethod = options.method || 'GET';
   
-  // Method Tunneling: Use POST to bypass strict WAF rules for DAV methods
+  // WebDAV 方法隧道
   const davMethods = ['PROPFIND', 'MKCOL', 'PUT', 'DELETE'];
   const useTunnel = davMethods.includes(realMethod.toUpperCase());
   
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
     'Cache-Control': 'no-store',
-    'x-dav-method': realMethod // Pass the real intended method
+    'x-dav-method': realMethod
   };
 
   const newOptions: RequestInit = {
@@ -115,17 +100,9 @@ const ensureDirectory = async () => {
 };
 
 const applyPublicDataVersion = <T>(data: T, response: Response): T => {
-  if (!data || typeof data !== 'object') return data;
-  const value = data as T & { updatedAt?: number; cards?: Array<{ updatedAt?: number }> };
-  if (!value.updatedAt) {
-    const lastModified = response.headers.get('last-modified');
-    if (lastModified) value.updatedAt = new Date(lastModified).getTime();
-  }
-  if (!value.updatedAt && Array.isArray(value.cards)) {
-    const maxTime = value.cards.reduce((max, card) => Math.max(max, card.updatedAt || 0), 0);
-    if (maxTime > 0) value.updatedAt = maxTime;
-  }
-  return data;
+  const lastModified = response.headers.get('last-modified');
+  const fallbackUpdatedAt = lastModified ? new Date(lastModified).getTime() : 0;
+  return applyDerivedPublicDataVersion(data, fallbackUpdatedAt);
 };
 
 const fetchJson = async <T>(filename: string, defaultValue: T): Promise<T> => {

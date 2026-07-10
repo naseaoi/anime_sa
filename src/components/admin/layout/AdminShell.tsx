@@ -1,4 +1,5 @@
 import React from 'react';
+import { StorageMode } from '../../../domain/storage';
 import { ADMIN_NAV_ITEMS } from './adminNavigation';
 import { AdminTopbar } from './AdminTopbar';
 import { AdminUnsavedBanner } from './AdminUnsavedBanner';
@@ -6,7 +7,7 @@ import { AdminUnsavedBanner } from './AdminUnsavedBanner';
 interface AdminShellProps {
   hasChanges: boolean;
   syncing: boolean;
-  storageType: 'sqlite' | 'webdav';
+  storageType: StorageMode;
   onSave: () => void;
   onLogout: () => void;
   children: React.ReactNode;

@@ -18,7 +18,7 @@ export const timingSafeEqualText = (a, b) => {
   return crypto.timingSafeEqual(aBuf, bBuf);
 };
 
-// scrypt 异步化：避免在登录/写凭据时阻塞 event loop（默认 N=16384 单次约 50ms）
+// scrypt 异步执行
 export const hashPassword = async (password) => {
   const N = 16384;
   const r = 8;
@@ -73,12 +73,10 @@ export const normalizeWebDavFilename = (filename) => {
   return `covers/${mediaName}`;
 };
 
-// 账号合法字符集：3–64 位字母/数字/下划线/横线
-// 同时被 normalizePrivateDataPayload 与 buildAdminCredentialsForSave 用于阻断畸形 username
 export const USERNAME_PATTERN = /^[a-zA-Z0-9_-]{3,64}$/;
 export const PASSWORD_MIN_LEN = 6;
 export const PASSWORD_MAX_LEN = 256;
-const PASSWORD_HASH_MAX_LEN = 1024; // scrypt 编码串约 200 字符，留余量防滥用大字符串
+const PASSWORD_HASH_MAX_LEN = 1024;
 
 export const isValidUsername = (value) => USERNAME_PATTERN.test(String(value || ''));
 
@@ -92,8 +90,6 @@ export const normalizePrivateDataPayload = (payload) => {
   if (!passwordHash) return null;
   if (passwordHash.length > PASSWORD_HASH_MAX_LEN) return null;
 
-  // 安全策略：API 入口禁止明文 password 落盘。客户端只能传 passwordHash；
-  // 设置/修改密码只走 /admin-credentials（newPassword）专用路径，由服务端立刻 hash 后保存。
   if (payload.password !== undefined && payload.password !== null && payload.password !== '') {
     return null;
   }

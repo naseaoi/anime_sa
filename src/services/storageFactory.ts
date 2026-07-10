@@ -1,32 +1,17 @@
 
 import { AdminCredentialsUpdate, AdminProfile, AuditLogEntry, PublicData, PrivateData } from '../types';
-import { DEFAULT_PUBLIC_DATA, DEFAULT_PRIVATE_DATA, webdav as rawWebDav } from './webdavService';
+import { applyDerivedPublicDataVersion, DEFAULT_PRIVATE_DATA, DEFAULT_PUBLIC_DATA } from '../domain/publicData';
+import { isStorageMode, StorageMode } from '../domain/storage';
+import { readApiError, requestWithSession } from './apiClient';
+import { webdav as rawWebDav } from './webdavService';
 import { SavePublicDataOptions, StorageAdapter } from './storageAdapter';
 
 const SQLITE_API_URL = '/api/sqlite';
 
-const authFetch = (path: string, options: RequestInit = {}) => {
-  return fetch(path, {
-    credentials: 'include',
-    ...options
-  });
-};
-
-const readErrorMessage = async (response: Response, fallback: string) => {
-  const text = await response.text().catch(() => '');
-  if (!text) return fallback;
-  try {
-    const payload = JSON.parse(text);
-    return payload?.error || fallback;
-  } catch {
-    return text;
-  }
-};
-
 const sessionAuth = {
   login: async (username: string, password: string, remember = false) => {
     try {
-      const res = await authFetch('/api/sqlite/login', {
+      const res = await requestWithSession('/api/sqlite/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password, remember })
@@ -42,12 +27,12 @@ const sessionAuth = {
   },
   logout: async () => {
     try {
-      await authFetch('/api/sqlite/logout', { method: 'POST' });
+      await requestWithSession('/api/sqlite/logout', { method: 'POST' });
     } catch (e) {}
   },
   check: async () => {
     try {
-      const res = await authFetch('/api/sqlite/session');
+      const res = await requestWithSession('/api/sqlite/session');
       if (!res.ok) return false;
       const data = await res.json();
       return !!data?.authenticated;
@@ -59,7 +44,7 @@ const sessionAuth = {
 
 const adminAuth = {
   getProfile: async (): Promise<AdminProfile> => {
-    const res = await authFetch('/api/sqlite/admin-profile');
+    const res = await requestWithSession('/api/sqlite/admin-profile');
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       throw new Error(data?.error || '获取管理员信息失败');
@@ -69,7 +54,7 @@ const adminAuth = {
   },
   updateCredentials: async (payload: AdminCredentialsUpdate) => {
     try {
-      const res = await authFetch('/api/sqlite/admin-credentials', {
+      const res = await requestWithSession('/api/sqlite/admin-credentials', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -99,17 +84,13 @@ export const sqliteAdapter: StorageAdapter = {
   getAdminProfile: adminAuth.getProfile,
   updateAdminCredentials: adminAuth.updateCredentials,
   getPublicData: async () => {
-    const res = await authFetch(`${SQLITE_API_URL}?key=public_data`);
+    const res = await requestWithSession(`${SQLITE_API_URL}?key=public_data`);
     if (!res.ok) {
       const message = await res.text().catch(() => '');
       throw new Error(message || `SQLite 读取失败 (${res.status})`);
     }
     const data = await res.json();
-    if (data && typeof data === 'object' && !data.updatedAt && Array.isArray(data.cards)) {
-      const maxTime = data.cards.reduce((max: number, card: { updatedAt?: number }) => Math.max(max, card.updatedAt || 0), 0);
-      if (maxTime > 0) data.updatedAt = maxTime;
-    }
-    return data || DEFAULT_PUBLIC_DATA;
+    return data ? applyDerivedPublicDataVersion(data) : DEFAULT_PUBLIC_DATA;
   },
   savePublicData: async (data: PublicData, options: SavePublicDataOptions = {}) => {
     try {
@@ -117,7 +98,7 @@ export const sqliteAdapter: StorageAdapter = {
       if (options.expectedUpdatedAt !== undefined) {
         headers['X-Expected-Updated-At'] = String(options.expectedUpdatedAt);
       }
-      const res = await authFetch(`${SQLITE_API_URL}?key=public_data`, {
+      const res = await requestWithSession(`${SQLITE_API_URL}?key=public_data`, {
         method: 'POST',
         headers,
         body: JSON.stringify(data)
@@ -126,7 +107,7 @@ export const sqliteAdapter: StorageAdapter = {
         return {
           success: false,
           conflict: res.status === 409,
-          error: await readErrorMessage(res, `SQLite 保存失败 (${res.status})`)
+          error: await readApiError(res, `SQLite 保存失败 (${res.status})`)
         };
       }
       return { success: true };
@@ -135,7 +116,7 @@ export const sqliteAdapter: StorageAdapter = {
     }
   },
   getPrivateData: async () => {
-    const res = await authFetch(`${SQLITE_API_URL}?key=private_data`);
+    const res = await requestWithSession(`${SQLITE_API_URL}?key=private_data`);
     if (!res.ok) {
       const message = await res.text().catch(() => '');
       throw new Error(message || `SQLite 私有数据读取失败 (${res.status})`);
@@ -145,7 +126,7 @@ export const sqliteAdapter: StorageAdapter = {
   },
   savePrivateData: async (data: PrivateData) => {
     try {
-      const res = await authFetch(`${SQLITE_API_URL}?key=private_data`, {
+      const res = await requestWithSession(`${SQLITE_API_URL}?key=private_data`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -158,7 +139,7 @@ export const sqliteAdapter: StorageAdapter = {
   },
   testConnection: async () => {
      try {
-       const res = await authFetch(`${SQLITE_API_URL}?key=ping`);
+      const res = await requestWithSession(`${SQLITE_API_URL}?key=ping`);
        if (res.ok || res.status === 404) return { success: true, message: "SQLite 本地数据库连接正常" };
        return { success: false, message: "SQLite 服务无响应" };
      } catch(e: any) {
@@ -167,19 +148,24 @@ export const sqliteAdapter: StorageAdapter = {
   }
 };
 
-// 存储适配器状态
-let cachedServerMode: 'sqlite' | 'webdav' | null = null;
+const storageAdapters: Record<StorageMode, StorageAdapter> = {
+  sqlite: sqliteAdapter,
+  webdav: webdavAdapter
+};
 
-// 异步获取服务端配置的存储模式
-export const fetchServerStorageMode = async (): Promise<'sqlite' | 'webdav'> => {
+export const getStorageAdapter = (mode: StorageMode): StorageAdapter => storageAdapters[mode];
+
+let cachedServerMode: StorageMode | null = null;
+
+export const fetchServerStorageMode = async (): Promise<StorageMode> => {
   if (cachedServerMode) return cachedServerMode;
 
-  const res = await fetch(`${SQLITE_API_URL}?key=storage_mode`);
+  const res = await requestWithSession(`${SQLITE_API_URL}?key=storage_mode`);
   if (!res.ok) {
-    throw new Error(await readErrorMessage(res, `存储模式读取失败 (${res.status})`));
+    throw new Error(await readApiError(res, `存储模式读取失败 (${res.status})`));
   }
   const data = await res.json();
-  if (data?.mode === 'webdav' || data?.mode === 'sqlite') {
+  if (isStorageMode(data?.mode)) {
     cachedServerMode = data.mode;
     return data.mode;
   }
@@ -189,10 +175,9 @@ export const fetchServerStorageMode = async (): Promise<'sqlite' | 'webdav'> => 
   return 'sqlite';
 };
 
-// 管理员切换模式时调用，同步写入服务端
-export const setServerStorageMode = async (mode: 'sqlite' | 'webdav'): Promise<boolean> => {
+export const setServerStorageMode = async (mode: StorageMode): Promise<boolean> => {
   try {
-    const res = await fetch(`${SQLITE_API_URL}?key=storage_mode`, {
+    const res = await requestWithSession(`${SQLITE_API_URL}?key=storage_mode`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode })
@@ -208,36 +193,30 @@ export const setServerStorageMode = async (mode: 'sqlite' | 'webdav'): Promise<b
   return false;
 };
 
-// 同步版本 - 使用缓存或 localStorage
 export const getStorage = (): StorageAdapter => {
-  // 优先使用已缓存的服务端模式
   if (cachedServerMode) {
-    return cachedServerMode === 'webdav' ? webdavAdapter : sqliteAdapter;
+    return getStorageAdapter(cachedServerMode);
   }
-  
-  // 回退到 localStorage
-  const manualOverride = localStorage.getItem('tat_storage_mode');
-  if (manualOverride === 'sqlite') return sqliteAdapter;
-  if (manualOverride === 'webdav') return webdavAdapter;
 
-  // 默认 SQLite
+  const manualOverride = localStorage.getItem('tat_storage_mode');
+  if (isStorageMode(manualOverride)) return getStorageAdapter(manualOverride);
+
   return sqliteAdapter;
 };
 
-// 异步存储适配器
 export const getStorageAsync = async (): Promise<StorageAdapter> => {
   const mode = await fetchServerStorageMode();
-  return mode === 'webdav' ? webdavAdapter : sqliteAdapter;
+  return getStorageAdapter(mode);
 };
 
-export const syncAdminCredentialsToTarget = async (target: 'sqlite' | 'webdav', payload: PrivateData) => {
+export const syncAdminCredentialsToTarget = async (target: StorageMode, payload: PrivateData) => {
   const safePayload: PrivateData = {
     username: payload.username,
     passwordHash: payload.passwordHash,
     passwordUpdatedAt: payload.passwordUpdatedAt
   };
   try {
-    const res = await authFetch(`/api/sqlite/admin-credentials-sync?target=${target}`, {
+    const res = await requestWithSession(`/api/sqlite/admin-credentials-sync?target=${target}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(safePayload)
@@ -252,13 +231,13 @@ export const syncAdminCredentialsToTarget = async (target: 'sqlite' | 'webdav', 
   }
 };
 
-export const runCoverGarbageCollection = async (target: 'sqlite' | 'webdav') => {
+export const runCoverGarbageCollection = async (target: StorageMode) => {
   return runCoverGarbageCollectionBatch(target, 100);
 };
 
-export const runCoverGarbageCollectionBatch = async (target: 'sqlite' | 'webdav', limit = 100) => {
+export const runCoverGarbageCollectionBatch = async (target: StorageMode, limit = 100) => {
   try {
-    const res = await authFetch(`/api/sqlite/media-gc?target=${target}&limit=${encodeURIComponent(String(limit))}`, {
+    const res = await requestWithSession(`/api/sqlite/media-gc?target=${target}&limit=${encodeURIComponent(String(limit))}`, {
       method: 'POST'
     });
     const data = await res.json().catch(() => ({}));
@@ -279,7 +258,7 @@ export const runCoverGarbageCollectionBatch = async (target: 'sqlite' | 'webdav'
 
 export const getAuditLogs = async (limit = 50) => {
   try {
-    const res = await authFetch(`/api/sqlite/audit-logs?limit=${encodeURIComponent(String(limit))}`);
+    const res = await requestWithSession(`/api/sqlite/audit-logs?limit=${encodeURIComponent(String(limit))}`);
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !Array.isArray(data?.items)) {
       return { success: false as const, error: data?.error || '读取日志失败' };
@@ -292,7 +271,7 @@ export const getAuditLogs = async (limit = 50) => {
 
 export const writeAuditLog = async (payload: Pick<AuditLogEntry, 'action' | 'status'> & Partial<Pick<AuditLogEntry, 'details' | 'message'>>) => {
   try {
-    const res = await authFetch('/api/sqlite/audit-logs', {
+    const res = await requestWithSession('/api/sqlite/audit-logs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)

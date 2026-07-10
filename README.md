@@ -108,11 +108,12 @@ Vercel 不在支持范围内。`api/` 下的函数统一返回 410，不会连�
 
 ```
 src/
+├── domain/            领域类型、默认数据与存储模式
 ├── components/        界面组件（前台 + 后台）
-├── services/          存储适配与 API 封装
+├── services/          API 客户端、存储适配与封面服务
 └── utils/             工具函数
 server.js              生产服务器（HTTP、静态文件，API 委托 server/core）
-server/core/          API 编排、存储、Session、审计、同源与远程地址安全模块
+server/core/           API 编排、存储、Session、WebDAV、审计与安全模块
 server/sharedSecurity.js 密码哈希、输入校验等共享模块
 api/                   Vercel API 兼容入口（统一返回 410）
 vite.config.ts         Vite 配置 + 开发态 API 中间件
@@ -120,7 +121,7 @@ server/publicDataValidation.js 公共数据校验
 data/local.db          SQLite 数据文件（运行时自动创建）
 docs/MAINTENANCE.md    维护与运维手册
 docs/BACKUP_AND_RECOVERY.md 备份与恢复手册
-docs/PROJECT_REVIEW.md 工程质量与安全基线
+docs/ARCHITECTURE.md   架构、依赖方向与扩展边界
 ```
 
 ## 技术栈
@@ -136,7 +137,7 @@ docs/PROJECT_REVIEW.md 工程质量与安全基线
 
 - 维护与运维手册：[docs/MAINTENANCE.md](docs/MAINTENANCE.md)
 - 备份与恢复手册：[docs/BACKUP_AND_RECOVERY.md](docs/BACKUP_AND_RECOVERY.md)
-- 工程质量与安全基线：[docs/PROJECT_REVIEW.md](docs/PROJECT_REVIEW.md)
+- 架构说明：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ## License
 

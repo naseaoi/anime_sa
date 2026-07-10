@@ -63,27 +63,11 @@ git push origin vX.Y.Z
 
 ## 编写 Release 说明
 
-Release 说明必须基于 `$PreviousTag..HEAD` 的提交和 diff 摘要整理。
+Release 说明基于 `$PreviousTag..HEAD` 的提交和 diff 摘要。
 
 ```powershell
 git log --reverse --no-merges --pretty=format:"%h %s" "$PreviousTag..HEAD"
 git diff --stat "$PreviousTag..HEAD"
-```
-
-说明格式：
-
-```markdown
-## 更新内容
-
-- ...
-
-## 验证
-
-- `npm run lint`
-- `npm run audit:prod`
-- `npm run audit:all`
-- `npm test`
-- `npm run build`
 ```
 
 写入临时文件：
