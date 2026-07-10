@@ -6,6 +6,7 @@ import { getStorageAsync, checkServerSession } from './services/storageFactory';
 import { PublicData } from './types';
 import { ToastProvider, ThemeProvider } from './components/Common';
 import { applyThemeColor } from './utils/themeColor';
+import { applyPageMetadata } from './utils/seo';
 import { PublicHome } from './components/PublicHome';
 import { PublicHomeSkeleton } from './components/public/PublicSkeletons';
 
@@ -40,7 +41,7 @@ const MainRouter: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showLoadingUnderlay, setShowLoadingUnderlay] = useState(false);
   
-  // 初始化时尝试从缓存读取设置，避免 React 水合时的闪烁
+  // 本地站点设置
   const [data, setData] = useState<PublicData>(() => {
     try {
       const cached = localStorage.getItem('tat_site_settings');
@@ -55,7 +56,6 @@ const MainRouter: React.FC = () => {
     setLoading(true);
     setShowLoadingUnderlay(false);
     try {
-      // 异步获取服务端配置的存储模式，确保访客读取正确的数据源
       const storage = await getStorageAsync();
       const result = await storage.getPublicData();
       setData(result);
@@ -65,8 +65,7 @@ const MainRouter: React.FC = () => {
 
       applyThemeColor(result.settings.themeColor);
 
-      // 更新当前页面标题
-      if (result.settings.title) document.title = result.settings.title;
+      if (result.settings.title) applyPageMetadata(result.settings.title);
       if (result.settings.iconUrl) {
         const favicon = document.getElementById('favicon') as HTMLLinkElement;
         if (favicon) favicon.href = result.settings.iconUrl;

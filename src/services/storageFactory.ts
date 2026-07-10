@@ -1,7 +1,7 @@
 
 import { AdminCredentialsUpdate, AdminProfile, AuditLogEntry, PublicData, PrivateData } from '../types';
 import { DEFAULT_PUBLIC_DATA, DEFAULT_PRIVATE_DATA, webdav as rawWebDav } from './webdavService';
-import { StorageAdapter } from './storageAdapter';
+import { SavePublicDataOptions, StorageAdapter } from './storageAdapter';
 
 const SQLITE_API_URL = '/api/sqlite';
 
@@ -10,6 +10,17 @@ const authFetch = (path: string, options: RequestInit = {}) => {
     credentials: 'include',
     ...options
   });
+};
+
+const readErrorMessage = async (response: Response, fallback: string) => {
+  const text = await response.text().catch(() => '');
+  if (!text) return fallback;
+  try {
+    const payload = JSON.parse(text);
+    return payload?.error || fallback;
+  } catch {
+    return text;
+  }
 };
 
 const sessionAuth = {
@@ -88,44 +99,49 @@ export const sqliteAdapter: StorageAdapter = {
   getAdminProfile: adminAuth.getProfile,
   updateAdminCredentials: adminAuth.updateCredentials,
   getPublicData: async () => {
-    try {
-      const res = await authFetch(`${SQLITE_API_URL}?key=public_data`);
-      if (!res.ok) throw new Error('Failed to fetch');
-      const data = await res.json();
-      if (data && typeof data === 'object' && !data.updatedAt && Array.isArray(data.cards)) {
-        const maxTime = data.cards.reduce((max: number, c: any) => Math.max(max, c.updatedAt || 0), 0);
-        if (maxTime > 0) data.updatedAt = maxTime;
-      }
-      return data || DEFAULT_PUBLIC_DATA;
-    } catch (e) {
-      console.error('SQLite getPublicData error:', e);
-      return DEFAULT_PUBLIC_DATA;
+    const res = await authFetch(`${SQLITE_API_URL}?key=public_data`);
+    if (!res.ok) {
+      const message = await res.text().catch(() => '');
+      throw new Error(message || `SQLite 读取失败 (${res.status})`);
     }
+    const data = await res.json();
+    if (data && typeof data === 'object' && !data.updatedAt && Array.isArray(data.cards)) {
+      const maxTime = data.cards.reduce((max: number, card: { updatedAt?: number }) => Math.max(max, card.updatedAt || 0), 0);
+      if (maxTime > 0) data.updatedAt = maxTime;
+    }
+    return data || DEFAULT_PUBLIC_DATA;
   },
-  savePublicData: async (data: PublicData) => {
+  savePublicData: async (data: PublicData, options: SavePublicDataOptions = {}) => {
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (options.expectedUpdatedAt !== undefined) {
+        headers['X-Expected-Updated-At'] = String(options.expectedUpdatedAt);
+      }
       const res = await authFetch(`${SQLITE_API_URL}?key=public_data`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(data)
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        return {
+          success: false,
+          conflict: res.status === 409,
+          error: await readErrorMessage(res, `SQLite 保存失败 (${res.status})`)
+        };
+      }
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e.message };
     }
   },
   getPrivateData: async () => {
-    try {
-      const res = await authFetch(`${SQLITE_API_URL}?key=private_data`);
-      if (res.status === 401) throw new Error('Unauthorized');
-      if (!res.ok) throw new Error('Failed to fetch');
-      const data = await res.json();
-      return data || DEFAULT_PRIVATE_DATA;
-    } catch (e) {
-      console.error('SQLite getPrivateData error:', e);
-      return DEFAULT_PRIVATE_DATA;
+    const res = await authFetch(`${SQLITE_API_URL}?key=private_data`);
+    if (!res.ok) {
+      const message = await res.text().catch(() => '');
+      throw new Error(message || `SQLite 私有数据读取失败 (${res.status})`);
     }
+    const data = await res.json();
+    return data || DEFAULT_PRIVATE_DATA;
   },
   savePrivateData: async (data: PrivateData) => {
     try {
@@ -151,30 +167,24 @@ export const sqliteAdapter: StorageAdapter = {
   }
 };
 
-// Factory or Current Instance
-// You can switch this based on env vars or local storage settings
-
-// 缓存服务端模式，避免重复请求
+// 存储适配器状态
 let cachedServerMode: 'sqlite' | 'webdav' | null = null;
 
 // 异步获取服务端配置的存储模式
 export const fetchServerStorageMode = async (): Promise<'sqlite' | 'webdav'> => {
   if (cachedServerMode) return cachedServerMode;
-  
-  try {
-    const res = await fetch(`${SQLITE_API_URL}?key=storage_mode`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.mode === 'webdav' || data?.mode === 'sqlite') {
-        cachedServerMode = data.mode;
-        return data.mode;
-      }
-    }
-  } catch (e) {
-    console.error('Failed to fetch storage mode:', e);
+
+  const res = await fetch(`${SQLITE_API_URL}?key=storage_mode`);
+  if (!res.ok) {
+    throw new Error(await readErrorMessage(res, `存储模式读取失败 (${res.status})`));
   }
-  
-  // 默认 SQLite
+  const data = await res.json();
+  if (data?.mode === 'webdav' || data?.mode === 'sqlite') {
+    cachedServerMode = data.mode;
+    return data.mode;
+  }
+  if (data !== null) throw new Error('存储模式数据无效');
+
   cachedServerMode = 'sqlite';
   return 'sqlite';
 };
@@ -214,14 +224,13 @@ export const getStorage = (): StorageAdapter => {
   return sqliteAdapter;
 };
 
-// 异步版本 - 确保从服务端获取最新模式
+// 异步存储适配器
 export const getStorageAsync = async (): Promise<StorageAdapter> => {
   const mode = await fetchServerStorageMode();
   return mode === 'webdav' ? webdavAdapter : sqliteAdapter;
 };
 
 export const syncAdminCredentialsToTarget = async (target: 'sqlite' | 'webdav', payload: PrivateData) => {
-  // 客户端 sanitize：永远不向后端传明文 password；服务端也会拒绝，但前端先剔除可避免 400
   const safePayload: PrivateData = {
     username: payload.username,
     passwordHash: payload.passwordHash,

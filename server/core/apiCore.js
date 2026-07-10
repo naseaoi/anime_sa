@@ -1,235 +1,53 @@
-import fs from 'fs';
-import path from 'path';
-import net from 'net';
-import dns from 'node:dns';
-import crypto from 'crypto';
-import { Agent as UndiciAgent } from 'undici';
-import Database from 'better-sqlite3';
+import { getPublicDataUpdatedAt, normalizePublicDataPayload } from '../publicDataValidation.js';
+import { BODY_LIMIT_BYTES, MEDIA_BODY_LIMIT_BYTES, SESSION_COOKIE } from './constants.js';
+import { appendAuditLog, cleanAuditText } from './auditStore.js';
+import { dbDelete, dbGetJson, dbSetJson, ensureDb, getStorageMode } from './kvStore.js';
+import { getClientIp, jsonResponse, parseCookies, readBody } from './httpUtils.js';
+import { isBlockedRemoteHost, safeFetchAgent } from './remoteSecurity.js';
+import { enforceSameOrigin } from './requestOrigin.js';
+import {
+  buildCookie,
+  clearAllSessions,
+  clearCookie,
+  createSession,
+  destroySession,
+  requireAuth,
+  verifySession
+} from './sessionStore.js';
 import {
   timingSafeEqualText,
   hashPassword,
   verifyPasswordHash,
   normalizeMediaName,
+  normalizeWebDavFilename,
   normalizePrivateDataPayload,
   isValidUsername,
   PASSWORD_MIN_LEN,
   PASSWORD_MAX_LEN
 } from '../sharedSecurity.js';
 
-// 运行时常量
-export const SESSION_COOKIE = 'tat_session';
-export const BODY_LIMIT_BYTES = 1024 * 1024;
-export const MEDIA_BODY_LIMIT_BYTES = 10 * 1024 * 1024;
-
-// 数据库单例：生产/开发共享同一份实现
-let dbInstance = null;
-let maintenanceStarted = false;
-
-// 周期清理过期 session：原本只在 verifySession 命中过期项时才删，
-// 长期不被访问的过期 session 会在 kv_store 里堆积。每小时跑一次足够。
-const cleanupExpiredSessions = (db) => {
-  const rows = db.prepare("SELECT key, value FROM kv_store WHERE key LIKE 'session:%'").all();
-  if (rows.length === 0) return 0;
-
-  const now = Date.now();
-  const expiredKeys = [];
-  for (const row of rows) {
-    let data = null;
-    try { data = JSON.parse(row.value); } catch { /* 损坏行直接清掉 */ }
-    if (!data || typeof data.expiresAt !== 'number' || data.expiresAt <= now) {
-      expiredKeys.push(row.key);
-    }
-  }
-  if (expiredKeys.length === 0) return 0;
-
-  const stmt = db.prepare('DELETE FROM kv_store WHERE key = ?');
-  const tx = db.transaction((keys) => {
-    for (const k of keys) stmt.run(k);
-  });
-  tx(expiredKeys);
-  return expiredKeys.length;
-};
-
-const startMaintenance = (db) => {
-  try { cleanupExpiredSessions(db); } catch { /* ignore */ }
-  // unref 避免阻止进程退出
-  setInterval(() => {
-    try { cleanupExpiredSessions(db); } catch { /* ignore */ }
-  }, 60 * 60 * 1000).unref();
-};
-
-export const ensureDb = () => {
-  if (dbInstance) return dbInstance;
-  const dataDir = path.join(process.cwd(), 'data');
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-  dbInstance = new Database(path.join(dataDir, 'local.db'));
-  dbInstance.exec(`
-    CREATE TABLE IF NOT EXISTS kv_store (
-      key TEXT PRIMARY KEY,
-      value TEXT
-    )
-  `);
-  if (!maintenanceStarted) {
-    maintenanceStarted = true;
-    startMaintenance(dbInstance);
-  }
-  return dbInstance;
-};
-
-// ===== 响应与请求工具 =====
-
-export const jsonResponse = (res, status, payload) => {
-  res.statusCode = status;
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('Pragma', 'no-cache');
-  res.end(JSON.stringify(payload));
-};
-
-export const readBody = async (req, limit = BODY_LIMIT_BYTES) => {
-  const chunks = [];
-  let received = 0;
-  for await (const chunk of req) {
-    const buf = Buffer.from(chunk);
-    received += buf.length;
-    if (received > limit) {
-      const err = new Error('Payload too large');
-      err.code = 'PAYLOAD_TOO_LARGE';
-      throw err;
-    }
-    chunks.push(buf);
-  }
-  return chunks.length > 0 ? Buffer.concat(chunks) : Buffer.alloc(0);
-};
-
-export const parseCookies = (cookieHeader = '') => {
-  return cookieHeader.split(';').reduce((acc, item) => {
-    const idx = item.indexOf('=');
-    if (idx === -1) return acc;
-    const key = item.slice(0, idx).trim();
-    const value = decodeURIComponent(item.slice(idx + 1).trim());
-    if (key) acc[key] = value;
-    return acc;
-  }, {});
-};
-
-export const getClientIp = (req) => {
-  const xff = req.headers['x-forwarded-for'];
-  if (typeof xff === 'string' && xff.length > 0) {
-    return xff.split(',')[0].trim();
-  }
-  if (Array.isArray(xff) && xff.length > 0) {
-    return String(xff[0]).split(',')[0].trim();
-  }
-  return req.socket?.remoteAddress || 'unknown';
-};
-
-// ===== KV 存储 =====
-
-export const dbGetJson = (db, key) => {
-  const row = db.prepare('SELECT value FROM kv_store WHERE key = ?').get(key);
-  if (!row) return null;
-  try {
-    return JSON.parse(row.value);
-  } catch {
-    return null;
-  }
-};
-
-export const dbSetJson = (db, key, value) => {
-  db.prepare('INSERT OR REPLACE INTO kv_store (key, value) VALUES (?, ?)').run(key, JSON.stringify(value));
-};
-
-export const dbDelete = (db, key) => {
-  db.prepare('DELETE FROM kv_store WHERE key = ?').run(key);
-};
-
-// 日志：保留最近 200 条
-export const appendAuditLog = (db, entry) => {
-  const current = dbGetJson(db, 'audit_logs');
-  const list = Array.isArray(current) ? current : [];
-  list.unshift({
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    ts: Date.now(),
-    action: String(entry.action || 'unknown'),
-    status: entry.status === 'failed' ? 'failed' : 'success',
-    details: entry.details ? String(entry.details) : '',
-    message: entry.message ? String(entry.message) : ''
-  });
-  dbSetJson(db, 'audit_logs', list.slice(0, 200));
-};
-
-const cleanAuditText = (value, maxLength) => {
-  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, maxLength);
-};
-
-export const getStorageMode = (db) => {
-  const modeData = dbGetJson(db, 'storage_mode');
-  if (modeData?.mode === 'webdav' || modeData?.mode === 'sqlite') {
-    return modeData.mode;
-  }
-  return 'sqlite';
-};
-
-// ===== Session =====
-
-// 生产环境追加 Secure；开发态不需要
-// SameSite=Strict：本应用是单源站点（前后端同域），无跨站登录场景，Strict 可彻底阻断 CSRF
-const buildCookieString = (kv, isProduction) => {
-  const parts = [kv, 'Path=/', 'HttpOnly', 'SameSite=Strict'];
-  if (isProduction) parts.push('Secure');
-  return parts;
-};
-
-export const buildCookie = (token, maxAgeSec, isProduction = false) => {
-  const parts = buildCookieString(`${SESSION_COOKIE}=${encodeURIComponent(token)}`, isProduction);
-  parts.push(`Max-Age=${maxAgeSec}`);
-  return parts.join('; ');
-};
-
-export const clearCookie = (isProduction = false) => {
-  const parts = buildCookieString(`${SESSION_COOKIE}=`, isProduction);
-  parts.push('Max-Age=0');
-  return parts.join('; ');
-};
-
-export const createSession = (db, remember) => {
-  const token = crypto.randomBytes(32).toString('hex');
-  const now = Date.now();
-  const maxAgeSec = remember ? 30 * 24 * 60 * 60 : 24 * 60 * 60;
-  const expiresAt = now + maxAgeSec * 1000;
-  dbSetJson(db, `session:${token}`, { createdAt: now, expiresAt });
-  return { token, maxAgeSec, expiresAt };
-};
-
-export const verifySession = (db, token) => {
-  if (!token) return false;
-  const data = dbGetJson(db, `session:${token}`);
-  if (!data?.expiresAt || data.expiresAt <= Date.now()) {
-    dbDelete(db, `session:${token}`);
-    return false;
-  }
-  return true;
-};
-
-export const destroySession = (db, token) => {
-  if (!token) return;
-  dbDelete(db, `session:${token}`);
-};
-
-export const clearAllSessions = (db) => {
-  db.prepare("DELETE FROM kv_store WHERE key LIKE 'session:%'").run();
-};
-
-export const requireAuth = (req, res, db) => {
-  const cookies = parseCookies(req.headers.cookie || '');
-  if (!verifySession(db, cookies[SESSION_COOKIE])) {
-    jsonResponse(res, 401, { error: 'Unauthorized: Login required' });
-    return false;
-  }
-  return true;
+export {
+  BODY_LIMIT_BYTES,
+  MEDIA_BODY_LIMIT_BYTES,
+  SESSION_COOKIE,
+  appendAuditLog,
+  buildCookie,
+  clearAllSessions,
+  clearCookie,
+  createSession,
+  dbDelete,
+  dbGetJson,
+  dbSetJson,
+  destroySession,
+  ensureDb,
+  getClientIp,
+  getStorageMode,
+  isBlockedRemoteHost,
+  jsonResponse,
+  parseCookies,
+  readBody,
+  requireAuth,
+  verifySession
 };
 
 // ===== WebDAV =====
@@ -248,7 +66,14 @@ export const getWebDavConfig = (env) => {
 export const buildWebDavUrl = (env, filename = '') => {
   const config = getWebDavConfig(env);
   if (!config) return null;
-  return `${config.baseUrl}/${config.davPath}${filename ? `/${filename}` : '/'}`;
+  const normalizedFilename = normalizeWebDavFilename(filename);
+  if (normalizedFilename === null) throw new Error('Invalid WebDAV filename');
+  const encodedFilename = normalizedFilename
+    .split('/')
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+  return `${config.baseUrl}/${config.davPath}${encodedFilename ? `/${encodedFilename}` : '/'}`;
 };
 
 const webdavAuthHeader = (config) =>
@@ -265,7 +90,13 @@ export const fetchWebDavJson = async (env, filename) => {
   });
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`WebDAV request failed (${response.status})`);
-  return response.json();
+  const value = await response.json();
+  if (filename === 'public_data.json') {
+    const normalized = normalizePublicDataPayload(value);
+    if (!normalized) throw new Error('Stored WebDAV public_data is invalid');
+    return normalized;
+  }
+  return value;
 };
 
 export const saveWebDavJson = async (env, filename, payload) => {
@@ -503,112 +334,6 @@ export const buildPrivateDataForTarget = async (payload) => {
 
 // ===== SSRF 防护（/remote-image 用） =====
 
-const isPrivateIpv4 = (host) => {
-  const parts = host.split('.').map((p) => Number(p));
-  if (parts.length !== 4 || parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)) return false;
-  if (parts[0] === 10) return true;
-  if (parts[0] === 127) return true;
-  if (parts[0] === 169 && parts[1] === 254) return true;
-  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
-  if (parts[0] === 192 && parts[1] === 168) return true;
-  return false;
-};
-
-const isPrivateIpv6 = (host) => {
-  const v = host.toLowerCase();
-  if (v === '::1') return true;
-  if (v.startsWith('fe80:')) return true;
-  if (v.startsWith('fc') || v.startsWith('fd')) return true;
-  return false;
-};
-
-export const isBlockedRemoteHost = (hostname) => {
-  const v = String(hostname || '').trim().replace(/\.$/, '').toLowerCase();
-  if (!v) return true;
-  if (v === 'localhost' || v.endsWith('.localhost') || v.endsWith('.local')) return true;
-  const ipVersion = net.isIP(v);
-  if (ipVersion === 4) return isPrivateIpv4(v);
-  if (ipVersion === 6) return isPrivateIpv6(v);
-  return false;
-};
-
-// DNS-rebinding 防护：fetch 实际连接时再做一次 IP 段校验。
-// 字符串层 isBlockedRemoteHost 只能识别明显的内网 hostname/IP；攻击者可让 evil.com 第一次解析为公网 IP（绕过字符串检查），
-// 实际 socket 连接时再解析为 192.168.x.x。这里把 lookup 交给 undici Agent，所有解析结果都校验。
-const safeDnsLookup = (hostname, opts, cb) => {
-  const options = typeof opts === 'number' ? { family: opts } : (opts || {});
-  dns.lookup(hostname, {
-    all: true,
-    family: options.family || 0,
-    hints: options.hints,
-    verbatim: options.verbatim
-  }, (err, addresses) => {
-    if (err) return cb(err);
-    if (!addresses || addresses.length === 0) {
-      return cb(new Error('No DNS records'));
-    }
-    for (const a of addresses) {
-      if (isBlockedRemoteHost(a.address)) {
-        return cb(new Error(`Blocked private address: ${a.address}`));
-      }
-    }
-    if (options.all) {
-      return cb(null, addresses.map((item) => ({ address: item.address, family: item.family })));
-    }
-    const first = addresses[0];
-    cb(null, first.address, first.family);
-  });
-};
-
-const safeFetchAgent = new UndiciAgent({
-  connect: { lookup: safeDnsLookup }
-});
-
-// ===== CSRF：写接口必须同源 =====
-//
-// Cookie 已是 SameSite=Strict，但作为深度防御：所有写方法（含 WebDAV 隧道方法）都校验 Origin/Referer。
-// 浏览器同源 fetch 至少会带其中之一；都没有视为可疑。
-const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-const STATE_CHANGING_DAV_METHODS = new Set(['PUT', 'DELETE', 'MKCOL', 'PROPPATCH', 'MOVE', 'COPY', 'LOCK', 'UNLOCK', 'PROPFIND']);
-
-const isStateChangingRequest = (req) => {
-  const method = String(req.method || '').toUpperCase();
-  if (STATE_CHANGING_METHODS.has(method)) return true;
-  const tunneled = req.headers['x-dav-method'];
-  if (tunneled) {
-    const real = String(Array.isArray(tunneled) ? tunneled[0] : tunneled).toUpperCase();
-    if (STATE_CHANGING_DAV_METHODS.has(real)) return true;
-  }
-  return false;
-};
-
-const isSameOriginRequest = (req) => {
-  const host = String(req.headers.host || '');
-  if (!host) return false;
-  const allowed = new Set([`http://${host}`, `https://${host}`]);
-
-  const origin = String(req.headers.origin || '');
-  if (origin) return allowed.has(origin);
-
-  const referer = String(req.headers.referer || '');
-  if (referer) {
-    try {
-      const parsed = new URL(referer);
-      return allowed.has(`${parsed.protocol}//${parsed.host}`);
-    } catch {
-      return false;
-    }
-  }
-  return false;
-};
-
-const enforceSameOrigin = (req, res) => {
-  if (!isStateChangingRequest(req)) return true;
-  if (isSameOriginRequest(req)) return true;
-  jsonResponse(res, 403, { error: 'Cross-origin request not allowed' });
-  return false;
-};
-
 // ===== 主 handler：WebDAV 代理 =====
 
 export const handleWebDavApi = async (req, res, { env }) => {
@@ -616,7 +341,10 @@ export const handleWebDavApi = async (req, res, { env }) => {
   const db = ensureDb();
   try {
     const url = new URL(req.url || '', `http://${req.headers.host || 'local'}`);
-    const filename = (url.searchParams.get('filename') || '').trim();
+    const filename = normalizeWebDavFilename(url.searchParams.get('filename'));
+    if (filename === null) {
+      return jsonResponse(res, 400, { error: 'Invalid WebDAV filename' });
+    }
     const config = getWebDavConfig(env);
     if (!config) {
       return jsonResponse(res, 500, { error: 'Missing WebDAV configuration in environment variables' });
@@ -635,19 +363,50 @@ export const handleWebDavApi = async (req, res, { env }) => {
     };
     if (req.headers.depth) headers.Depth = req.headers.depth;
     if (req.headers['content-type']) headers['Content-Type'] = req.headers['content-type'];
+    if (req.headers['if-match']) headers['If-Match'] = req.headers['if-match'];
+    if (req.headers['if-none-match']) headers['If-None-Match'] = req.headers['if-none-match'];
 
     let body = null;
     if (method !== 'GET' && method !== 'HEAD') {
       const rawBody = await readBody(req, MEDIA_BODY_LIMIT_BYTES);
-      body = rawBody.length > 0 ? new Uint8Array(rawBody) : null;
+      if (method === 'PUT' && filename === 'public_data.json') {
+        let parsed;
+        try { parsed = JSON.parse(rawBody.toString() || '{}'); }
+        catch { return jsonResponse(res, 400, { error: 'Invalid JSON body' }); }
+        const normalized = normalizePublicDataPayload(parsed);
+        if (!normalized) return jsonResponse(res, 400, { error: 'Invalid public_data payload' });
+        body = new Uint8Array(Buffer.from(JSON.stringify(normalized)));
+      } else if (method === 'PUT' && filename === 'private_data.json') {
+        let parsed;
+        try { parsed = JSON.parse(rawBody.toString() || '{}'); }
+        catch { return jsonResponse(res, 400, { error: 'Invalid JSON body' }); }
+        const normalized = normalizePrivateDataPayload(parsed);
+        if (!normalized) return jsonResponse(res, 400, { error: 'Invalid private_data payload' });
+        body = new Uint8Array(Buffer.from(JSON.stringify(normalized)));
+      } else {
+        body = rawBody.length > 0 ? new Uint8Array(rawBody) : null;
+      }
     }
 
     const davResponse = await fetch(buildWebDavUrl(env, filename), { method, headers, body });
     res.statusCode = davResponse.status;
     const contentType = davResponse.headers.get('content-type');
     if (contentType) res.setHeader('Content-Type', contentType);
+    const etag = davResponse.headers.get('etag');
+    if (etag) res.setHeader('ETag', etag);
+    const lastModified = davResponse.headers.get('last-modified');
+    if (lastModified) res.setHeader('Last-Modified', lastModified);
     const arrayBuffer = await davResponse.arrayBuffer();
-    res.end(Buffer.from(arrayBuffer));
+    const responseBody = Buffer.from(arrayBuffer);
+    if (method === 'GET' && filename === 'public_data.json' && davResponse.ok) {
+      let parsed;
+      try { parsed = JSON.parse(responseBody.toString() || '{}'); }
+      catch { return jsonResponse(res, 502, { error: 'Stored WebDAV public_data is invalid' }); }
+      const normalized = normalizePublicDataPayload(parsed);
+      if (!normalized) return jsonResponse(res, 502, { error: 'Stored WebDAV public_data is invalid' });
+      return res.end(JSON.stringify(normalized));
+    }
+    res.end(responseBody);
   } catch (e) {
     if (e.code === 'PAYLOAD_TOO_LARGE') {
       return jsonResponse(res, 413, { error: 'Payload too large' });
@@ -1013,6 +772,15 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
     const key = url.searchParams.get('key');
     if (!key) return jsonResponse(res, 400, { error: 'Missing key parameter' });
 
+    const publicReadKeys = new Set(['public_data', 'storage_mode', 'ping']);
+    const writableKeys = new Set(['public_data', 'private_data', 'storage_mode']);
+    if (req.method === 'GET' && key !== 'private_data' && !publicReadKeys.has(key)) {
+      return jsonResponse(res, 404, { error: 'Unknown key' });
+    }
+    if (req.method === 'POST' && !writableKeys.has(key)) {
+      return jsonResponse(res, 404, { error: 'Unknown key' });
+    }
+
     const isWrite = req.method === 'POST';
     const isPrivateRead = req.method === 'GET' && key === 'private_data';
     if ((isWrite || isPrivateRead) && !requireAuth(req, res, db)) return;
@@ -1026,6 +794,11 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
           passwordHash: typeof value.passwordHash === 'string' ? value.passwordHash : undefined,
           passwordUpdatedAt: value.passwordUpdatedAt
         });
+      }
+      if (key === 'public_data' && value) {
+        const normalized = normalizePublicDataPayload(value);
+        if (!normalized) return jsonResponse(res, 500, { error: 'Stored public_data is invalid' });
+        return jsonResponse(res, 200, normalized);
       }
       return jsonResponse(res, 200, value || null);
     }
@@ -1050,18 +823,42 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
       }
 
       if (key === 'public_data') {
+        const normalized = normalizePublicDataPayload(parsed);
+        if (!normalized) return jsonResponse(res, 400, { error: 'Invalid public_data payload' });
+
+        const expectedHeader = Array.isArray(req.headers['x-expected-updated-at'])
+          ? req.headers['x-expected-updated-at'][0]
+          : req.headers['x-expected-updated-at'];
+        if (expectedHeader !== undefined) {
+          const expectedUpdatedAt = Number(expectedHeader);
+          if (!Number.isFinite(expectedUpdatedAt) || expectedUpdatedAt < 0) {
+            return jsonResponse(res, 400, { error: 'Invalid expected data version' });
+          }
+          const currentUpdatedAt = getPublicDataUpdatedAt(dbGetJson(db, key));
+          if (currentUpdatedAt !== expectedUpdatedAt) {
+            return jsonResponse(res, 409, {
+              error: '数据已被其他会话更新，请刷新后重试',
+              currentUpdatedAt
+            });
+          }
+        }
+
+        dbSetJson(db, key, normalized);
         appendAuditLog(db, { action: 'write_public_data', status: 'success', details: `ip=${getClientIp(req)}` });
+        return jsonResponse(res, 200, { success: true, updatedAt: normalized.updatedAt });
       }
       if (key === 'storage_mode') {
+        if (parsed?.mode !== 'sqlite' && parsed?.mode !== 'webdav') {
+          return jsonResponse(res, 400, { error: 'Invalid storage mode' });
+        }
+        dbSetJson(db, key, { mode: parsed.mode });
         appendAuditLog(db, {
           action: 'write_storage_mode',
           status: 'success',
           details: `mode=${parsed?.mode || 'unknown'} ip=${getClientIp(req)}`
         });
+        return jsonResponse(res, 200, { success: true });
       }
-
-      dbSetJson(db, key, parsed);
-      return jsonResponse(res, 200, { success: true });
     }
 
     res.statusCode = 405;

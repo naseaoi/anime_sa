@@ -52,6 +52,27 @@ export const normalizeMediaName = (name) => {
   return raw;
 };
 
+const WEBDAV_ROOT_FILES = new Set(['public_data.json', 'private_data.json']);
+
+export const normalizeWebDavFilename = (filename) => {
+  const raw = String(filename || '').trim();
+  if (!raw) return '';
+  if (raw.includes('\\')) return null;
+
+  const segments = raw.split('/');
+  if (segments.some((segment) => !segment || segment === '.' || segment === '..')) return null;
+
+  if (segments.length === 1) {
+    if (segments[0] === 'covers' || WEBDAV_ROOT_FILES.has(segments[0])) return segments[0];
+    return null;
+  }
+
+  if (segments.length !== 2 || segments[0] !== 'covers') return null;
+  const mediaName = normalizeMediaName(segments[1]);
+  if (!mediaName || mediaName === '.' || mediaName === '..') return null;
+  return `covers/${mediaName}`;
+};
+
 // 账号合法字符集：3–64 位字母/数字/下划线/横线
 // 同时被 normalizePrivateDataPayload 与 buildAdminCredentialsForSave 用于阻断畸形 username
 export const USERNAME_PATTERN = /^[a-zA-Z0-9_-]{3,64}$/;

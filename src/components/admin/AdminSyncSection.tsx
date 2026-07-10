@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ChevronRight, CloudUpload, Database, Loader2, RefreshCw, WandSparkles } from 'lucide-react';
 import { AuditLogEntry } from '../../types';
 import { getAuditLogs, getStorage, logoutServerSession, setServerStorageMode, sqliteAdapter, webdavAdapter } from '../../services/storageFactory';
@@ -33,7 +33,7 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syn
     runForceUrlOptimize
   } = syncOps;
 
-  const loadSyncInfo = async () => {
+  const loadSyncInfo = useCallback(async () => {
     setSyncInfo(null);
     try {
       const [webdavData, sqliteData] = await Promise.all([webdavAdapter.getPublicData(), sqliteAdapter.getPublicData()]);
@@ -41,9 +41,9 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syn
     } catch (e) {
       showToast('获取版本信息失败', 'error');
     }
-  };
+  }, [showToast]);
 
-  const loadAudit = async () => {
+  const loadAudit = useCallback(async () => {
     setAuditLoading(true);
     const result = await getAuditLogs(20);
     setAuditLoading(false);
@@ -52,12 +52,12 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syn
       return;
     }
     setAuditLogs(result.items);
-  };
+  }, [showToast]);
 
   useEffect(() => {
     loadSyncInfo();
     loadAudit();
-  }, [syncInfoToken]);
+  }, [loadAudit, loadSyncInfo, syncInfoToken]);
 
   const handleModeSwitch = async (mode: StorageMode) => {
     if (mode === currentMode) return;

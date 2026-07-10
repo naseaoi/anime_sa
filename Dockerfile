@@ -1,4 +1,4 @@
-# -- build stage --
+# 构建阶段
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -8,23 +8,26 @@ ARG VITE_APP_VERSION=dev
 ENV VITE_APP_VERSION=$VITE_APP_VERSION
 RUN npm run build
 
-# -- production stage --
+# 运行阶段
 FROM node:20-alpine
 WORKDIR /app
+ENV NODE_ENV=production
 
-# better-sqlite3 需要 native 编译：同一层内装依赖、编译、清理，保持镜像精简
+# 安装生产依赖
 COPY package.json package-lock.json ./
 RUN apk add --no-cache --virtual .build-deps python3 make g++ \
     && npm ci --omit=dev \
     && apk del .build-deps \
     && npm cache clean --force
 
-# 生产仅拷运行时代码：server.js + server/core + sharedSecurity（devMiddleware 是 dev-only）
+# 拷贝运行文件
 COPY server.js ./
 COPY server/core/ ./server/core/
 COPY server/sharedSecurity.js ./server/
 COPY --from=build /app/dist ./dist
 
-RUN mkdir -p data
+RUN mkdir -p data && chown -R node:node /app
+USER node
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD node -e "fetch('http://127.0.0.1:3000/api/sqlite?key=ping').then((response)=>{if(!response.ok)process.exit(1)}).catch(()=>process.exit(1))"
 CMD ["node", "server.js"]

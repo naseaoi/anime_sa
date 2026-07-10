@@ -36,7 +36,7 @@ export const AdminSettingsSection: React.FC<AdminSettingsSectionProps> = ({ data
         setInitialUsername(profile.username);
       })
       .catch((e: any) => showToast(e?.message || '读取管理员信息失败', 'error'));
-  }, []);
+  }, [showToast]);
 
   const updateSettings = (nextSettings: SiteSettings) => {
     setSiteSettings(nextSettings);

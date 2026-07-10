@@ -145,8 +145,10 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
                 className="hidden"
                 onChange={handleLocalCoverChange}
               />
-              <div
-                className="relative h-28 md:h-20 rounded-xl border border-[color:var(--line)] overflow-hidden bg-[color:var(--surface-muted)] cursor-zoom-in"
+              <button
+                type="button"
+                aria-label="预览卡片封面"
+                className="relative w-full h-28 md:h-20 rounded-xl border border-[color:var(--line)] overflow-hidden bg-[color:var(--surface-muted)] cursor-zoom-in"
                 onClick={() => setIsCoverPreviewOpen(true)}
               >
                 <ImagePreview src={coverPreviewSrc} alt={card.title || '封面预览'} className="w-full h-full" />
@@ -155,7 +157,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
                   <Eye size={11} />
                   预览卡片
                 </div>
-              </div>
+              </button>
             </div>
             <div className="flex items-center justify-between gap-4">
               <label className="text-xs font-bold text-[color:var(--text-secondary)] uppercase">评分</label>
@@ -212,8 +214,9 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
       </div>
 
       {isCoverPreviewOpen && createPortal(
-        <div className="fixed inset-0 z-[2300] bg-black/65 backdrop-blur-sm p-4 flex items-center justify-center" onClick={() => setIsCoverPreviewOpen(false)}>
-          <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[2300] bg-black/65 backdrop-blur-sm p-4 flex items-center justify-center">
+          <button type="button" aria-label="关闭卡片预览" className="absolute inset-0" onClick={() => setIsCoverPreviewOpen(false)} />
+          <div className="relative w-full max-w-md">
             <div className="mb-3 flex items-center justify-between text-white">
               <p className="text-xs tracking-[0.18em] uppercase">卡片效果预览</p>
               <button

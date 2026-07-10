@@ -152,13 +152,13 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
     <header className={`sticky top-0 z-40 backdrop-blur-2xl ${overlay ? 'bg-transparent border-b border-transparent shadow-none lg:-mb-16' : 'border-b border-[color:color-mix(in_srgb,var(--line)_70%,transparent)] bg-[color:color-mix(in_srgb,var(--surface)_30%,transparent)] shadow-[0_10px_36px_rgba(0,0,0,0.10)]'}`}>
       <div className="relative z-10 px-[var(--page-x)]">
         <div className="h-14 lg:h-16 flex items-center gap-4 lg:gap-6">
-          <div className="flex items-center gap-3 shrink-0 cursor-pointer select-none" onClick={handleLogoClick}>
+          <button type="button" className="flex items-center gap-3 shrink-0 cursor-pointer select-none text-left" onClick={handleLogoClick}>
             <img src={iconUrl} alt="Logo" className="w-8 h-8 object-contain" />
             <div className="hidden sm:block">
               <p className="font-display text-lg leading-tight text-[color:var(--text-primary)] whitespace-nowrap">{title}</p>
               <p className="text-[9px] tracking-[0.24em] uppercase text-[color:var(--text-secondary)] whitespace-nowrap leading-none">Cinema Archive</p>
             </div>
-          </div>
+          </button>
 
           <nav className="hidden lg:flex items-center gap-1 flex-1 min-w-0 overflow-x-auto no-scrollbar mask-linear-fade h-full">
             {navItems.map((item) => {

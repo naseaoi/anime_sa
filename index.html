@@ -2,50 +2,22 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" id="favicon" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" id="favicon" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="用于整理、浏览和维护个人收藏的卡片式站点。" />
+    <meta name="robots" content="index,follow" />
+    <meta name="theme-color" content="#1c1917" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Collection" />
+    <meta property="og:description" content="用于整理、浏览和维护个人收藏的卡片式站点。" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Collection" />
+    <meta name="twitter:description" content="用于整理、浏览和维护个人收藏的卡片式站点。" />
     <title>Collection</title>
+    <script src="/bootstrap.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Playfair+Display:wght@600;700&display=swap" />
-    <script>
-      // 立即尝试从缓存恢复标题和图标，避免默认标题闪烁
-      try {
-        const cached = localStorage.getItem('tat_site_settings');
-        if (cached) {
-          const settings = JSON.parse(cached);
-          if (settings.title) document.title = settings.title;
-          if (settings.iconUrl) {
-            const link = document.getElementById('favicon');
-            if (link) link.href = settings.iconUrl;
-          }
-          if (/^#[0-9a-fA-F]{6}$/.test(settings.themeColor || '')) {
-            const hex = settings.themeColor;
-            const r = parseInt(hex.slice(1, 3), 16);
-            const g = parseInt(hex.slice(3, 5), 16);
-            const b = parseInt(hex.slice(5, 7), 16);
-            const cl = (n) => Math.max(0, Math.min(255, Math.round(n)));
-            const dr = cl(r + (255 - r) * 0.28);
-            const dg = cl(g + (255 - g) * 0.28);
-            const db = cl(b + (255 - b) * 0.28);
-            const toHex = (n) => cl(n).toString(16).padStart(2, '0');
-            const s = document.documentElement.style;
-            s.setProperty('--accent-light', hex);
-            s.setProperty('--accent-soft-light', 'rgba(' + r + ', ' + g + ', ' + b + ', 0.16)');
-            s.setProperty('--accent-dark', '#' + toHex(dr) + toHex(dg) + toHex(db));
-            s.setProperty('--accent-soft-dark', 'rgba(' + dr + ', ' + dg + ', ' + db + ', 0.18)');
-          }
-        }
-        // 立即恢复主题设置，防止闪烁
-        const theme = localStorage.getItem('tat_theme');
-        const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (theme === 'dark' || (!theme && systemDark) || (theme === 'system' && systemDark)) {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
-      } catch (e) { console.error('Failed to restore settings from cache', e); }
-    </script>
 </head>
   <body>
     <div id="root"></div>

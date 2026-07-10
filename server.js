@@ -61,7 +61,7 @@ const isCompressibleType = (contentType) =>
 
 const createWeakEtag = (stat) => `W/"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
 
-// 静态文件 stat 缓存：dist 产物带 hash 不会被改写，缓存几秒可在并发时避免重复 syscall
+// 静态文件状态缓存
 // index.html 走 no-cache 响应头，5s 内 mtime 抖动也不会引发功能问题
 const STAT_CACHE_TTL_MS = 5000;
 const statCache = new Map();
@@ -159,17 +159,12 @@ const checkRateLimit = (req, res, scope, max, windowMs) => {
 };
 
 // ===== 通用安全响应头 =====
-// CSP 说明：
-// - img-src 放宽到 https/http/data/blob —— 用户可填外链作为封面
-// - style-src/font-src 放行 Google Fonts（index.html link 引用）
-// - script-src 暂用 'unsafe-inline'：index.html 顶部需在 paint 前应用主题与标题，无法走 nonce
-// - HSTS 仅生产开启（dev 经 vite 走 http localhost）
 const CSP_HEADER_VALUE = [
   "default-src 'self'",
   "img-src 'self' data: blob: https: http:",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self'",
   "connect-src 'self' https:",
   "frame-ancestors 'self'",
   "base-uri 'self'",

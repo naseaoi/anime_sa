@@ -11,6 +11,7 @@ import { getStorage, checkServerSession } from '../services/storageFactory';
 import { persistCardCover } from '../services/coverAssetService';
 import { getCardCoverUrl } from '../utils/cardCover';
 import { getCoverAmbientColor } from '../utils/coverAmbientColor';
+import { applyPageMetadata } from '../utils/seo';
 
 const CardEditModal = React.lazy(() => import('./CardEditModal').then((m) => ({ default: m.CardEditModal })));
 
@@ -28,7 +29,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
   const [isEditing, setIsEditing] = useState(false);
   const [isOriginalPreviewOpen, setIsOriginalPreviewOpen] = useState(false);
   const [ambient, setAmbient] = useState<string | null>(null);
-  // 记录卡片封面的原始宽高比，原图模态框沿用此比例做占位容器，避免加载期间塌缩为 0 高度
+  // 卡片封面宽高比
   const [coverAspect, setCoverAspect] = useState<number | null>(null);
   const { showToast } = useToast();
 
@@ -40,7 +41,10 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
   };
 
   useEffect(() => {
-    if (card) document.title = `${card.title} - ${data.settings.title}`;
+    if (card) {
+      const description = card.description.replace(/[#*_`[\]()]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+      applyPageMetadata(`${card.title} - ${data.settings.title}`, description || undefined);
+    }
     window.scrollTo(0, 0);
 
     // Check for admin auth
@@ -48,7 +52,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
 
     return () => {
       if (data.settings.title) {
-        document.title = data.settings.title;
+        applyPageMetadata(data.settings.title);
       }
     };
   }, [card, data.settings.title]);
@@ -96,9 +100,9 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
         newCards[idx] = nextCard;
       }
 
-      const newData = { ...data, cards: newCards };
+      const newData = { ...data, cards: newCards, updatedAt: Date.now() };
       const webdav = getStorage();
-      const result = await webdav.savePublicData(newData);
+      const result = await webdav.savePublicData(newData, { expectedUpdatedAt: Number(data.updatedAt || 0) });
 
       if (result.success) {
         if (refreshData) await refreshData();
@@ -251,9 +255,9 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
       {isOriginalPreviewOpen && (
         <div
           className="fixed inset-0 z-[2300] bg-black/75 backdrop-blur-sm p-4 md:p-8 flex items-center justify-center"
-          onClick={() => setIsOriginalPreviewOpen(false)}
         >
-          <div className="w-full max-w-6xl" onClick={(e) => e.stopPropagation()}>
+          <button type="button" aria-label="关闭原图预览" className="absolute inset-0" onClick={() => setIsOriginalPreviewOpen(false)} />
+          <div className="relative w-full max-w-6xl">
             <div className="mb-3 flex items-center justify-between text-white">
               <p className="text-xs tracking-[0.18em] uppercase">原图预览</p>
               <button

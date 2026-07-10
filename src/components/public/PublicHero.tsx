@@ -60,9 +60,13 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
   return (
     <section
       className="group relative w-full isolate touch-pan-y hero-standalone-intro hero-ambient"
+      aria-label="精选卡片"
+      tabIndex={0}
       style={ambient ? ({ '--ambient': ambient } as React.CSSProperties) : undefined}
       onMouseEnter={() => setIsHeroPaused(true)}
       onMouseLeave={() => setIsHeroPaused(false)}
+      onFocus={() => setIsHeroPaused(true)}
+      onBlur={() => setIsHeroPaused(false)}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}

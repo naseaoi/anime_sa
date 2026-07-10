@@ -16,16 +16,23 @@ export default defineConfig(({ mode }) => {
       devApiPlugin(env)
     ],
     build: {
-      // 拆分长期稳定的第三方依赖到独立 chunk，提高浏览器缓存命中：
-      // - react-dp：日历库 + date-fns，只在管理员编辑卡片日期时加载
-      // - react-vendor：react/react-dom/react-router/scheduler，长期不变
-      // - icons：lucide-react，体积偏大但调用面广
-      rollupOptions: {
+      rolldownOptions: {
         output: {
-          manualChunks: {
-            'react-dp': ['react-day-picker', 'date-fns', 'date-fns/locale'],
-            'react-vendor': ['react', 'react-dom', 'react-router-dom', 'scheduler'],
-            icons: ['lucide-react']
+          codeSplitting: {
+            groups: [
+              {
+                name: 'react-dp',
+                test: /node_modules[\\/](react-day-picker|date-fns)[\\/]/
+              },
+              {
+                name: 'react-vendor',
+                test: /node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/
+              },
+              {
+                name: 'icons',
+                test: /node_modules[\\/]lucide-react[\\/]/
+              }
+            ]
           }
         }
       }

@@ -3,6 +3,9 @@ name: CI
 on:
   push:
     branches: [main]
+
+permissions:
+  contents: read
   pull_request:
     branches: [main]
 
@@ -10,9 +13,9 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '20'
           cache: 'npm'
@@ -20,11 +23,35 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Type check
-        run: npm run typecheck
+      - name: Static checks
+        run: npm run lint
+
+      - name: Production dependency audit
+        run: npm run audit:prod
+
+      - name: Full dependency audit
+        run: npm run audit:all
 
       - name: Run tests
         run: npm test
 
       - name: Build
         run: npm run build
+
+  container-scan:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+
+      - name: Build image
+        run: docker build --tag anime-sa:ci .
+
+      - name: Scan image
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        with:
+          image-ref: anime-sa:ci
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH

@@ -5,6 +5,7 @@ import { PublicData } from '../types';
 import { getStorage, checkServerSession, logoutServerSession } from '../services/storageFactory';
 import { migrateEmbeddedCoverAssets } from '../services/coverAssetService';
 import { applyThemeColor } from '../utils/themeColor';
+import { applyPageMetadata } from '../utils/seo';
 import { useToast } from './Common';
 import { AdminLogin } from './admin/AdminLogin';
 import { AdminCardsSection } from './admin/AdminCardsSection';
@@ -46,7 +47,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
 
   useEffect(() => {
     if (localData.settings.title) {
-      document.title = `${localData.settings.title} - 管理后台`;
+      applyPageMetadata(`${localData.settings.title} - 管理后台`, '站点管理入口。', false);
     }
     if (localData.settings.iconUrl) {
       const favicon = document.getElementById('favicon') as HTMLLinkElement;
@@ -62,10 +63,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
 
   const persistData = useCallback(async (nextData: PublicData, successMessage?: string) => {
     const storage = getStorage();
+    const expectedUpdatedAt = Number(nextData.updatedAt || 0);
     const dataToSave = { ...nextData, updatedAt: Date.now() };
-    const result = await storage.savePublicData(dataToSave);
+    const result = await storage.savePublicData(dataToSave, { expectedUpdatedAt });
     if (!result.success) {
-      showToast(`${storageType === 'sqlite' ? '保存' : '同步'}失败: ${result.error}`, 'error');
+      const prefix = result.conflict ? '数据已更新' : `${storageType === 'sqlite' ? '保存' : '同步'}失败`;
+      showToast(`${prefix}: ${result.error}`, 'error');
       return false;
     }
 

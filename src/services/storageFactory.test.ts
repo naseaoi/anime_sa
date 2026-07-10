@@ -66,6 +66,37 @@ describe('storageFactory session and save flow', () => {
     expect(result.error).toContain('db write failed');
   });
 
+  it('sqliteAdapter.getPublicData throws on server failure', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('db unavailable', { status: 503 })));
+    Object.defineProperty(globalThis, 'localStorage', { value: createLocalStorageMock(), configurable: true });
+
+    const { sqliteAdapter } = await loadStorageFactory();
+    await expect(sqliteAdapter.getPublicData()).rejects.toThrow('db unavailable');
+  });
+
+  it('sqliteAdapter sends expected version and reports conflicts', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: '数据已更新' }), {
+        status: 409,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    Object.defineProperty(globalThis, 'localStorage', { value: createLocalStorageMock(), configurable: true });
+
+    const { sqliteAdapter } = await loadStorageFactory();
+    const result = await sqliteAdapter.savePublicData({
+      updatedAt: 20,
+      settings: { title: 't', iconUrl: '' },
+      tags: [],
+      cards: []
+    }, { expectedUpdatedAt: 10 });
+
+    expect(result).toEqual({ success: false, conflict: true, error: '数据已更新' });
+    const request = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(request.headers).toEqual(expect.objectContaining({ 'X-Expected-Updated-At': '10' }));
+  });
+
   it('updateAdminCredentials returns relogin flag from server', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ success: true, requireRelogin: true }), {

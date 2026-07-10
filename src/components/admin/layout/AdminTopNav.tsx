@@ -50,7 +50,7 @@ export const AdminMobileNav: React.FC<AdminMobileNavProps> = ({ items, open, onC
 
   return (
     <>
-      <div className="fixed inset-0 top-16 z-30 bg-black/30 md:hidden" onClick={onClose} />
+      <button type="button" aria-label="关闭导航菜单" className="fixed inset-0 top-16 z-30 bg-black/30 md:hidden" onClick={onClose} />
       <div className="absolute inset-x-0 top-16 z-40 border-b border-[color:var(--line)] bg-[color:var(--surface)] p-3 md:hidden">
         <div className="space-y-1">
           {items.map((item) => {

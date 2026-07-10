@@ -18,6 +18,7 @@ import { getCardCoverUrl } from '../utils/cardCover';
 import { getCoverAmbientColor } from '../utils/coverAmbientColor';
 import { getTagSlug, sectionFromCard } from '../utils/routeUtils';
 import { getTagIcon } from '../utils/tagIcons';
+import { applyPageMetadata } from '../utils/seo';
 
 const CardEditModal = React.lazy(() => import('./CardEditModal').then((m) => ({ default: m.CardEditModal })));
 
@@ -77,13 +78,13 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   useEffect(() => { sessionStorage.setItem('tat_visible_count', visibleCount.toString()); }, [visibleCount]);
   useEffect(() => { sessionStorage.setItem('tat_sort_config', JSON.stringify(sortConfig)); }, [sortConfig]);
 
-  // 瀑布流滚动位置记忆：按当前路径+查询作 key 区分，避免不同列表互相串扰
+  // 列表滚动位置
   const scrollStorageKey = `tat_home_scroll:${location.pathname}${location.search}`;
   const hasRestoredScrollRef = useRef(false);
   const gridTransitionTimerRef = useRef<number | null>(null);
   const visitedGridKeysRef = useRef<Set<string>>(new Set());
 
-  // 接管历史滚动恢复，确保由我们在 DOM 渲染后精确还原
+  // 浏览器滚动恢复
   useEffect(() => {
     if (typeof window === 'undefined' || !('scrollRestoration' in window.history)) return;
     const prev = window.history.scrollRestoration;
@@ -91,11 +92,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     return () => { window.history.scrollRestoration = prev; };
   }, []);
 
-  // 瀑布流滚动位置记忆：
-  // 关键问题：React 18 下，新页面 mount 的 scrollTo(0,0) 可能先于本组件 cleanup 运行，
-  // 仅监听 'scroll' 事件会把这个 0 也写入 storage，覆盖掉用户的真实位置。
-  // 方案：① 仅监听用户主动滚动事件（wheel/touchmove/keydown），编程式 scrollTo 不会触发；
-  //       ② click 捕获只对可能触发导航的元素（a/button）落盘，避免一切普通点击都写 storage。
+  // 用户滚动位置持久化
   useEffect(() => {
     const save = () => sessionStorage.setItem(scrollStorageKey, String(window.scrollY));
     let rafId: number | null = null;
@@ -153,7 +150,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
 
   useEffect(() => {
     if (data.settings.title) {
-      document.title = data.settings.title;
+      applyPageMetadata(data.settings.title);
     }
     if (data.settings.iconUrl) {
       const favicon = document.getElementById('favicon') as HTMLLinkElement | null;
@@ -225,8 +222,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Hero 轮播卡片集合
-  // 用 sessionId+cardId 哈希做稳定排序：同一会话内 data 刷新顺序不变，避免视觉跳动；新开页面才换序
+  // Hero 轮播卡片
   const heroSeedRef = useRef<number>(Math.floor(Math.random() * 0xffffffff) >>> 0);
   const heroCards = useMemo(() => {
     const recommended = data.cards.filter(c => c.isRecommended);
@@ -348,8 +344,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
 
   const cardStats = useMemo(() => buildCardStats(data.cards), [data.cards]);
 
-  // 首次卡片渲染后，按 sessionStorage 中的位置恢复滚动（仅恢复一次）。
-  // useLayoutEffect 在 paint 前执行，避免出现"先到顶部再跳到记忆位置"的闪烁
+  // 首次滚动位置恢复
   useLayoutEffect(() => {
     if (hasRestoredScrollRef.current) return;
     if (filteredCards.length === 0) return;
@@ -361,7 +356,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     const y = parseInt(saved, 10);
     if (!Number.isFinite(y) || y <= 0) return;
 
-    // 多帧重试：等卡片网格布局完成后再恢复，防止页面高度尚未撑起导致 scrollTo 被夹紧
+    // 滚动恢复重试
     let attempts = 0;
     const tryScroll = () => {
       const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
@@ -433,7 +428,10 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
       const newCard = await persistCardCover(draftCard);
       newCards.push(newCard);
 
-      const result = await getStorage().savePublicData({ ...data, cards: newCards });
+      const result = await getStorage().savePublicData(
+        { ...data, cards: newCards, updatedAt: now },
+        { expectedUpdatedAt: Number(data.updatedAt || 0) }
+      );
       if (result.success) {
         await refreshData();
         setIsCreateModalOpen(false);

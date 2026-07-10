@@ -59,7 +59,7 @@ export const useStructuredHomeSections = (params: Params): StructuredHomeSection
     }
 
     const topCandidates = nonHeroCards.filter((card) => !usedCardIds.has(card.id));
-    // 顶部区：无标签卡片优先占位（避免被分到标签分区后顶部空缺）
+    // 顶部无标签卡片
     const topCandidatesSorted = [...topCandidates].sort((a, b) => {
       const aHasTag = a.tagIds.length > 0;
       const bHasTag = b.tagIds.length > 0;

@@ -4,7 +4,7 @@ import { Check, ChevronDown } from 'lucide-react';
 // --- 表单 Primitives ---
 
 export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'success' | 'outline', size?: 'sm' | 'md' }> = ({
-  children, variant = 'primary', size = 'md', className = '', ...props
+  children, variant = 'primary', size = 'md', className = '', type = 'button', ...props
 }) => {
   const sizeClasses = size === 'sm' ? 'px-3 py-1.5 text-xs' : 'px-4 py-2 text-sm';
   const base = `${sizeClasses} rounded-lg font-medium transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-1 dark:focus:ring-offset-zinc-900`;
@@ -19,7 +19,7 @@ export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { 
   };
 
   return (
-    <button className={`${base} ${variants[variant]} ${className}`} {...props}>
+    <button type={type} className={`${base} ${variants[variant]} ${className}`} {...props}>
       {children}
     </button>
   );
@@ -84,14 +84,15 @@ export const Select: React.FC<{
             <div className="p-3 text-xs text-stone-400 text-center">暂无选项</div>
           ) : (
             options.map(option => (
-              <div
+              <button
+                type="button"
                 key={option.id}
                 onClick={() => { onChange(option.id); setIsOpen(false); }}
-                className={`px-3 py-2.5 text-sm rounded-md cursor-pointer flex items-center justify-between transition-colors ${option.id === value ? 'bg-[color:var(--accent-soft)] text-[color:var(--text-primary)] font-bold' : 'text-[color:var(--text-secondary)] hover:bg-[color:var(--accent-soft)]/60 hover:text-[color:var(--text-primary)]'}`}
+                className={`w-full px-3 py-2.5 text-left text-sm rounded-md cursor-pointer flex items-center justify-between transition-colors ${option.id === value ? 'bg-[color:var(--accent-soft)] text-[color:var(--text-primary)] font-bold' : 'text-[color:var(--text-secondary)] hover:bg-[color:var(--accent-soft)]/60 hover:text-[color:var(--text-primary)]'}`}
               >
                 <span>{option.name}</span>
                 {option.id === value && <Check size={14} className="text-[color:var(--text-primary)]" />}
-              </div>
+              </button>
             ))
           )}
         </div>
@@ -145,11 +146,12 @@ export const MultiSelect: React.FC<{
   return (
     <div className="flex flex-col gap-1.5 w-full relative" ref={containerRef}>
       {label && <label className="text-xs font-bold text-subtle dark:text-zinc-400 uppercase tracking-wider whitespace-nowrap">{label}</label>}
-      <div
+      <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-border dark:border-zinc-800 rounded-lg text-ink dark:text-zinc-100 cursor-pointer flex items-center justify-between hover:border-stone-400 dark:hover:border-zinc-600 transition-colors ${isOpen ? 'ring-4 ring-stone-100 dark:ring-zinc-800 border-ink dark:border-zinc-400' : ''}`}
       >
-        <div className="flex flex-wrap gap-1">
+        <span className="flex flex-wrap gap-1">
           {value.length === 0 ? (
             <span className="text-stone-400 dark:text-zinc-600 text-sm">{placeholder}</span>
           ) : (
@@ -162,9 +164,9 @@ export const MultiSelect: React.FC<{
               ) : null;
             })
           )}
-        </div>
+        </span>
         <ChevronDown size={16} className={`text-stone-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </div>
+      </button>
 
       {isOpen && (
         <div className="absolute top-full mt-1 left-0 right-0 bg-white dark:bg-zinc-900 border border-border dark:border-zinc-800 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto p-1">
@@ -174,14 +176,15 @@ export const MultiSelect: React.FC<{
             options.map(option => {
               const isSelected = value.includes(option.id);
               return (
-                <div
+                <button
+                  type="button"
                   key={option.id}
                   onClick={() => toggleOption(option.id)}
-                  className={`px-3 py-2 text-sm rounded cursor-pointer flex items-center justify-between transition-colors ${isSelected ? 'bg-ink/5 dark:bg-white/10 text-ink dark:text-white font-medium' : 'text-subtle dark:text-zinc-400 hover:bg-stone-50 dark:hover:bg-zinc-800'}`}
+                  className={`w-full px-3 py-2 text-left text-sm rounded cursor-pointer flex items-center justify-between transition-colors ${isSelected ? 'bg-ink/5 dark:bg-white/10 text-ink dark:text-white font-medium' : 'text-subtle dark:text-zinc-400 hover:bg-stone-50 dark:hover:bg-zinc-800'}`}
                 >
                   <span>{option.name}</span>
                   {isSelected && <Check size={14} className="text-ink dark:text-white" />}
-                </div>
+                </button>
               );
             })
           )}

@@ -24,7 +24,9 @@ git checkout main
 git pull --ff-only origin main
 git status --short
 npm ci
-npm run typecheck
+npm run lint
+npm run audit:prod
+npm run audit:all
 npm test
 npm run build
 ```
@@ -77,7 +79,9 @@ git diff --stat "$PreviousTag..HEAD"
 
 ## 验证
 
-- `npm run typecheck`
+- `npm run lint`
+- `npm run audit:prod`
+- `npm run audit:all`
 - `npm test`
 - `npm run build`
 ```
@@ -93,7 +97,9 @@ $NotesFile = Join-Path $env:TEMP "anime_sa-release-vX.Y.Z.md"
 
 ## 验证
 
-- ``npm run typecheck``
+- ``npm run lint``
+- ``npm run audit:prod``
+- ``npm run audit:all``
 - ``npm test``
 - ``npm run build``
 "@ | Set-Content -Encoding UTF8 $NotesFile
@@ -103,6 +109,7 @@ $NotesFile = Join-Path $env:TEMP "anime_sa-release-vX.Y.Z.md"
 
 - GitHub Actions：检查 `CI`
 - GitHub Actions：检查 `Docker Publish`
+- GitHub Actions：检查 `container-scan`
 - GitHub Packages：检查镜像 tag
 - 目标镜像：`ghcr.io/naseaoi/anime_sa:X.Y.Z`
 - 前端版本变量：`VITE_APP_VERSION=vX.Y.Z`
