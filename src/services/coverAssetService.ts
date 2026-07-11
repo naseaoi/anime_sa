@@ -64,57 +64,6 @@ const ensureOk = async (res: Response) => {
   throw new Error(message || `上传失败（${res.status}）`);
 };
 
-const webDavFetch = (filename: string, method: 'PROPFIND' | 'MKCOL' | 'PUT', options: RequestInit = {}) => {
-  return fetch(`/api/webdav?filename=${encodeURIComponent(filename)}`, {
-    ...options,
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      ...(method === 'PROPFIND' ? { Depth: '0' } : {}),
-      ...(options.headers as Record<string, string> | undefined),
-      'x-dav-method': method
-    }
-  });
-};
-
-const isExistingWebDavDirectory = (status: number) => {
-  return status === 200 || status === 204 || status === 207;
-};
-
-const ensureWebDavDirectory = async (filename: string) => {
-  const checkRes = await webDavFetch(filename, 'PROPFIND');
-  if (isExistingWebDavDirectory(checkRes.status)) return;
-  if (checkRes.status !== 404) {
-    const message = (await checkRes.text().catch(() => '')).slice(0, 200);
-    throw new Error(message || `WebDAV 目录检查失败（${checkRes.status}）`);
-  }
-
-  const createRes = await webDavFetch(filename, 'MKCOL');
-  if (createRes.ok || createRes.status === 201 || createRes.status === 204) return;
-
-  const verifyRes = await webDavFetch(filename, 'PROPFIND');
-  if (isExistingWebDavDirectory(verifyRes.status)) return;
-
-  const message = (await createRes.text().catch(() => '')).slice(0, 200);
-  throw new Error(message || `WebDAV 目录创建失败（${createRes.status}）`);
-};
-
-let webDavCoverDirectoryPromise: Promise<void> | null = null;
-
-const ensureWebDavCoverDirectory = async () => {
-  if (!webDavCoverDirectoryPromise) {
-    webDavCoverDirectoryPromise = (async () => {
-      await ensureWebDavDirectory('');
-      await ensureWebDavDirectory('covers');
-    })().catch((error) => {
-      webDavCoverDirectoryPromise = null;
-      throw error;
-    });
-  }
-
-  return webDavCoverDirectoryPromise;
-};
-
 const toCoverProcessFailure = (card: Pick<CardData, 'id' | 'title'>, error: unknown): CoverProcessFailure => {
   const message = error instanceof Error ? error.message : String(error || '未知错误');
   return {
@@ -129,33 +78,19 @@ const uploadCoverBytes = async (
   mime: string,
   bytes: Uint8Array,
   suffix = 'original',
-  targetStorage?: StorageMode
+  _targetStorage?: StorageMode
 ) => {
   if (bytes.byteLength > MEDIA_UPLOAD_LIMIT_BYTES) {
     throw new Error('图片过大，请压缩后重试（最大 10MB）');
   }
 
-  const adapterType = targetStorage || getStorage().type;
   const assetName = buildAssetName(cardId, mime, suffix);
 
   const copied = new Uint8Array(bytes.byteLength);
   copied.set(bytes);
   const body = new Blob([copied.buffer], { type: mime });
 
-  if (adapterType === 'webdav') {
-    await ensureWebDavCoverDirectory();
-    const filename = `covers/${assetName}`;
-    const res = await webDavFetch(filename, 'PUT', {
-      headers: {
-        'Content-Type': mime
-      },
-      body
-    });
-    await ensureOk(res);
-    return `/api/webdav?filename=${encodeURIComponent(filename)}`;
-  }
-
-  const res = await fetch(`/api/sqlite/media?name=${encodeURIComponent(assetName)}`, {
+  const res = await fetch(`/api/storage/media?name=${encodeURIComponent(assetName)}`, {
     method: 'POST',
     credentials: 'include',
     headers: {
@@ -164,7 +99,7 @@ const uploadCoverBytes = async (
     body
   });
   await ensureOk(res);
-  return `/api/sqlite/media?name=${encodeURIComponent(assetName)}`;
+  return `/api/storage/media?name=${encodeURIComponent(assetName)}`;
 };
 
 const loadImageBitmap = async (bytes: Uint8Array, mime: string): Promise<HTMLImageElement> => {
@@ -314,7 +249,7 @@ const fetchImageBytesFromUrl = async (url: string) => {
     }
   }
 
-  const proxyUrl = `/api/sqlite/remote-image?url=${encodeURIComponent(parsed ? parsed.toString() : url)}`;
+  const proxyUrl = `/api/storage/remote-image?url=${encodeURIComponent(parsed ? parsed.toString() : url)}`;
   const proxiedResponse = await fetch(proxyUrl, { credentials: 'include' });
   return parseResponse(proxiedResponse);
 };
@@ -400,17 +335,15 @@ const restoreNetworkCoverUrl = <T extends Partial<CardData>>(card: T, options?: 
   } as T;
 };
 
-const isStorageMediaUrl = (value: string | undefined, storage: StorageMode) => {
+const isStorageMediaUrl = (value: string | undefined, _storage: StorageMode) => {
   const raw = String(value || '').trim();
   if (!raw) return false;
 
   try {
     const parsed = new URL(raw, 'http://localhost');
-    if (storage === 'sqlite') return parsed.pathname === '/api/sqlite/media';
-    return parsed.pathname === '/api/webdav';
+    return parsed.pathname === '/api/storage/media' || parsed.pathname === '/api/sqlite/media';
   } catch {
-    if (storage === 'sqlite') return /^\/api\/sqlite\/media(\?|$|\/)/i.test(raw);
-    return /^\/api\/webdav(\?|$|\/)/i.test(raw);
+    return /^\/api\/(storage|sqlite)\/media(\?|$|\/)/i.test(raw);
   }
 };
 
@@ -621,9 +554,9 @@ const isLocalMediaUrl = (value?: string) => {
 
   try {
     const parsed = new URL(raw, 'http://localhost');
-    return /^\/api\/(sqlite\/media|webdav)(\/|$)/i.test(parsed.pathname);
+    return /^\/api\/(storage|sqlite)\/media(\/|$)/i.test(parsed.pathname);
   } catch {
-    return /^\/api\/(sqlite\/media|webdav)(\/|$)/i.test(raw);
+    return /^\/api\/(storage|sqlite)\/media(\/|$)/i.test(raw);
   }
 };
 

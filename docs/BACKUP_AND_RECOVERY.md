@@ -1,59 +1,31 @@
 # 备份与恢复
 
-## 备份范围
+## SQLite
 
-| 存储 | 必备内容 |
-|---|---|
-| SQLite | `data/local.db` |
-| WebDAV | `public_data.json`、`private_data.json`、`covers/` |
-| 配置 | 部署平台中的环境变量 |
-
-备份文件不得提交到 Git。包含 `private_data.json` 和环境变量的备份按敏感数据保存。
-
-## SQLite 备份
-
-### 停机备份
+备份 `data/local.db`。复制文件前停止 Node.js 进程或 Docker 容器。
 
 ```powershell
 docker stop anime_sa
-$Timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-New-Item -ItemType Directory -Path '.\backups' -Force | Out-Null
-Copy-Item -LiteralPath '.\data\local.db' -Destination ".\backups\local-$Timestamp.db"
+Copy-Item .\data\local.db .\backups\local.db
 docker start anime_sa
 ```
 
-非 Docker 部署在停止 Node.js 进程后执行相同的文件复制。
+恢复时停止服务，替换 `data/local.db`，再启动服务并检查前台、后台登录和封面。
 
-### 恢复
+## Redis
 
-```powershell
-docker stop anime_sa
-Copy-Item -LiteralPath '.\backups\local-YYYYMMDD-HHMMSS.db' -Destination '.\data\local.db' -Force
-docker start anime_sa
-```
+使用托管平台提供的快照、导出或备份功能保存完整 Key 空间。备份范围包括：
 
-恢复后检查前台数据、后台登录、封面读取和审计日志。
+- `<prefix>:public_data`
+- `<prefix>:private_data`
+- `<prefix>:media:*`
+- `<prefix>:audit`
 
-## WebDAV 备份
-
-使用 WebDAV 客户端下载完整存储目录，目录内容必须包含：
-
-```text
-public_data.json
-private_data.json
-covers/
-```
-
-恢复时先上传 `covers/`，再上传 `public_data.json`，最后上传 `private_data.json`。恢复完成后重新登录后台并检查数据版本。
+Session 和限流 Key 无需恢复。恢复后重新部署并检查 `/api/storage?key=ping`、后台登录、公共数据和封面。
 
 ## 操作要求
 
-以下操作前必须创建备份：
-
-- SQLite 与 WebDAV 覆盖同步
-- 批量封面清理
-- 管理员凭据跨存储同步
-- 数据结构升级
-- 容器卷迁移
-
-至少保留 3 个可用版本，并定期在独立目录验证数据库可读取、JSON 可解析、封面文件可访问。
+- 管理员凭据和数据库备份按敏感数据保存。
+- 备份文件不得提交到 Git。
+- 数据结构升级和批量媒体清理前创建备份。
+- 至少保留 3 个可用版本并定期验证恢复。

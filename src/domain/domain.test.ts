@@ -4,9 +4,9 @@ import { isStorageMode, STORAGE_MODES } from './storage';
 
 describe('storage domain', () => {
   it('accepts registered storage modes', () => {
-    expect(STORAGE_MODES).toEqual(['sqlite', 'webdav']);
+    expect(STORAGE_MODES).toEqual(['sqlite', 'redis']);
     expect(isStorageMode('sqlite')).toBe(true);
-    expect(isStorageMode('webdav')).toBe(true);
+    expect(isStorageMode('redis')).toBe(true);
     expect(isStorageMode('local')).toBe(false);
   });
 });

@@ -3,8 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 import {
-  handleSqliteApi,
-  handleWebDavApi,
+  handleStorageApi,
   jsonResponse,
   getClientIp
 } from './server/core/apiCore.js';
@@ -188,20 +187,12 @@ const server = http.createServer(async (req, res) => {
   setSecurityHeaders(res);
   const url = new URL(req.url, `http://${req.headers.host}`);
 
-  // /api/webdav
-  if (url.pathname.startsWith('/api/webdav')) {
-    if (!checkRateLimit(req, res, 'api:webdav', API_RATE_LIMIT_MAX, API_RATE_LIMIT_WINDOW_MS)) return;
-    await handleWebDavApi(req, res, { env: process.env });
-    return;
-  }
-
-  // /api/sqlite/*：登录独立更严格限流
-  if (url.pathname.startsWith('/api/sqlite')) {
-    const scope = url.pathname.endsWith('/login') ? 'api:login' : 'api:sqlite';
+  if (url.pathname.startsWith('/api/storage') || url.pathname.startsWith('/api/sqlite')) {
+    const scope = url.pathname.endsWith('/login') ? 'api:login' : 'api:storage';
     const max = scope === 'api:login' ? LOGIN_RATE_LIMIT_MAX : API_RATE_LIMIT_MAX;
     const window = scope === 'api:login' ? LOGIN_RATE_LIMIT_WINDOW_MS : API_RATE_LIMIT_WINDOW_MS;
     if (!checkRateLimit(req, res, scope, max, window)) return;
-    await handleSqliteApi(req, res, { env: process.env, isProduction: IS_PRODUCTION });
+    await handleStorageApi(req, res, { env: process.env, isProduction: IS_PRODUCTION });
     return;
   }
 
@@ -244,6 +235,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running at http://0.0.0.0:${PORT}`);
-  console.log(`- WebDAV Mode: ${process.env.WEBDAV_URL ? 'Enabled' : 'Disabled (Missing Env Vars)'}`);
-  console.log(`- SQLite Mode: Enabled (Data: ${DATA_DIR})`);
+  console.log(`- Storage Driver: SQLite (Data: ${DATA_DIR})`);
 });

@@ -68,9 +68,3 @@ export const dbSetJson = (database, key, value) => {
 export const dbDelete = (database, key) => {
   database.prepare('DELETE FROM kv_store WHERE key = ?').run(key);
 };
-
-export const getStorageMode = (database) => {
-  const modeData = dbGetJson(database, 'storage_mode');
-  if (modeData?.mode === 'webdav' || modeData?.mode === 'sqlite') return modeData.mode;
-  return 'sqlite';
-};

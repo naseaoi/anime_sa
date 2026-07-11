@@ -101,8 +101,8 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
       }
 
       const newData = { ...data, cards: newCards, updatedAt: Date.now() };
-      const webdav = getStorage();
-      const result = await webdav.savePublicData(newData, { expectedUpdatedAt: Number(data.updatedAt || 0) });
+      const storage = getStorage();
+      const result = await storage.savePublicData(newData, { expectedUpdatedAt: Number(data.updatedAt || 0) });
 
       if (result.success) {
         if (refreshData) await refreshData();

@@ -1,121 +1,57 @@
 # 架构说明
 
-## 系统边界
+## 运行边界
 
-项目由 React 单页应用、Node.js HTTP 服务和可切换存储组成。
-
-| 层 | 目录 | 职责 |
+| 运行方式 | 存储驱动 | 持久化位置 |
 |---|---|---|
-| 领域层 | `src/domain/`、`src/types.ts` | 领域类型、默认数据、存储模式 |
-| 应用服务 | `src/services/` | API 调用、存储适配、封面处理 |
-| 界面层 | `src/components/`、`src/hooks/` | 页面、组件和交互状态 |
-| 服务端编排 | `server/core/apiCore.js` | API 路由与用例编排 |
-| 服务端能力 | `server/core/` | 存储、认证、审计、WebDAV、媒体清理、安全校验 |
+| Node.js / Docker | SQLite | `data/local.db` |
+| Vercel Functions | Redis | `REDIS_URL` 指向的实例 |
 
-Vercel API 入口只返回 410。Node.js 与 Docker 是受支持的运行方式。
+前端统一调用 `/api/storage`，不包含数据库协议与连接信息。旧 `/api/sqlite` 路径仅作为已有 SQLite 封面 URL 的兼容入口。
 
 ## 依赖方向
 
 ```text
 components/hooks → services → domain/types
-server.js/devMiddleware → apiCore → server/core 能力模块
+server.js/devMiddleware → SQLite storage API → core modules
+api/storage.ts → Redis storage API → server/storage
 ```
 
-- `src/domain/` 不依赖组件、Hooks 或服务。
-- `src/services/` 不依赖 React 组件。
-- 页面组件负责组合，不直接实现 HTTP 协议和存储细节。
-- 服务端 handler 负责鉴权、参数解析和能力编排，持久化与安全规则位于独立模块。
-- ESLint 对领域层和服务层的反向依赖执行检查。
+`src/services/storageFactory.ts` 是客户端数据访问边界。SQLite 与 Redis 提供相同的数据、媒体、认证、审计和维护接口。
 
-## 前端结构
+## 驱动契约
 
-### 领域层
+新增 MySQL 等驱动时需要实现以下能力：
 
-| 文件 | 职责 |
-|---|---|
-| `src/domain/publicData.ts` | 默认公共数据、默认私有数据、版本派生 |
-| `src/domain/storage.ts` | `StorageMode`、存储模式校验 |
-| `src/types.ts` | 卡片、分类、站点设置和审计数据结构 |
+- 公共数据读取、写入与版本冲突检查
+- 私有凭据读取与写入
+- 媒体读取、写入、删除和枚举
+- Session 创建、校验、删除和批量失效
+- 审计日志追加与分页读取
+- 限流计数和健康检查
 
-领域结构变更先修改类型和领域函数，再更新存储适配与界面。
+新驱动通过独立服务端模块接入 `/api/storage`，不修改页面组件和领域模型。
 
-### 存储适配
+## 数据键
 
-`StorageAdapter` 是前端数据访问边界：
+| 数据 | SQLite | Redis |
+|---|---|---|
+| 公共数据 | `public_data` | `<prefix>:public_data` |
+| 私有凭据 | `private_data` | `<prefix>:private_data` |
+| 封面 | `media:<name>` | `<prefix>:media:<name>` |
+| Session | `session:<token>` | `<prefix>:session:<token>` |
+| 审计日志 | `audit_logs` | `<prefix>:audit` |
 
-```ts
-interface StorageAdapter {
-  type: StorageMode;
-  getPublicData(): Promise<PublicData>;
-  savePublicData(data: PublicData, options?: SavePublicDataOptions): Promise<StorageWriteResult>;
-  getPrivateData(): Promise<PrivateData>;
-  savePrivateData(data: PrivateData): Promise<StorageWriteResult>;
-  testConnection(): Promise<{ success: boolean; message: string }>;
-}
-```
+## 一致性与安全
 
-`src/services/storageFactory.ts` 注册 SQLite 和 WebDAV 适配器。页面通过 `getStorage()` 或 `getStorageAsync()` 获取适配器，不判断协议细节。
-
-### API 客户端
-
-`src/services/apiClient.ts` 统一 Session Cookie 请求和 API 错误读取。新增管理接口时复用该模块。
-
-### 界面扩展
-
-- 公共页面组件位于 `src/components/public/`。
-- 管理页面组件位于 `src/components/admin/`。
-- 跨页面交互放入 `src/hooks/`。
-- 通用控件从 `src/components/Common.tsx` 导出。
-- 页面级组件保留数据组合和路由交互，领域计算放入 `src/domain/` 或 `src/utils/`。
-
-## 服务端结构
-
-| 模块 | 职责 |
-|---|---|
-| `server/core/apiCore.js` | SQLite API 与 WebDAV 代理编排 |
-| `server/core/webdavStore.js` | WebDAV 配置、JSON、目录和文件操作 |
-| `server/core/mediaGc.js` | 封面引用解析与垃圾清理 |
-| `server/core/adminCredentials.js` | 管理员凭据解析、校验和迁移 |
-| `server/core/kvStore.js` | SQLite KV 访问与存储模式 |
-| `server/core/sessionStore.js` | Session 与 Cookie |
-| `server/core/auditStore.js` | 审计日志 |
-| `server/core/requestOrigin.js` | 写请求同源校验 |
-| `server/core/remoteSecurity.js` | 远程地址与 DNS 校验 |
-| `server/publicDataValidation.js` | 公共数据结构校验 |
-| `server/sharedSecurity.js` | 密码、路径和输入校验 |
-
-新增 API 时，handler 只保留路由、认证、请求解析和响应映射。可复用业务逻辑放入对应能力模块。
-
-## 数据一致性
-
-- 普通编辑携带 `X-Expected-Updated-At`。
-- SQLite 写入前比较当前版本，冲突返回 409。
-- WebDAV 写入前比较版本，并在服务端提供 ETag 时发送 `If-Match`。
-- 读取故障返回错误；文件不存在时返回默认数据。
-- 覆盖同步属于显式操作，不使用目标端版本检查。
-
-## 安全边界
-
-- 所有外部输入在服务端校验。
+- 公共数据通过 `updatedAt` 执行乐观并发检查，冲突返回 409。
+- Redis 使用 Lua 脚本原子完成版本比较和写入。
 - 写请求校验 `Origin` 或 `Referer`。
-- Session Cookie 使用 `HttpOnly` 和 `SameSite=Strict`，生产环境使用 `Secure`。
-- WebDAV 文件名只接受指定根文件和单层封面文件。
+- Session Cookie 使用 `HttpOnly`、`SameSite=Strict`，生产环境使用 `Secure`。
 - 外部图片代理拒绝本地、回环和私有地址。
-- CSP 的 `script-src` 只允许同源脚本。
-- 公共数据写入执行数量、长度、唯一性、引用和 URL 校验。
+- 公共数据和媒体名称进入存储前执行结构与边界校验。
 
-## 测试边界
-
-| 变更 | 最低测试范围 |
-|---|---|
-| 领域函数 | 对应单元测试 |
-| 存储适配 | `storageFactory.test.ts` 或存储服务测试 |
-| 封面处理 | `coverAssetService.test.ts` |
-| 服务端安全与校验 | `server/*.test.js` |
-| Vercel 入口 | `api/vercelDisabled.test.ts` |
-| 界面交互 | 组件测试与 ESLint 无障碍规则 |
-
-完整检查命令：
+## 验证
 
 ```powershell
 npm run lint

@@ -31,3 +31,4 @@ data/*.sqlite3
 
 # Env
 .env
+.vercel

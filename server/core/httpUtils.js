@@ -9,6 +9,18 @@ export const jsonResponse = (response, status, payload) => {
 };
 
 export const readBody = async (request, limit = BODY_LIMIT_BYTES) => {
+  if (request.body !== undefined && request.body !== null) {
+    const body = Buffer.isBuffer(request.body)
+      ? request.body
+      : Buffer.from(typeof request.body === 'string' ? request.body : JSON.stringify(request.body));
+    if (body.length > limit) {
+      const error = new Error('Payload too large');
+      error.code = 'PAYLOAD_TOO_LARGE';
+      throw error;
+    }
+    return body;
+  }
+
   const chunks = [];
   let received = 0;
   for await (const chunk of request) {

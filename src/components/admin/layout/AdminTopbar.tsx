@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CloudUpload, Database, Loader2, Menu, Monitor, Moon, Save, Sun, X } from 'lucide-react';
+import { Database, Loader2, Menu, Monitor, Moon, Save, Server, Sun, X } from 'lucide-react';
 import { StorageMode } from '../../../domain/storage';
 import { Button, useTheme } from '../../Common';
 import { AdminNavItem } from './adminNavigation';
@@ -25,8 +25,8 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({
 }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
-  const storageLabel = storageType === 'sqlite' ? 'SQLite' : 'WebDAV';
-  const StorageIcon = storageType === 'sqlite' ? Database : CloudUpload;
+  const storageLabel = storageType === 'sqlite' ? 'SQLite' : 'Redis';
+  const StorageIcon = storageType === 'sqlite' ? Database : Server;
   const ThemeIcon = theme === 'light' ? Sun : theme === 'dark' ? Moon : Monitor;
   const themeLabel = theme === 'light' ? '浅色' : theme === 'dark' ? '深色' : '跟随系统';
 

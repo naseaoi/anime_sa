@@ -1,32 +1,20 @@
 import { getPublicDataUpdatedAt, normalizePublicDataPayload } from '../publicDataValidation.js';
 import { BODY_LIMIT_BYTES, MEDIA_BODY_LIMIT_BYTES, SESSION_COOKIE } from './constants.js';
 import { appendAuditLog, cleanAuditText } from './auditStore.js';
-import { dbDelete, dbGetJson, dbSetJson, ensureDb, getStorageMode } from './kvStore.js';
+import { dbDelete, dbGetJson, dbSetJson, ensureDb } from './kvStore.js';
 import { getClientIp, jsonResponse, parseCookies, readBody } from './httpUtils.js';
 import { isBlockedRemoteHost, safeFetchAgent } from './remoteSecurity.js';
 import { enforceSameOrigin } from './requestOrigin.js';
 import {
   buildAdminCredentialsForSave,
-  buildPrivateDataForTarget,
   ensureSqliteAdminFromEnv,
   resolveAdminCredentials
 } from './adminCredentials.js';
 import {
   cleanupSqliteUnusedMedia,
-  cleanupWebDavUnusedMedia,
   collectSqliteMediaNames,
-  parseCoverReferenceSets
+  parseMediaReferences
 } from './mediaGc.js';
-import {
-  buildWebDavUrl,
-  deleteWebDavCoverFile,
-  fetchWebDavJson,
-  getWebDavAuthHeader,
-  getWebDavConfig,
-  listWebDavCoverNames,
-  saveWebDavJson,
-  WEBDAV_USER_AGENT
-} from './webdavStore.js';
 import {
   buildCookie,
   clearAllSessions,
@@ -41,7 +29,6 @@ import {
   hashPassword,
   verifyPasswordHash,
   normalizeMediaName,
-  normalizeWebDavFilename,
   normalizePrivateDataPayload
 } from '../sharedSecurity.js';
 
@@ -60,7 +47,6 @@ export {
   destroySession,
   ensureDb,
   getClientIp,
-  getStorageMode,
   isBlockedRemoteHost,
   jsonResponse,
   parseCookies,
@@ -71,106 +57,16 @@ export {
 
 export {
   buildAdminCredentialsForSave,
-  buildPrivateDataForTarget,
-  buildWebDavUrl,
   cleanupSqliteUnusedMedia,
-  cleanupWebDavUnusedMedia,
   collectSqliteMediaNames,
-  deleteWebDavCoverFile,
   ensureSqliteAdminFromEnv,
-  fetchWebDavJson,
-  getWebDavConfig,
-  listWebDavCoverNames,
-  parseCoverReferenceSets,
-  resolveAdminCredentials,
-  saveWebDavJson
+  parseMediaReferences,
+  resolveAdminCredentials
 };
 
-// ===== 主 handler：WebDAV 代理 =====
+// ===== 主存储 handler =====
 
-export const handleWebDavApi = async (req, res, { env }) => {
-  if (!enforceSameOrigin(req, res)) return;
-  const db = ensureDb();
-  try {
-    const url = new URL(req.url || '', `http://${req.headers.host || 'local'}`);
-    const filename = normalizeWebDavFilename(url.searchParams.get('filename'));
-    if (filename === null) {
-      return jsonResponse(res, 400, { error: 'Invalid WebDAV filename' });
-    }
-    const config = getWebDavConfig(env);
-    if (!config) {
-      return jsonResponse(res, 500, { error: 'Missing WebDAV configuration in environment variables' });
-    }
-
-    const tunneled = req.headers['x-dav-method'];
-    const methodRaw = Array.isArray(tunneled) ? tunneled[0] : (tunneled || req.method || 'GET');
-    const method = String(methodRaw).toUpperCase();
-    const mutating = new Set(['PUT', 'DELETE', 'MKCOL', 'PROPPATCH', 'MOVE', 'COPY', 'LOCK', 'UNLOCK']);
-    const needsAuth = filename === 'private_data.json' || mutating.has(method);
-    if (needsAuth && !requireAuth(req, res, db)) return;
-
-    const headers = {
-      Authorization: getWebDavAuthHeader(config),
-      'User-Agent': WEBDAV_USER_AGENT
-    };
-    if (req.headers.depth) headers.Depth = req.headers.depth;
-    if (req.headers['content-type']) headers['Content-Type'] = req.headers['content-type'];
-    if (req.headers['if-match']) headers['If-Match'] = req.headers['if-match'];
-    if (req.headers['if-none-match']) headers['If-None-Match'] = req.headers['if-none-match'];
-
-    let body = null;
-    if (method !== 'GET' && method !== 'HEAD') {
-      const rawBody = await readBody(req, MEDIA_BODY_LIMIT_BYTES);
-      if (method === 'PUT' && filename === 'public_data.json') {
-        let parsed;
-        try { parsed = JSON.parse(rawBody.toString() || '{}'); }
-        catch { return jsonResponse(res, 400, { error: 'Invalid JSON body' }); }
-        const normalized = normalizePublicDataPayload(parsed);
-        if (!normalized) return jsonResponse(res, 400, { error: 'Invalid public_data payload' });
-        body = new Uint8Array(Buffer.from(JSON.stringify(normalized)));
-      } else if (method === 'PUT' && filename === 'private_data.json') {
-        let parsed;
-        try { parsed = JSON.parse(rawBody.toString() || '{}'); }
-        catch { return jsonResponse(res, 400, { error: 'Invalid JSON body' }); }
-        const normalized = normalizePrivateDataPayload(parsed);
-        if (!normalized) return jsonResponse(res, 400, { error: 'Invalid private_data payload' });
-        body = new Uint8Array(Buffer.from(JSON.stringify(normalized)));
-      } else {
-        body = rawBody.length > 0 ? new Uint8Array(rawBody) : null;
-      }
-    }
-
-    const davResponse = await fetch(buildWebDavUrl(env, filename), { method, headers, body });
-    res.statusCode = davResponse.status;
-    const contentType = davResponse.headers.get('content-type');
-    if (contentType) res.setHeader('Content-Type', contentType);
-    const etag = davResponse.headers.get('etag');
-    if (etag) res.setHeader('ETag', etag);
-    const lastModified = davResponse.headers.get('last-modified');
-    if (lastModified) res.setHeader('Last-Modified', lastModified);
-    const arrayBuffer = await davResponse.arrayBuffer();
-    const responseBody = Buffer.from(arrayBuffer);
-    if (method === 'GET' && filename === 'public_data.json' && davResponse.ok) {
-      let parsed;
-      try { parsed = JSON.parse(responseBody.toString() || '{}'); }
-      catch { return jsonResponse(res, 502, { error: 'Stored WebDAV public_data is invalid' }); }
-      const normalized = normalizePublicDataPayload(parsed);
-      if (!normalized) return jsonResponse(res, 502, { error: 'Stored WebDAV public_data is invalid' });
-      return res.end(JSON.stringify(normalized));
-    }
-    res.end(responseBody);
-  } catch (e) {
-    if (e.code === 'PAYLOAD_TOO_LARGE') {
-      return jsonResponse(res, 413, { error: 'Payload too large' });
-    }
-    console.error('WebDAV Proxy Error:', e);
-    return jsonResponse(res, 500, { error: e.message });
-  }
-};
-
-// ===== 主 handler：/api/sqlite/* =====
-
-export const handleSqliteApi = async (req, res, { env, isProduction = false } = {}) => {
+export const handleStorageApi = async (req, res, { env, isProduction = false } = {}) => {
   if (!enforceSameOrigin(req, res)) return;
   const db = ensureDb();
   try {
@@ -196,7 +92,7 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
       const upstream = await fetch(target.toString(), {
         method: 'GET',
         redirect: 'follow',
-        headers: { 'User-Agent': WEBDAV_USER_AGENT, Accept: 'image/*,*/*;q=0.8' },
+        headers: { 'User-Agent': 'anime-sa/1.0', Accept: 'image/*,*/*;q=0.8' },
         dispatcher: safeFetchAgent
       });
 
@@ -253,20 +149,12 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
 
       if (usernameOk && passwordOk) {
         // 明文凭据登录成功后自动升级为哈希
-        if (!hash && resolved.source === 'sqlite') {
+        if (!hash) {
           dbSetJson(db, 'private_data', {
             username: resolved.creds.username,
             passwordHash: await hashPassword(password),
             passwordUpdatedAt: Date.now()
           });
-        }
-        if (!hash && resolved.source === 'webdav') {
-          const upgradedHash = await hashPassword(password);
-          saveWebDavJson(env, 'private_data.json', {
-            username: resolved.creds.username,
-            passwordHash: upgradedHash,
-            passwordUpdatedAt: Date.now()
-          }).catch(() => {});
         }
         const session = createSession(db, !!remember);
         res.setHeader('Set-Cookie', buildCookie(session.token, session.maxAgeSec, isProduction));
@@ -359,21 +247,7 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
         return jsonResponse(res, 400, { success: false, error: next.error || '参数无效' });
       }
 
-      if (resolved.source === 'webdav') {
-        try {
-          await saveWebDavJson(env, 'private_data.json', next.data);
-        } catch {
-          appendAuditLog(db, {
-            action: 'update_admin_credentials',
-            status: 'failed',
-            details: `source=webdav ip=${getClientIp(req)}`,
-            message: 'WebDAV 凭据写入失败'
-          });
-          return jsonResponse(res, 500, { success: false, error: 'WebDAV 凭据写入失败' });
-        }
-      } else {
-        dbSetJson(db, 'private_data', next.data);
-      }
+      dbSetJson(db, 'private_data', next.data);
 
       if (next.changed) clearAllSessions(db);
 
@@ -391,89 +265,28 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
       });
     }
 
-    // /admin-credentials-sync
-    if (url.pathname.endsWith('/admin-credentials-sync')) {
-      if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
-      if (!requireAuth(req, res, db)) return;
-
-      const target = url.searchParams.get('target');
-      if (target !== 'sqlite' && target !== 'webdav') {
-        return jsonResponse(res, 400, { success: false, error: 'Invalid target' });
-      }
-
-      const rawBody = await readBody(req);
-      let body;
-      try { body = JSON.parse(rawBody.toString() || '{}'); }
-      catch { return jsonResponse(res, 400, { success: false, error: 'Invalid JSON body' }); }
-
-      const next = await buildPrivateDataForTarget(body);
-      if (!next.data) {
-        return jsonResponse(res, 400, { success: false, error: next.error || '参数无效' });
-      }
-
-      if (target === 'webdav') {
-        try {
-          await saveWebDavJson(env, 'private_data.json', next.data);
-        } catch {
-          appendAuditLog(db, {
-            action: 'sync_admin_credentials',
-            status: 'failed',
-            details: `target=webdav ip=${getClientIp(req)}`,
-            message: 'WebDAV 凭据写入失败'
-          });
-          return jsonResponse(res, 500, { success: false, error: 'WebDAV 凭据写入失败' });
-        }
-      } else {
-        dbSetJson(db, 'private_data', next.data);
-      }
-
-      appendAuditLog(db, {
-        action: 'sync_admin_credentials',
-        status: 'success',
-        details: `target=${target} ip=${getClientIp(req)}`
-      });
-      return jsonResponse(res, 200, { success: true });
-    }
-
     // /media-gc
     if (url.pathname.endsWith('/media-gc')) {
       if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
       if (!requireAuth(req, res, db)) return;
 
-      const target = url.searchParams.get('target');
-      if (target !== 'sqlite' && target !== 'webdav') {
-        return jsonResponse(res, 400, { success: false, error: 'Invalid target' });
-      }
       const limitRaw = Number(url.searchParams.get('limit') || 100);
       const limit = Math.min(500, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 100));
 
       try {
-        if (target === 'sqlite') {
-          const sqliteData = dbGetJson(db, 'public_data') || { cards: [] };
-          const refs = parseCoverReferenceSets(sqliteData);
-          const result = cleanupSqliteUnusedMedia(db, refs.sqliteNames, limit);
-          appendAuditLog(db, {
-            action: 'run_media_gc',
-            status: 'success',
-            details: `target=sqlite removed=${result.removed} pending=${result.pending} ip=${getClientIp(req)}`
-          });
-          return jsonResponse(res, 200, { success: true, ...result });
-        }
-
-        const webdavData = await fetchWebDavJson(env, 'public_data.json').catch(() => null);
-        const refs = parseCoverReferenceSets(webdavData || { cards: [] });
-        const result = await cleanupWebDavUnusedMedia(env, refs.webdavNames, limit);
+        const data = dbGetJson(db, 'public_data') || { cards: [] };
+        const result = cleanupSqliteUnusedMedia(db, parseMediaReferences(data), limit);
         appendAuditLog(db, {
           action: 'run_media_gc',
           status: 'success',
-          details: `target=webdav removed=${result.removed} pending=${result.pending} ip=${getClientIp(req)}`
+          details: `driver=sqlite removed=${result.removed} pending=${result.pending} ip=${getClientIp(req)}`
         });
         return jsonResponse(res, 200, { success: true, ...result });
       } catch {
         appendAuditLog(db, {
           action: 'run_media_gc',
           status: 'failed',
-          details: `target=${target} ip=${getClientIp(req)}`,
+          details: `driver=sqlite ip=${getClientIp(req)}`,
           message: '封面资源清理失败'
         });
         return jsonResponse(res, 500, { success: false, error: '封面资源清理失败' });
@@ -506,7 +319,7 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
           base64: rawBody.toString('base64'),
           updatedAt: Date.now()
         });
-        return jsonResponse(res, 200, { success: true, url: `/api/sqlite/media?name=${encodeURIComponent(mediaName)}` });
+        return jsonResponse(res, 200, { success: true, url: `/api/storage/media?name=${encodeURIComponent(mediaName)}` });
       }
 
       if (req.method === 'DELETE') {
@@ -524,8 +337,10 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
     const key = url.searchParams.get('key');
     if (!key) return jsonResponse(res, 400, { error: 'Missing key parameter' });
 
-    const publicReadKeys = new Set(['public_data', 'storage_mode', 'ping']);
-    const writableKeys = new Set(['public_data', 'private_data', 'storage_mode']);
+    if (req.method === 'GET' && key === 'driver') return jsonResponse(res, 200, { driver: 'sqlite' });
+    if (req.method === 'GET' && key === 'ping') return jsonResponse(res, 200, { ok: true, driver: 'sqlite', runtime: 'node' });
+    const publicReadKeys = new Set(['public_data']);
+    const writableKeys = new Set(['public_data', 'private_data']);
     if (req.method === 'GET' && key !== 'private_data' && !publicReadKeys.has(key)) {
       return jsonResponse(res, 404, { error: 'Unknown key' });
     }
@@ -598,18 +413,6 @@ export const handleSqliteApi = async (req, res, { env, isProduction = false } = 
         dbSetJson(db, key, normalized);
         appendAuditLog(db, { action: 'write_public_data', status: 'success', details: `ip=${getClientIp(req)}` });
         return jsonResponse(res, 200, { success: true, updatedAt: normalized.updatedAt });
-      }
-      if (key === 'storage_mode') {
-        if (parsed?.mode !== 'sqlite' && parsed?.mode !== 'webdav') {
-          return jsonResponse(res, 400, { error: 'Invalid storage mode' });
-        }
-        dbSetJson(db, key, { mode: parsed.mode });
-        appendAuditLog(db, {
-          action: 'write_storage_mode',
-          status: 'success',
-          details: `mode=${parsed?.mode || 'unknown'} ip=${getClientIp(req)}`
-        });
-        return jsonResponse(res, 200, { success: true });
       }
     }
 

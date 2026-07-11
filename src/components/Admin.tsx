@@ -67,7 +67,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
     const dataToSave = { ...nextData, updatedAt: Date.now() };
     const result = await storage.savePublicData(dataToSave, { expectedUpdatedAt });
     if (!result.success) {
-      const prefix = result.conflict ? '数据已更新' : `${storageType === 'sqlite' ? '保存' : '同步'}失败`;
+      const prefix = result.conflict ? '数据已更新' : '保存失败';
       showToast(`${prefix}: ${result.error}`, 'error');
       return false;
     }
@@ -76,9 +76,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
     await refreshData();
     localStorage.setItem('tat_site_settings', JSON.stringify(dataToSave.settings));
     setHasChanges(false);
-    showToast(successMessage || (storageType === 'sqlite' ? '已保存更改' : '数据同步成功'), 'success');
+    showToast(successMessage || '已保存更改', 'success');
     return true;
-  }, [refreshData, showToast, storageType]);
+  }, [refreshData, showToast]);
 
   const syncOps = useSyncOperations({
     getData: useCallback(() => localDataRef.current, []),

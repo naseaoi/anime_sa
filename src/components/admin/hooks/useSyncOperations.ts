@@ -1,25 +1,9 @@
 import { useCallback, useRef, useState } from 'react';
 import { PublicData } from '../../../types';
-import { StorageMode } from '../../../domain/storage';
-import {
-  runCoverGarbageCollectionBatch,
-  sqliteAdapter,
-  syncAdminCredentialsToTarget,
-  webdavAdapter,
-  writeAuditLog
-} from '../../../services/storageFactory';
-import {
-  CoverProcessFailure,
-  countSqliteMediaReferences,
-  forceOptimizeUrlCardCovers,
-  migrateCardCoversToStorage,
-  optimizeCardCoverVariants
-} from '../../../services/coverAssetService';
-
-export type SyncDirection = 'to_sqlite' | 'to_webdav';
+import { runCoverGarbageCollectionBatch } from '../../../services/storageFactory';
+import { CoverProcessFailure, forceOptimizeUrlCardCovers, optimizeCardCoverVariants } from '../../../services/coverAssetService';
 
 export interface GcProgress {
-  target: StorageMode;
   rounds: number;
   removed: number;
   checked: number;
@@ -44,138 +28,48 @@ interface SyncOperationsDeps {
 }
 
 export interface SyncOperations {
-  migrating: boolean;
   gcRunning: boolean;
   optimizingCovers: boolean;
   gcProgress: GcProgress | null;
   optimizeProgress: OptimizeProgress | null;
   optimizeFailures: CoverProcessFailure[];
   busy: boolean;
-  runSync: (direction: SyncDirection) => Promise<void>;
-  runGc: (target: StorageMode) => Promise<void>;
+  runGc: () => Promise<void>;
   runOptimizeCovers: () => Promise<void>;
   runForceUrlOptimize: () => Promise<void>;
 }
 
-const buildSyncDetails = (
-  direction: SyncDirection,
-  source: StorageMode,
-  target: StorageMode,
-  migrated = 0,
-  failed = 0,
-  sqliteRefs = 0
-) => {
-  return `direction=${direction} source=${source} target=${target} migrated=${migrated} failed=${failed} sqliteRefs=${sqliteRefs}`;
-};
-
-const buildSqliteRefError = (count: number, failures: CoverProcessFailure[]) => {
-  const base = `仍有 ${count} 个 SQLite 本地封面引用，已停止写入 WebDAV`;
-  if (failures.length === 0) return base;
-
-  const samples = failures
-    .slice(0, 3)
-    .map((item) => `${item.title}: ${item.reason}`)
-    .join('；');
-  return `${base}。封面迁移失败 ${failures.length} 张：${samples}`;
-};
-
 export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInfo }: SyncOperationsDeps): SyncOperations => {
-  const [migrating, setMigrating] = useState(false);
   const [gcRunning, setGcRunning] = useState(false);
   const [optimizingCovers, setOptimizingCovers] = useState(false);
   const [gcProgress, setGcProgress] = useState<GcProgress | null>(null);
   const [optimizeProgress, setOptimizeProgress] = useState<OptimizeProgress | null>(null);
   const [optimizeFailures, setOptimizeFailures] = useState<CoverProcessFailure[]>([]);
-
   const depsRef = useRef({ getData, onPersistData, showToast, reloadInfo });
   depsRef.current = { getData, onPersistData, showToast, reloadInfo };
 
-  const busy = migrating || gcRunning || optimizingCovers;
-
-  const runSync = useCallback(async (direction: SyncDirection) => {
-    const { showToast, reloadInfo } = depsRef.current;
-    setMigrating(true);
-    let auditDetails = `direction=${direction}`;
-    try {
-      const sourceAdapter = direction === 'to_sqlite' ? webdavAdapter : sqliteAdapter;
-      const targetAdapter = direction === 'to_sqlite' ? sqliteAdapter : webdavAdapter;
-      const targetMode: StorageMode = direction === 'to_sqlite' ? 'sqlite' : 'webdav';
-      auditDetails = buildSyncDetails(direction, sourceAdapter.type, targetMode);
-
-      showToast('正在读取源数据...', 'info');
-      const publicData = await sourceAdapter.getPublicData();
-      const privateData = await sourceAdapter.getPrivateData();
-
-      showToast('正在迁移封面资源...', 'info');
-      const migratedCovers = await migrateCardCoversToStorage(publicData.cards, sourceAdapter.type, targetMode);
-      const nextPublicData = { ...publicData, cards: migratedCovers.cards };
-      const sqliteRefCount = targetMode === 'webdav' ? countSqliteMediaReferences(nextPublicData.cards) : 0;
-      auditDetails = buildSyncDetails(direction, sourceAdapter.type, targetMode, migratedCovers.migrated, migratedCovers.failed, sqliteRefCount);
-      if (sqliteRefCount > 0) {
-        throw new Error(buildSqliteRefError(sqliteRefCount, migratedCovers.failures));
-      }
-
-      showToast('正在写入目标...', 'info');
-      const publicResult = await targetAdapter.savePublicData(nextPublicData);
-      if (!publicResult.success) throw new Error(publicResult.error);
-
-      if (privateData?.username) {
-        const privateResult = await syncAdminCredentialsToTarget(targetMode, privateData);
-        if (!privateResult.success) throw new Error(privateResult.error);
-      }
-
-      const coverSummary = migratedCovers.migrated > 0 || migratedCovers.failed > 0
-        ? ` 封面迁移 ${migratedCovers.migrated} 张${migratedCovers.failed > 0 ? `，失败 ${migratedCovers.failed} 张` : ''}。`
-        : ' ';
-      await writeAuditLog({
-        action: 'sync_public_data',
-        status: 'success',
-        details: auditDetails,
-        message: '公共数据同步完成'
-      });
-      showToast(`数据同步成功！${coverSummary}可按需执行封面清理。`, migratedCovers.failed > 0 ? 'info' : 'success');
-      reloadInfo();
-    } catch (e: any) {
-      const message = e?.message || '未知错误';
-      await writeAuditLog({
-        action: 'sync_public_data',
-        status: 'failed',
-        details: auditDetails,
-        message
-      });
-      showToast(`同步失败: ${message}`, 'error');
-      reloadInfo();
-    } finally {
-      setMigrating(false);
-    }
-  }, []);
-
-  const runGc = useCallback(async (target: StorageMode) => {
-    const { showToast, reloadInfo } = depsRef.current;
+  const runGc = useCallback(async () => {
+    const { showToast: notify, reloadInfo: refresh } = depsRef.current;
     setGcRunning(true);
     let totalRemoved = 0;
     let totalChecked = 0;
     let rounds = 0;
     let pending = 0;
-
     try {
       while (true) {
-        const result = await runCoverGarbageCollectionBatch(target, 80);
+        const result = await runCoverGarbageCollectionBatch(80);
         if (!result.success) throw new Error(result.error);
-
         rounds += 1;
         totalRemoved += result.removed;
         totalChecked = Math.max(totalChecked, result.checked);
         pending = result.pending;
-        setGcProgress({ target, rounds, removed: totalRemoved, checked: totalChecked, pending });
-
+        setGcProgress({ rounds, removed: totalRemoved, checked: totalChecked, pending });
         if (!result.hasMore) break;
       }
-
-      showToast(`封面清理完成：删除 ${totalRemoved} 个未引用资源`, 'success');
-      reloadInfo();
-    } catch (e: any) {
-      showToast(`封面清理失败: ${e.message}`, 'error');
+      notify(`封面清理完成：删除 ${totalRemoved} 个未引用资源`, 'success');
+      refresh();
+    } catch (error: any) {
+      notify(`封面清理失败: ${error.message}`, 'error');
     } finally {
       setGcRunning(false);
     }
@@ -185,34 +79,24 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
     optimizer: typeof optimizeCardCoverVariants | typeof forceOptimizeUrlCardCovers,
     emptyMessage: string,
     buildSuccess: (optimized: number, failed: number) => string,
-    failLabel: string,
     errorLabel: string
   ) => {
-    const { getData, onPersistData, showToast, reloadInfo } = depsRef.current;
-    const cards = getData().cards;
+    const { getData: readData, onPersistData: persist, showToast: notify, reloadInfo: refresh } = depsRef.current;
+    const cards = readData().cards;
     setOptimizingCovers(true);
     setOptimizeProgress({ total: cards.length, done: 0, optimized: 0, failed: 0 });
     setOptimizeFailures([]);
-
     try {
       const result = await optimizer(cards, setOptimizeProgress);
       setOptimizeFailures(result.failures);
       if (result.optimized === 0 && result.failed === 0) {
-        showToast(emptyMessage, 'info');
+        notify(emptyMessage, 'info');
         return;
       }
-
-      const success = await onPersistData(
-        { ...getData(), cards: result.cards },
-        buildSuccess(result.optimized, result.failed)
-      );
-
-      if (!success && result.failed > 0) {
-        showToast(`${failLabel}，失败 ${result.failed} 张`, 'error');
-      }
-      reloadInfo();
-    } catch (e: any) {
-      showToast(`${errorLabel}: ${e?.message || '未知错误'}`, 'error');
+      await persist({ ...readData(), cards: result.cards }, buildSuccess(result.optimized, result.failed));
+      refresh();
+    } catch (error: any) {
+      notify(`${errorLabel}: ${error?.message || '未知错误'}`, 'error');
     } finally {
       setOptimizingCovers(false);
     }
@@ -223,7 +107,6 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
       optimizeCardCoverVariants,
       '当前封面已全部具备缩略图，无需优化',
       (optimized, failed) => `封面优化完成：新增 ${optimized} 张缩略图${failed > 0 ? `，失败 ${failed} 张` : ''}`,
-      '封面优化未完整保存',
       '封面优化失败'
     ),
     [runOptimize]
@@ -234,21 +117,18 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
       forceOptimizeUrlCardCovers,
       '当前没有可强制优化的 URL 封面',
       (optimized, failed) => `URL 封面优化完成：生成缓存 ${optimized} 张${failed > 0 ? `，失败 ${failed} 张` : ''}`,
-      'URL 封面优化未完整保存',
       'URL 封面优化失败'
     ),
     [runOptimize]
   );
 
   return {
-    migrating,
     gcRunning,
     optimizingCovers,
     gcProgress,
     optimizeProgress,
     optimizeFailures,
-    busy,
-    runSync,
+    busy: gcRunning || optimizingCovers,
     runGc,
     runOptimizeCovers,
     runForceUrlOptimize

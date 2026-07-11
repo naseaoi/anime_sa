@@ -1,4 +1,4 @@
-export const STORAGE_MODES = ['sqlite', 'webdav'] as const;
+export const STORAGE_MODES = ['sqlite', 'redis'] as const;
 
 export type StorageMode = (typeof STORAGE_MODES)[number];
 

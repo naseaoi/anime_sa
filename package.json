@@ -14,7 +14,7 @@
     "typecheck": "npm run typecheck:client && npm run typecheck:server",
     "typecheck:client": "tsc --noEmit",
     "typecheck:server": "tsc -p tsconfig.server.json",
-    "check:server": "node --check server.js && node --check server/core/adminCredentials.js && node --check server/core/apiCore.js && node --check server/core/auditStore.js && node --check server/core/constants.js && node --check server/core/httpUtils.js && node --check server/core/kvStore.js && node --check server/core/mediaGc.js && node --check server/core/remoteSecurity.js && node --check server/core/requestOrigin.js && node --check server/core/sessionStore.js && node --check server/core/webdavStore.js && node --check server/sharedSecurity.js && node --check server/publicDataValidation.js && node --check public/bootstrap.js",
+    "check:server": "node --check server.js && node --check server/core/adminCredentials.js && node --check server/core/apiCore.js && node --check server/core/auditStore.js && node --check server/core/constants.js && node --check server/core/credentialPolicy.js && node --check server/core/httpUtils.js && node --check server/core/kvStore.js && node --check server/core/mediaGc.js && node --check server/core/remoteSecurity.js && node --check server/core/requestOrigin.js && node --check server/core/sessionCookie.js && node --check server/core/sessionStore.js && node --check server/storage/redisStore.js && node --check server/vercel/session.js && node --check server/vercel/redisApi.js && node --check server/sharedSecurity.js && node --check server/publicDataValidation.js && node --check public/bootstrap.js",
     "audit:prod": "npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org",
     "audit:all": "npm audit --audit-level=high --registry=https://registry.npmjs.org",
     "lint": "eslint . && npm run typecheck && npm run check:server",
@@ -30,6 +30,7 @@
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^6.30.4",
+    "redis": "^5.12.1",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "undici": "^6.27.0"
