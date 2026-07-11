@@ -48,20 +48,14 @@
 
   @media (min-width: 768px) {
     :root {
-      --page-x: 2.5rem;
+      --page-x: 3rem;
       --shelf-bleed: 2rem;
     }
   }
 
   @media (min-width: 1024px) {
     :root {
-      --page-x: 3.5rem;
-    }
-  }
-
-  @media (min-width: 1280px) {
-    :root {
-      --page-x: 4rem;
+      --page-x: max(4rem, 6vw);
     }
   }
 

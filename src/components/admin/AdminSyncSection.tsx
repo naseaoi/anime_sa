@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Database, Loader2, RefreshCw, Server, WandSparkles } from 'lucide-react';
+import { ArrowLeftRight, Database, Loader2, RefreshCw, Server, WandSparkles } from 'lucide-react';
 import { AuditLogEntry } from '../../types';
-import { getAuditLogs, getStorage } from '../../services/storageFactory';
-import { Button, useToast } from '../Common';
+import { StorageMode } from '../../domain/storage';
+import { fetchStorageTransferInfo, getAuditLogs, getStorage, StorageTransferInfo } from '../../services/storageFactory';
+import { Button, ConfirmModal, useToast } from '../Common';
 import { AdminBadge, AdminPanel } from './ui';
 import { SyncOperations } from './hooks/useSyncOperations';
 
@@ -11,13 +12,17 @@ interface AdminSyncSectionProps {
   syncInfoToken: number;
 }
 
+const storageModeLabel = (mode: StorageMode) => (mode === 'redis' ? 'Redis' : 'SQLite');
+
 export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syncInfoToken }) => {
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [transferInfo, setTransferInfo] = useState<StorageTransferInfo | null>(null);
+  const [confirmTransfer, setConfirmTransfer] = useState<{ source: StorageMode; target: StorageMode } | null>(null);
   const { showToast } = useToast();
   const storage = getStorage();
-  const driverLabel = storage.type === 'redis' ? 'Redis' : 'SQLite';
+  const driverLabel = storageModeLabel(storage.type);
 
   const loadInfo = useCallback(async () => {
     try {
@@ -27,6 +32,10 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syn
       showToast('获取存储信息失败', 'error');
     }
   }, [showToast, storage]);
+
+  const loadTransferInfo = useCallback(async () => {
+    setTransferInfo(await fetchStorageTransferInfo());
+  }, []);
 
   const loadAudit = useCallback(async () => {
     setAuditLoading(true);
@@ -41,8 +50,19 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syn
 
   useEffect(() => {
     loadInfo();
+    loadTransferInfo();
     loadAudit();
-  }, [loadAudit, loadInfo, syncInfoToken]);
+  }, [loadAudit, loadInfo, loadTransferInfo, syncInfoToken]);
+
+  const otherDrivers = (transferInfo?.available || []).filter((mode) => mode !== storage.type);
+
+  const startTransfer = useCallback((source: StorageMode, target: StorageMode) => {
+    void syncOps.runTransfer(source, target).then((ok) => {
+      if (!ok || target !== storage.type) return;
+      showToast('已恢复当前存储数据，即将刷新页面', 'info');
+      window.setTimeout(() => window.location.reload(), 1500);
+    });
+  }, [showToast, storage.type, syncOps]);
 
   const formatAction = (action: string) => {
     const map: Record<string, string> = {
@@ -50,6 +70,7 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syn
       run_media_gc: '执行封面清理',
       write_public_data: '写入公共数据',
       write_private_data: '写入私有配置',
+      transfer_storage: '存储数据传输',
       login: '管理员登录'
     };
     return map[action] || action;
@@ -72,6 +93,45 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syn
             </div>
           </div>
         </AdminPanel>
+
+        {otherDrivers.length > 0 && (
+          <AdminPanel title="数据传输">
+            <p className="mb-3 text-xs text-[color:var(--text-secondary)]">
+              在可用存储之间复制公共数据、管理员凭据与封面资源，目标中的同名数据会被覆盖。
+            </p>
+            <div className="space-y-3">
+              {otherDrivers.map((other) => (
+                <React.Fragment key={other}>
+                  <Button
+                    variant="secondary"
+                    className="w-full justify-start"
+                    disabled={syncOps.busy}
+                    onClick={() => setConfirmTransfer({ source: storage.type, target: other })}
+                  >
+                    {syncOps.transferring ? <Loader2 size={17} className="animate-spin" /> : <ArrowLeftRight size={17} />}
+                    备份到 {storageModeLabel(other)}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="w-full justify-start"
+                    disabled={syncOps.busy}
+                    onClick={() => setConfirmTransfer({ source: other, target: storage.type })}
+                  >
+                    {syncOps.transferring ? <Loader2 size={17} className="animate-spin" /> : <ArrowLeftRight size={17} />}
+                    从 {storageModeLabel(other)} 恢复
+                  </Button>
+                </React.Fragment>
+              ))}
+            </div>
+            {syncOps.transferProgress && syncOps.transferring && (
+              <p className="mt-3 text-xs text-[color:var(--text-secondary)]">
+                {syncOps.transferProgress.stage === 'data'
+                  ? '正在传输站点数据…'
+                  : `正在传输封面：已复制 ${syncOps.transferProgress.copied} 个，待处理 ${syncOps.transferProgress.pending} 个`}
+              </p>
+            )}
+          </AdminPanel>
+        )}
 
         <AdminPanel title="存储维护">
           <div className="space-y-3">
@@ -108,7 +168,7 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syn
             刷新
           </Button>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 max-h-[calc(100vh-16rem)] overflow-y-auto scrollbar-thinest pr-1">
           {auditLogs.length === 0 && <p className="text-sm text-[color:var(--text-secondary)]">暂无日志</p>}
           {auditLogs.map((item) => (
             <div key={item.id} className="rounded-[8px] border border-[color:var(--line)] p-3 text-xs">
@@ -122,6 +182,18 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syn
           ))}
         </div>
       </AdminPanel>
+
+      <ConfirmModal
+        isOpen={!!confirmTransfer}
+        onClose={() => setConfirmTransfer(null)}
+        onConfirm={() => confirmTransfer && startTransfer(confirmTransfer.source, confirmTransfer.target)}
+        title="确认数据传输"
+        message={confirmTransfer
+          ? `将把 ${storageModeLabel(confirmTransfer.source)} 中的公共数据、管理员凭据与封面资源复制到 ${storageModeLabel(confirmTransfer.target)}，并覆盖目标中的同名数据。是否继续？`
+          : ''}
+        confirmText="开始传输"
+        type="danger"
+      />
     </div>
   );
 };

@@ -19,7 +19,7 @@ const createRequest = (url, method = 'GET') => ({
   socket: { remoteAddress: '127.0.0.1' }
 });
 
-describe('Vercel API runtime', () => {
+describe('Redis storage API runtime', () => {
   it('reports the Redis storage driver without connecting', async () => {
     const response = createResponse();
     await handleRedisStorageApi(createRequest('/api/storage?key=driver'), response, { env: {} });
@@ -27,10 +27,17 @@ describe('Vercel API runtime', () => {
     expect(response.json()).toEqual({ driver: 'redis' });
   });
 
-  it('reports a Vercel health response without Redis', async () => {
+  it('reports a Vercel health response by default', async () => {
     const response = createResponse();
     await handleRedisStorageApi(createRequest('/api/storage?key=ping'), response, { env: {} });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ ok: true, driver: 'redis', runtime: 'vercel' });
+  });
+
+  it('reports the Node runtime when requested', async () => {
+    const response = createResponse();
+    await handleRedisStorageApi(createRequest('/api/storage?key=ping'), response, { env: {}, runtime: 'node' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true, driver: 'redis', runtime: 'node' });
   });
 });

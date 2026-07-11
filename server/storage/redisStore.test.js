@@ -9,6 +9,8 @@ import {
   verifyRedisSession
 } from './redisStore.js';
 
+vi.mock('redis', () => ({ createClient: vi.fn() }));
+
 class FakeRedis {
   constructor() {
     this.values = new Map();
@@ -90,5 +92,35 @@ describe('Vercel Redis store', () => {
     await appendRedisAudit(redis, env, { id: 'second' });
 
     expect(await readRedisAudit(redis, env, 1)).toEqual([{ id: 'second' }]);
+  });
+
+  it('rebuilds the client after a failed initial connection', async () => {
+    vi.resetModules();
+    const redisModule = await import('redis');
+    const store = await import('./redisStore.js');
+    const clients = [];
+    redisModule.createClient.mockImplementation(() => {
+      const client = {
+        isOpen: false,
+        isReady: false,
+        on: vi.fn(),
+        close: vi.fn(),
+        connect: vi.fn(async () => {
+          if (clients.indexOf(client) === 0) throw new Error('ECONNREFUSED');
+          client.isReady = true;
+          return client;
+        })
+      };
+      clients.push(client);
+      return client;
+    });
+
+    const connectEnv = { REDIS_URL: 'redis://localhost:6399' };
+    await expect(store.getRedisClient(connectEnv)).rejects.toThrow('ECONNREFUSED');
+    const client = await store.getRedisClient(connectEnv);
+
+    expect(clients.length).toBe(2);
+    expect(client).toBe(clients[1]);
+    expect(client.isReady).toBe(true);
   });
 });

@@ -7,6 +7,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/storage/:path*",
+      "destination": "/api/storage"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

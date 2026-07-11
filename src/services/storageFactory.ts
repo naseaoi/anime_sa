@@ -140,6 +140,63 @@ export const getStorageAsync = async (): Promise<StorageAdapter> => {
   return storageAdapter;
 };
 
+export interface StorageTransferInfo {
+  driver: StorageMode;
+  available: StorageMode[];
+}
+
+export const fetchStorageTransferInfo = async (): Promise<StorageTransferInfo> => {
+  const fallback: StorageTransferInfo = { driver: storageAdapter.type, available: [storageAdapter.type] };
+  try {
+    const response = await requestWithSession(`${STORAGE_API_URL}/transfer`);
+    if (!response.ok) return fallback;
+    const data = await response.json().catch(() => null);
+    const driver = isStorageMode(data?.driver) ? data.driver : fallback.driver;
+    const available = Array.isArray(data?.available) ? data.available.filter(isStorageMode) : [];
+    return { driver, available: available.length > 0 ? available : [driver] };
+  } catch {
+    return fallback;
+  }
+};
+
+const postStorageTransfer = async (payload: Record<string, unknown>) => {
+  const response = await requestWithSession(`${STORAGE_API_URL}/transfer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.success) {
+    throw new Error(data?.error || `存储数据传输失败 (${response.status})`);
+  }
+  return data;
+};
+
+export const runStorageDataTransfer = async (source: StorageMode, target: StorageMode) => {
+  try {
+    const data = await postStorageTransfer({ source, target, scope: 'data' });
+    return { success: true as const, copied: Array.isArray(data.copied) ? data.copied as string[] : [] };
+  } catch (error: any) {
+    return { success: false as const, error: error.message };
+  }
+};
+
+export const runStorageMediaTransferBatch = async (source: StorageMode, target: StorageMode, limit = 50) => {
+  try {
+    const data = await postStorageTransfer({ source, target, scope: 'media', limit });
+    return {
+      success: true as const,
+      total: Number(data.total || 0),
+      copied: Number(data.copied || 0),
+      skipped: Number(data.skipped || 0),
+      pending: Number(data.pending || 0),
+      hasMore: !!data.hasMore
+    };
+  } catch (error: any) {
+    return { success: false as const, error: error.message };
+  }
+};
+
 export const runCoverGarbageCollectionBatch = async (limit = 100) => {
   try {
     const response = await requestWithSession(`${STORAGE_API_URL}/media-gc?limit=${encodeURIComponent(String(limit))}`, { method: 'POST' });

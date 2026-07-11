@@ -7,6 +7,9 @@ import {
   jsonResponse,
   getClientIp
 } from './server/core/apiCore.js';
+import { resolveStorageDriver } from './server/core/storageDriver.js';
+import { handleRedisStorageApi } from './server/storage/redisApi.js';
+import { handleStorageTransferApi } from './server/storage/transferApi.js';
 
 // ===== 环境变量加载 =====
 const envPath = path.join(process.cwd(), '.env');
@@ -27,6 +30,7 @@ const PORT = process.env.PORT || 3000;
 const DIST_DIR = path.join(process.cwd(), 'dist');
 const DATA_DIR = path.join(process.cwd(), 'data');
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const STORAGE_DRIVER = resolveStorageDriver(process.env);
 
 // 速率限制阈值
 const API_RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -188,6 +192,15 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
   if (url.pathname.startsWith('/api/storage') || url.pathname.startsWith('/api/sqlite')) {
+    if (url.pathname === '/api/storage/transfer') {
+      if (!checkRateLimit(req, res, 'api:storage', API_RATE_LIMIT_MAX, API_RATE_LIMIT_WINDOW_MS)) return;
+      await handleStorageTransferApi(req, res, { env: process.env, driver: STORAGE_DRIVER });
+      return;
+    }
+    if (STORAGE_DRIVER === 'redis') {
+      await handleRedisStorageApi(req, res, { env: process.env, isProduction: IS_PRODUCTION, runtime: 'node' });
+      return;
+    }
     const scope = url.pathname.endsWith('/login') ? 'api:login' : 'api:storage';
     const max = scope === 'api:login' ? LOGIN_RATE_LIMIT_MAX : API_RATE_LIMIT_MAX;
     const window = scope === 'api:login' ? LOGIN_RATE_LIMIT_WINDOW_MS : API_RATE_LIMIT_WINDOW_MS;
@@ -235,5 +248,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running at http://0.0.0.0:${PORT}`);
-  console.log(`- Storage Driver: SQLite (Data: ${DATA_DIR})`);
+  console.log(`- Storage Driver: ${STORAGE_DRIVER === 'redis' ? 'Redis' : `SQLite (Data: ${DATA_DIR})`}`);
 });

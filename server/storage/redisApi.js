@@ -24,8 +24,8 @@ import {
   saveRedisPublicData,
   verifyRedisSession,
   writeRedisJson
-} from '../storage/redisStore.js';
-import { getSessionToken, requireVercelAuth } from './session.js';
+} from './redisStore.js';
+import { getSessionToken, requireRedisAuth } from './redisSession.js';
 
 const REMOTE_USER_AGENT = 'anime-sa/1.0';
 
@@ -76,7 +76,7 @@ const appendAudit = async (redis, env, action, status, details = '', message = '
 
 const handleRemoteImage = async (request, response, url, redis, env) => {
   if (request.method !== 'GET') { response.statusCode = 405; response.end(); return; }
-  if (!(await requireVercelAuth(request, response, redis, env))) return;
+  if (!(await requireRedisAuth(request, response, redis, env))) return;
   const rawTarget = String(url.searchParams.get('url') || '').trim();
   if (!rawTarget) return jsonResponse(response, 400, { error: 'Missing url parameter' });
   let target;
@@ -119,7 +119,7 @@ const handleMedia = async (request, response, url, redis, env) => {
     response.end(media.bytes);
     return;
   }
-  if (!(await requireVercelAuth(request, response, redis, env))) return;
+  if (!(await requireRedisAuth(request, response, redis, env))) return;
   if (request.method === 'POST') {
     const bytes = await readBody(request, MEDIA_BODY_LIMIT_BYTES);
     await saveRedisMedia(redis, env, name, String(request.headers['content-type'] || 'application/octet-stream'), bytes);
@@ -133,13 +133,13 @@ const handleMedia = async (request, response, url, redis, env) => {
   response.end();
 };
 
-export const handleRedisStorageApi = async (request, response, { env }) => {
+export const handleRedisStorageApi = async (request, response, { env, isProduction = true, runtime = 'vercel' }) => {
   if (!enforceSameOrigin(request, response)) return;
   try {
     const url = new URL(request.url || '', `http://${request.headers.host || 'local'}`);
     const key = url.searchParams.get('key');
     if (request.method === 'GET' && key === 'driver') return jsonResponse(response, 200, { driver: 'redis' });
-    if (request.method === 'GET' && key === 'ping') return jsonResponse(response, 200, { ok: true, driver: 'redis', runtime: 'vercel' });
+    if (request.method === 'GET' && key === 'ping') return jsonResponse(response, 200, { ok: true, driver: 'redis', runtime });
 
     const redis = await getRedisClient(env);
     if (!(await checkRateLimit(request, response, redis, env, 'api', 600, 60))) return;
@@ -170,20 +170,25 @@ export const handleRedisStorageApi = async (request, response, { env }) => {
       }
       const session = await createRedisSession(redis, env, !!body.remember);
       await appendAudit(redis, env, 'login', 'success', `username=${credentials.username}`);
-      response.setHeader('Set-Cookie', buildCookie(session.token, session.maxAgeSec, true));
+      response.setHeader('Set-Cookie', buildCookie(session.token, session.maxAgeSec, isProduction));
       return jsonResponse(response, 200, { success: true });
     }
 
     if (url.pathname.endsWith('/logout')) {
       if (request.method !== 'POST') { response.statusCode = 405; response.end(); return; }
       await destroyRedisSession(redis, env, getSessionToken(request));
-      response.setHeader('Set-Cookie', clearCookie(true));
+      response.setHeader('Set-Cookie', clearCookie(isProduction));
       return jsonResponse(response, 200, { success: true });
     }
     if (url.pathname.endsWith('/session')) {
       return jsonResponse(response, 200, { authenticated: await verifyRedisSession(redis, env, getSessionToken(request)) });
     }
-    if (!(await requireVercelAuth(request, response, redis, env))) return;
+    if (!(await requireRedisAuth(request, response, redis, env))) return;
+
+    if (url.pathname.endsWith('/transfer')) {
+      if (request.method === 'GET') return jsonResponse(response, 200, { driver: 'redis', available: ['redis'] });
+      return jsonResponse(response, 501, { success: false, error: 'Storage transfer requires the Node runtime' });
+    }
 
     if (url.pathname.endsWith('/admin-profile')) {
       const credentials = await loadCredentials(redis, env);
@@ -199,7 +204,7 @@ export const handleRedisStorageApi = async (request, response, { env }) => {
       await writeRedisJson(redis, env, 'private_data', next.data);
       await appendAudit(redis, env, 'update_admin_credentials', 'success', `username=${next.data.username}`);
       await clearRedisSessions(redis, env);
-      response.setHeader('Set-Cookie', clearCookie(true));
+      response.setHeader('Set-Cookie', clearCookie(isProduction));
       return jsonResponse(response, 200, { success: true, requireRelogin: true });
     }
     if (url.pathname.endsWith('/media-gc')) {

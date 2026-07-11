@@ -1,6 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
 import { PublicData } from '../../../types';
-import { runCoverGarbageCollectionBatch } from '../../../services/storageFactory';
+import { StorageMode } from '../../../domain/storage';
+import {
+  runCoverGarbageCollectionBatch,
+  runStorageDataTransfer,
+  runStorageMediaTransferBatch
+} from '../../../services/storageFactory';
 import { CoverProcessFailure, forceOptimizeUrlCardCovers, optimizeCardCoverVariants } from '../../../services/coverAssetService';
 
 export interface GcProgress {
@@ -17,6 +22,13 @@ export interface OptimizeProgress {
   failed: number;
 }
 
+export interface TransferProgress {
+  stage: 'data' | 'media';
+  copied: number;
+  pending: number;
+  total: number;
+}
+
 type ToastFn = (message: string, type?: 'success' | 'error' | 'info') => void;
 type PersistFn = (nextData: PublicData, successMessage: string) => Promise<boolean>;
 
@@ -30,20 +42,25 @@ interface SyncOperationsDeps {
 export interface SyncOperations {
   gcRunning: boolean;
   optimizingCovers: boolean;
+  transferring: boolean;
   gcProgress: GcProgress | null;
   optimizeProgress: OptimizeProgress | null;
+  transferProgress: TransferProgress | null;
   optimizeFailures: CoverProcessFailure[];
   busy: boolean;
   runGc: () => Promise<void>;
   runOptimizeCovers: () => Promise<void>;
   runForceUrlOptimize: () => Promise<void>;
+  runTransfer: (source: StorageMode, target: StorageMode) => Promise<boolean>;
 }
 
 export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInfo }: SyncOperationsDeps): SyncOperations => {
   const [gcRunning, setGcRunning] = useState(false);
   const [optimizingCovers, setOptimizingCovers] = useState(false);
+  const [transferring, setTransferring] = useState(false);
   const [gcProgress, setGcProgress] = useState<GcProgress | null>(null);
   const [optimizeProgress, setOptimizeProgress] = useState<OptimizeProgress | null>(null);
+  const [transferProgress, setTransferProgress] = useState<TransferProgress | null>(null);
   const [optimizeFailures, setOptimizeFailures] = useState<CoverProcessFailure[]>([]);
   const depsRef = useRef({ getData, onPersistData, showToast, reloadInfo });
   depsRef.current = { getData, onPersistData, showToast, reloadInfo };
@@ -122,15 +139,50 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
     [runOptimize]
   );
 
+  const runTransfer = useCallback(async (source: StorageMode, target: StorageMode) => {
+    const { showToast: notify, reloadInfo: refresh } = depsRef.current;
+    setTransferring(true);
+    setTransferProgress({ stage: 'data', copied: 0, pending: 0, total: 0 });
+    try {
+      const dataResult = await runStorageDataTransfer(source, target);
+      if (!dataResult.success) throw new Error(dataResult.error);
+
+      let copiedTotal = 0;
+      let skippedTotal = 0;
+      while (true) {
+        const result = await runStorageMediaTransferBatch(source, target, 50);
+        if (!result.success) throw new Error(result.error);
+        copiedTotal += result.copied;
+        skippedTotal += result.skipped;
+        setTransferProgress({ stage: 'media', copied: copiedTotal, pending: result.pending, total: result.total });
+        if (!result.hasMore) break;
+        if (result.copied === 0) throw new Error(`存在无法复制的封面资源（剩余 ${result.pending} 个）`);
+      }
+
+      notify(`数据传输完成：封面 ${copiedTotal} 个${skippedTotal > 0 ? `，跳过 ${skippedTotal} 个` : ''}`, 'success');
+      refresh();
+      return true;
+    } catch (error: any) {
+      notify(`数据传输失败: ${error?.message || '未知错误'}`, 'error');
+      return false;
+    } finally {
+      setTransferring(false);
+      setTransferProgress(null);
+    }
+  }, []);
+
   return {
     gcRunning,
     optimizingCovers,
+    transferring,
     gcProgress,
     optimizeProgress,
+    transferProgress,
     optimizeFailures,
-    busy: gcRunning || optimizingCovers,
+    busy: gcRunning || optimizingCovers || transferring,
     runGc,
     runOptimizeCovers,
-    runForceUrlOptimize
+    runForceUrlOptimize,
+    runTransfer
   };
 };

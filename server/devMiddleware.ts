@@ -1,15 +1,27 @@
 import type { Plugin, ViteDevServer } from 'vite';
 import { handleStorageApi } from './core/apiCore.js';
+import { resolveStorageDriver } from './core/storageDriver.js';
+import { handleRedisStorageApi } from './storage/redisApi.js';
+import { handleStorageTransferApi } from './storage/transferApi.js';
 
-// 挂载开发态 API 路由：业务逻辑全部委托 core/apiCore.js
+// 挂载开发态 API 路由：业务逻辑全部委托驱动 handler
 const mountApiRoutes = (server: ViteDevServer, env: Record<string, string>) => {
-  server.middlewares.use('/api/storage', async (req: any, res: any) => {
-    await handleStorageApi(req, res, { env, isProduction: false });
+  const driver = resolveStorageDriver(env);
+
+  server.middlewares.use('/api/storage/transfer', async (req: any, res: any) => {
+    await handleStorageTransferApi(req, res, { env, driver });
   });
 
-  server.middlewares.use('/api/sqlite', async (req: any, res: any) => {
+  const handleApi = async (req: any, res: any) => {
+    if (driver === 'redis') {
+      await handleRedisStorageApi(req, res, { env, isProduction: false, runtime: 'node' });
+      return;
+    }
     await handleStorageApi(req, res, { env, isProduction: false });
-  });
+  };
+
+  server.middlewares.use('/api/storage', handleApi);
+  server.middlewares.use('/api/sqlite', handleApi);
 };
 
 // 暴露为 Vite 插件，让 vite.config.ts 不必感知 configureServer 细节

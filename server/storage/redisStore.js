@@ -13,10 +13,19 @@ export const getRedisClient = async (env) => {
   if (!url) throw new Error('Missing REDIS_URL');
   if (!redisClient || redisIdentity !== url) {
     if (redisClient?.isOpen) await redisClient.close();
-    redisClient = createClient({ url });
-    redisClient.on('error', (error) => console.error('Redis client error:', error));
+    const client = createClient({ url });
+    client.on('error', (error) => console.error('Redis client error:', error));
+    redisClient = client;
     redisIdentity = url;
-    redisConnectPromise = redisClient.connect();
+    // 初次连接失败时丢弃缓存实例，下次调用重建连接
+    redisConnectPromise = client.connect().catch((error) => {
+      if (redisClient === client) {
+        redisClient = null;
+        redisIdentity = '';
+        redisConnectPromise = null;
+      }
+      throw error;
+    });
   }
   if (!redisClient.isReady) await redisConnectPromise;
   return redisClient;
