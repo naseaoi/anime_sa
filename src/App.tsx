@@ -114,8 +114,8 @@ const MainRouter: React.FC = () => {
               <Route path="/tat/*" element={<AdminLayout initialData={data} refreshData={fetchData} />} />
               <Route path="/" element={<PublicHome data={data} refreshData={fetchData} isAdmin={isAdmin} />} />
               <Route path="/:section" element={<PublicHome data={data} refreshData={fetchData} isAdmin={isAdmin} />} />
-              <Route path="/:section/:id" element={<PublicDetail data={data} refreshData={fetchData} />} />
-              <Route path="/card/:id" element={<PublicDetail data={data} refreshData={fetchData} />} />
+              <Route path="/:section/:id" element={<PublicDetail data={data} refreshData={fetchData} isAdmin={isAdmin} />} />
+              <Route path="/card/:id" element={<PublicDetail data={data} refreshData={fetchData} isAdmin={isAdmin} />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>

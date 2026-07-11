@@ -3,14 +3,13 @@ import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, Suspense 
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ThumbsUp, PlayCircle, Grid, ArrowUp } from 'lucide-react';
 import { PublicData, CardData } from '../types';
-import { useToast, useTheme } from './Common';
-import { getStorage } from '../services/storageFactory';
-import { persistCardCover } from '../services/coverAssetService';
+import { useTheme } from './Common';
 import { PublicCardGrid } from './public/PublicCardGrid';
 import { PublicTopNav, type SortKey, type SortOrder } from './public/PublicTopNav';
 import { PublicStructuredHome } from './public/PublicStructuredHome';
 import { CardGridSkeleton } from './public/PublicSkeletons';
 import { useBackToTop } from '../hooks/useBackToTop';
+import { useCardCreate, QUICK_CREATE_INITIAL_CARD } from '../hooks/useCardCreate';
 import { useHeroRotation } from '../hooks/useHeroRotation';
 import { useStructuredHomeSections } from '../hooks/useStructuredHomeSections';
 import { buildCardStats } from '../utils/cardStats';
@@ -45,7 +44,6 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   const navigate = useNavigate();
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
-  const { showToast } = useToast();
 
   // 状态初始化：优先从 SessionStorage 读取，返回时保持一致
   const [sortConfig, setSortConfig] = useState<{ key: SortKey, order: SortOrder }>(() => {
@@ -69,8 +67,9 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isGridTransitioning, setIsGridTransitioning] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [heroAmbient, setHeroAmbient] = useState<string | null>(null);
+
+  const { isCreateModalOpen, setIsCreateModalOpen, handleCreateSave } = useCardCreate(data, refreshData);
 
   const showBackToTop = useBackToTop();
 
@@ -288,20 +287,31 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     resetListView();
   };
 
+  // 从详情页发起的搜索：清空搜索词时回到原详情页
+  const searchReturnTo = (location.state as { searchReturnTo?: string } | null)?.searchReturnTo;
+
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
+    if (!val && searchReturnTo) {
+      navigate(-1);
+      return;
+    }
     setSearchTerm(val);
     setSearchParams(prev => {
       const newParams = new URLSearchParams(prev);
       if (val) newParams.set('q', val);
       else newParams.delete('q');
       return newParams;
-    }, { replace: true });
+    }, { replace: true, state: location.state });
 
     setVisibleCount(INITIAL_LOAD_COUNT);
   };
 
   const clearSearch = () => {
+    if (searchReturnTo) {
+      navigate(-1);
+      return;
+    }
     setSearchTerm('');
     setSearchParams(prev => {
       const newParams = new URLSearchParams(prev);
@@ -404,46 +414,6 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     return () => observer.disconnect();
   }, [hasMore, isLoadingMore, filteredCards.length, visibleCount]);
 
-  // --- 创建卡片 ---
-  const handleCreateSave = async (cardData: Partial<CardData>) => {
-    try {
-      const newCards = [...data.cards];
-      const now = Date.now();
-      const draftCard: CardData = {
-        id: now.toString(),
-        title: cardData.title || 'Untitled',
-        coverUrl: cardData.coverUrl || '',
-        coverLocalData: cardData.coverLocalData || '',
-        description: cardData.description || '',
-        startDate: cardData.startDate || '',
-        endDate: cardData.endDate || '',
-        rating: cardData.rating || 0,
-        tagIds: cardData.tagIds || [],
-        isRecommended: !!cardData.isRecommended,
-        isWatching: !!cardData.isWatching,
-        createdAt: now,
-        updatedAt: now
-      };
-
-      const newCard = await persistCardCover(draftCard);
-      newCards.push(newCard);
-
-      const result = await getStorage().savePublicData(
-        { ...data, cards: newCards, updatedAt: now },
-        { expectedUpdatedAt: Number(data.updatedAt || 0) }
-      );
-      if (result.success) {
-        await refreshData();
-        setIsCreateModalOpen(false);
-        showToast('创建成功', 'success');
-      } else {
-        showToast(result.error || '失败', 'error');
-      }
-    } catch (e: any) {
-      showToast(`封面处理失败: ${e?.message || '未知错误'}`, 'error');
-    }
-  };
-
   const gridKey = getGridKey(activeTag, searchTerm, sortConfig);
 
   useEffect(() => {
@@ -479,10 +449,6 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
 
   const getCardLinkState = () => ({ from: `${location.pathname}${location.search}` });
 
-  const quickCreateInitialCard = useMemo<Partial<CardData>>(
-    () => ({ tagIds: [], rating: 0, description: '', startDate: '', endDate: '', isRecommended: false, isWatching: false }),
-    []
-  );
   const homeStyle = {
     ...(heroAmbient ? { '--ambient': heroAmbient } : {})
   } as React.CSSProperties;
@@ -597,7 +563,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
           title="快速记录"
-          initialCard={quickCreateInitialCard}
+          initialCard={QUICK_CREATE_INITIAL_CARD}
           tags={data.tags}
           onSave={handleCreateSave}
         />

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { PublicData, SiteSettings } from '../../types';
 import { getAdminProfile, logoutServerSession, updateAdminCredentials } from '../../services/storageFactory';
 import { DEFAULT_THEME_COLOR, isValidThemeColor } from '../../utils/themeColor';
 import { Button, ConfirmModal, Input, useToast } from '../Common';
-import { AdminIconButton, AdminPanel } from './ui';
+import { AdminPanel } from './ui';
 
 interface AdminSettingsSectionProps {
   data: PublicData;
@@ -20,8 +20,6 @@ export const AdminSettingsSection: React.FC<AdminSettingsSectionProps> = ({ data
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingCreds, setSavingCreds] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [confirmLogoutModalOpen, setConfirmLogoutModalOpen] = useState(false);
   const { showToast } = useToast();
 
@@ -193,39 +191,21 @@ export const AdminSettingsSection: React.FC<AdminSettingsSectionProps> = ({ data
             onChange={(e) => setUsername(e.target.value)}
             className="h-10 rounded-[6px] text-sm"
           />
-          <div className="relative">
-            <Input
-              label="新密码"
-              type={showPassword ? 'text' : 'password'}
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="留空则不修改"
-              className="h-10 rounded-[6px] pr-11 text-sm"
-            />
-            <AdminIconButton
-              label={showPassword ? '隐藏密码' : '显示密码'}
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-1 top-[25px]"
-            >
-              {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-            </AdminIconButton>
-          </div>
-          <div className="relative">
-            <Input
-              label="确认新密码"
-              type={showConfirmPassword ? 'text' : 'password'}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="h-10 rounded-[6px] pr-11 text-sm"
-            />
-            <AdminIconButton
-              label={showConfirmPassword ? '隐藏密码' : '显示密码'}
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-1 top-[25px]"
-            >
-              {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-            </AdminIconButton>
-          </div>
+          <Input
+            label="新密码"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="留空则不修改"
+            className="h-10 rounded-[6px] text-sm"
+          />
+          <Input
+            label="确认新密码"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="h-10 rounded-[6px] text-sm"
+          />
           <Button
             className="h-10 w-full rounded-[6px] text-sm"
             onClick={() => saveCredentials()}

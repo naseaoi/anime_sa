@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, Eye, EyeOff } from 'lucide-react';
 
 // --- 表单 Primitives ---
 
@@ -26,15 +26,36 @@ export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { 
 };
 
 export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label?: string, error?: string }> = ({
-  label, error, className = '', ...props
+  label, error, className = '', type, ...props
 }) => {
+  const [showPassword, setShowPassword] = useState(false);
+  const isPassword = type === 'password';
+
+  const input = (
+    <input
+      type={isPassword && showPassword ? 'text' : type}
+      className={`w-full px-3 py-2 bg-[color:var(--surface-muted)] border ${error ? 'border-red-300 focus:border-red-500 dark:border-red-800' : 'border-[color:var(--line)] focus:border-[color:var(--accent)]'} rounded-lg text-[color:var(--text-primary)] placeholder:text-[color:var(--text-secondary)]/60 focus:outline-none focus:ring-4 focus:ring-[color:var(--accent-soft)] dark:[color-scheme:dark] transition-all ${isPassword ? 'pr-10' : ''} ${className}`}
+      {...props}
+    />
+  );
+
   return (
     <div className="flex flex-col gap-1.5 w-full">
       {label && <label className="text-xs font-bold text-subtle dark:text-zinc-400 uppercase tracking-wider">{label}</label>}
-      <input
-        className={`w-full px-3 py-2 bg-[color:var(--surface-muted)] border ${error ? 'border-red-300 focus:border-red-500 dark:border-red-800' : 'border-[color:var(--line)] focus:border-[color:var(--accent)]'} rounded-lg text-[color:var(--text-primary)] placeholder:text-[color:var(--text-secondary)]/60 focus:outline-none focus:ring-4 focus:ring-[color:var(--accent-soft)] dark:[color-scheme:dark] transition-all ${className}`}
-        {...props}
-      />
+      {isPassword ? (
+        <div className="relative w-full">
+          {input}
+          <button
+            type="button"
+            aria-label={showPassword ? '隐藏密码' : '显示密码'}
+            title={showPassword ? '隐藏密码' : '显示密码'}
+            onClick={() => setShowPassword((prev) => !prev)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] transition-colors"
+          >
+            {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        </div>
+      ) : input}
       {error && <span className="text-xs text-red-500">{error}</span>}
     </div>
   );

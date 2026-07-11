@@ -1,16 +1,20 @@
 
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useMemo, useState, Suspense } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, ThumbsUp, Calendar, AlertCircle, Edit2, PlayCircle, Maximize2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { PublicData, CardData } from '../types';
-import { Button, ImagePreview, Rating, useToast } from './Common';
-import { getStorage, checkServerSession } from '../services/storageFactory';
+import { Button, ImagePreview, Rating, useTheme, useToast } from './Common';
+import { getStorage } from '../services/storageFactory';
 import { persistCardCover } from '../services/coverAssetService';
+import { PublicTopNav, type SortKey, type SortOrder } from './public/PublicTopNav';
+import { useCardCreate, QUICK_CREATE_INITIAL_CARD } from '../hooks/useCardCreate';
+import { buildCardStats } from '../utils/cardStats';
 import { getCardCoverUrl } from '../utils/cardCover';
 import { getCoverAmbientColor } from '../utils/coverAmbientColor';
+import { getTagSlug } from '../utils/routeUtils';
 import { applyPageMetadata } from '../utils/seo';
 
 const CardEditModal = React.lazy(() => import('./CardEditModal').then((m) => ({ default: m.CardEditModal })));
@@ -18,20 +22,67 @@ const CardEditModal = React.lazy(() => import('./CardEditModal').then((m) => ({ 
 interface PublicDetailProps {
   data: PublicData;
   refreshData?: () => Promise<void>;
+  isAdmin: boolean;
 }
 
-export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData }) => {
+export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, isAdmin }) => {
   const { id, section } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const card = data.cards.find(c => c.id === id);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isOriginalPreviewOpen, setIsOriginalPreviewOpen] = useState(false);
   const [ambient, setAmbient] = useState<string | null>(null);
   // 卡片封面宽高比
   const [coverAspect, setCoverAspect] = useState<number | null>(null);
   const { showToast } = useToast();
+  const { theme, toggleTheme } = useTheme();
+  const { isCreateModalOpen, setIsCreateModalOpen, handleCreateSave } = useCardCreate(data, refreshData);
+
+  const cardStats = useMemo(() => buildCardStats(data.cards), [data.cards]);
+
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; order: SortOrder }>(() => {
+    try {
+      const saved = sessionStorage.getItem('tat_sort_config');
+      return saved ? JSON.parse(saved) : { key: 'createdAt', order: 'desc' };
+    } catch {
+      return { key: 'createdAt', order: 'desc' };
+    }
+  });
+
+  const activeTag = useMemo(() => {
+    if (!section) return 'all';
+    if (section === 'recommended' || section === 'watching') return section;
+    const tag = data.tags.find((item) => getTagSlug(item) === section);
+    return tag?.id || 'all';
+  }, [section, data.tags]);
+
+  const handleNavTagChange = (tagId: string) => {
+    if (tagId === 'recommended' || tagId === 'watching') {
+      navigate(`/${tagId}`);
+      return;
+    }
+    const tag = data.tags.find((item) => item.id === tagId);
+    navigate(tagId !== 'all' && tag ? `/${getTagSlug(tag)}` : '/');
+  };
+
+  const handleNavSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (!value) return;
+    navigate(`/?q=${encodeURIComponent(value)}`, {
+      state: { searchReturnTo: `${location.pathname}${location.search}` }
+    });
+  };
+
+  const handleNavSortChange = (key: SortKey) => {
+    const next: { key: SortKey; order: SortOrder } = {
+      key,
+      order: sortConfig.key === key ? (sortConfig.order === 'desc' ? 'asc' : 'desc') : 'desc'
+    };
+    setSortConfig(next);
+    sessionStorage.setItem('tat_sort_config', JSON.stringify(next));
+    navigate('/');
+  };
 
   const handleCardCoverLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
@@ -46,9 +97,6 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
       applyPageMetadata(`${card.title} - ${data.settings.title}`, description || undefined);
     }
     window.scrollTo(0, 0);
-
-    // Check for admin auth
-    checkServerSession().then(setIsAdmin);
 
     return () => {
       if (data.settings.title) {
@@ -138,8 +186,29 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
         <div className="absolute inset-0 detail-backdrop-veil" />
       </div>
 
+      <PublicTopNav
+        iconUrl={data.settings.iconUrl}
+        title={data.settings.title}
+        tags={data.tags}
+        activeTag={activeTag}
+        totalCards={data.cards.length}
+        cardStats={cardStats}
+        onTagChange={handleNavTagChange}
+        searchTerm=""
+        onSearchChange={handleNavSearchChange}
+        onClearSearch={() => {}}
+        sortKey={sortConfig.key}
+        sortOrder={sortConfig.order}
+        onSortChange={handleNavSortChange}
+        isAdmin={isAdmin}
+        onCreateClick={() => setIsCreateModalOpen(true)}
+        theme={theme}
+        toggleTheme={toggleTheme}
+        overlay
+      />
+
       <aside
-        className="hidden lg:block fixed inset-y-0 z-50 group/detail-back"
+        className="hidden lg:block fixed top-16 bottom-0 z-30 group/detail-back"
         style={{ left: 'max(2rem, calc((100vw - 100rem) / 2 + 2rem))', width: 'clamp(5rem, 9vw, 9rem)' }}
       >
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
@@ -153,7 +222,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
         </div>
       </aside>
 
-      <main className="relative z-10 flex-1 pt-8 lg:pt-16 pb-6 lg:pb-10">
+      <main className="relative z-10 flex-1 pt-8 lg:pt-28 pb-6 lg:pb-10">
         <div className="w-full max-w-[100rem] mx-auto px-5 lg:px-8 grid grid-cols-1 lg:grid-cols-[clamp(5rem,9vw,9rem)_minmax(0,80rem)_clamp(5rem,9vw,9rem)] gap-6 lg:gap-8">
           <div className="hidden lg:block" aria-hidden="true" />
           <div className="min-w-0">
@@ -294,6 +363,14 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData })
           initialCard={card}
           tags={data.tags}
           onSave={handleSave}
+        />
+        <CardEditModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          title="快速记录"
+          initialCard={QUICK_CREATE_INITIAL_CARD}
+          tags={data.tags}
+          onSave={handleCreateSave}
         />
       </Suspense>
     </div>
