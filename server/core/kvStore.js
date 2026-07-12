@@ -5,6 +5,14 @@ import Database from 'better-sqlite3';
 let dbInstance = null;
 let maintenanceStarted = false;
 
+export const resolveSqliteDataDir = (env = process.env) => {
+  const configuredDir = String(env.SQLITE_DATA_DIR || '').trim();
+  if (configuredDir.includes('\0') || configuredDir.length > 4096) {
+    throw new Error('Invalid SQLITE_DATA_DIR');
+  }
+  return path.resolve(configuredDir || path.join(process.cwd(), 'data'));
+};
+
 const cleanupExpiredSessions = (database) => {
   const rows = database.prepare("SELECT key, value FROM kv_store WHERE key LIKE 'session:%'").all();
   if (rows.length === 0) return 0;
@@ -35,7 +43,7 @@ const startMaintenance = (database) => {
 
 export const ensureDb = () => {
   if (dbInstance) return dbInstance;
-  const dataDir = path.join(process.cwd(), 'data');
+  const dataDir = resolveSqliteDataDir();
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
   dbInstance = new Database(path.join(dataDir, 'local.db'));
   dbInstance.exec(`

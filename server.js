@@ -10,6 +10,7 @@ import {
 import { resolveStorageDriver } from './server/core/storageDriver.js';
 import { handleRedisStorageApi } from './server/storage/redisApi.js';
 import { handleStorageTransferApi } from './server/storage/transferApi.js';
+import { resolveSqliteDataDir } from './server/core/kvStore.js';
 
 // ===== 环境变量加载 =====
 const envPath = path.join(process.cwd(), '.env');
@@ -28,7 +29,7 @@ if (fs.existsSync(envPath)) {
 
 const PORT = process.env.PORT || 3000;
 const DIST_DIR = path.join(process.cwd(), 'dist');
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = resolveSqliteDataDir(process.env);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const STORAGE_DRIVER = resolveStorageDriver(process.env);
 

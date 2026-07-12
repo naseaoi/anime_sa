@@ -33,6 +33,7 @@ npm run dev
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 首次启动 | 管理员初始凭据，首次启动写入数据库，后续在后台修改 |
 | `PORT` | Node.js / Docker | HTTP 端口，默认 `3000` |
 | `STORAGE_DRIVER` | Node.js / Docker | 活动存储驱动，`sqlite`（默认）或 `redis` |
+| `SQLITE_DATA_DIR` | Node.js / Docker | SQLite 持久化目录，默认 `data`；容器内建议挂载到 `/app/data` |
 | `REDIS_URL` | Vercel 必填；Node.js / Docker 可选 | 完整 `redis://` 或 `rediss://` 连接串 |
 | `REDIS_PREFIX` | Vercel / Node.js / Docker | Redis Key 前缀，默认 `anime-sa` |
 | `TRUST_PROXY` | Node.js / Docker | 仅在可信反向代理覆盖 `X-Real-IP`/`X-Forwarded-For` 时开启 |
@@ -76,7 +77,7 @@ docker run -d \
 ```
 
 - `-v ./data:/app/data` 将 SQLite 数据库（`/app/data/local.db`）持久化到宿主机。
-- 容器使用 UID `1000` 的 `node` 用户运行，Linux 宿主机的挂载目录需要允许 UID `1000` 读写。
+- 容器启动时会设置 SQLite 挂载目录权限，再使用 UID `1000` 的 `node` 用户运行服务。
 - 容器健康检查访问 `/api/storage?key=ping`。
 - 镜像默认 `NODE_ENV=production`，Session Cookie 带 `Secure`，正式环境需通过 HTTPS 反向代理访问；仅在本机临时使用 HTTP 调试时可覆盖为 `-e NODE_ENV=development`。
 
@@ -220,7 +221,8 @@ Redis 运维要点：
 
 **SQLite**
 
-- 检查 `data/` 的 UID `1000` 写权限。
+- 检查 `SQLITE_DATA_DIR` 指向持久化挂载目录，且挂载模式不是只读。
+- 旧容器升级后需重新创建容器，使启动入口获得设置挂载目录权限的能力。
 - 请求 `/api/storage?key=ping`，检查 `data/local.db` 是否可读取。
 
 **Redis**

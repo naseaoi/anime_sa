@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { Check, AlertTriangle, Info } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 // --- Toast System ---
 
@@ -27,10 +28,8 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
   }, []);
 
-  return (
-    <ToastContext.Provider value={{ showToast }}>
-      {children}
-      <div className="fixed bottom-4 right-4 z-[1000] flex flex-col gap-2 pointer-events-none">
+  const toastLayer = (
+    <div className="fixed bottom-4 right-4 z-[2147483647] flex flex-col gap-2 pointer-events-none">
         {toasts.map(toast => (
           <div key={toast.id} className={`pointer-events-auto min-w-[300px] max-w-sm p-4 rounded-xl shadow-lg border flex items-start gap-3 animate-in slide-in-from-right-full duration-300 ${
             toast.type === 'success' ? 'bg-white dark:bg-zinc-900 border-emerald-100 dark:border-emerald-900/30 text-emerald-800 dark:text-emerald-400' :
@@ -46,7 +45,13 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             <p className="text-sm font-medium leading-tight pt-0.5">{toast.message}</p>
           </div>
         ))}
-      </div>
+    </div>
+  );
+
+  return (
+    <ToastContext.Provider value={{ showToast }}>
+      {children}
+      {typeof document !== 'undefined' ? createPortal(toastLayer, document.body) : null}
     </ToastContext.Provider>
   );
 };
