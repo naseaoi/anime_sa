@@ -8,14 +8,25 @@
 - **后台管理** — 卡片 / 分类 / 站点配置 / 数据同步（路径 `/tat`）
 - **存储驱动** — SQLite 与 Redis 共用统一 API，Node.js / Docker 可通过 `STORAGE_DRIVER` 切换，支持后台跨存储传输
 - **封面管理** — 外置存储 + 分批清理未引用封面（Media GC）
-- **安全** — Session 鉴权、登录限流、scrypt、同源写校验、严格脚本 CSP、请求体限制
+- **安全** — Session 鉴权、登录限流、scrypt、同源写校验与请求体限制；Node.js 服务额外设置 CSP 等安全响应头
 
 ## 快速开始
 
 ```bash
 git clone https://github.com/naseaoi/anime_sa.git
 cd anime_sa
-npm install
+npm ci
+```
+
+首次运行前复制并填写环境变量。Windows PowerShell：
+
+```powershell
+Copy-Item .env.example .env
+```
+
+至少设置 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD`，再启动开发服务器：
+
+```bash
 npm run dev
 ```
 
@@ -263,6 +274,7 @@ api/                   Vercel Functions 入口
 vite.config.ts         Vite 配置 + 开发态 API 中间件
 data/local.db          SQLite 数据文件（运行时自动创建）
 docs/RELEASE.md        发布流程
+docs/MAINTAINER_GUIDE.md 项目独有约束、易错点与改动检查表
 ```
 
 ## 技术栈
@@ -276,7 +288,8 @@ docs/RELEASE.md        发布流程
 
 ## 发布
 
-版本 tag 与镜像发布流程见 [docs/RELEASE.md](docs/RELEASE.md)。
+- 版本 tag 与镜像发布流程见 [docs/RELEASE.md](docs/RELEASE.md)。
+- 接手项目或开始结构性改造前，先读 [docs/MAINTAINER_GUIDE.md](docs/MAINTAINER_GUIDE.md)。
 
 ## License
 
