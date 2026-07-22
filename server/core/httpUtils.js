@@ -8,6 +8,11 @@ export const jsonResponse = (response, status, payload) => {
   response.end(JSON.stringify(payload));
 };
 
+export const methodNotAllowed = (response, allowedMethods) => {
+  if (allowedMethods.length > 0) response.setHeader('Allow', allowedMethods.join(', '));
+  return jsonResponse(response, 405, { success: false, error: 'Method not allowed' });
+};
+
 export const readBody = async (request, limit = BODY_LIMIT_BYTES) => {
   if (request.body !== undefined && request.body !== null) {
     const body = Buffer.isBuffer(request.body)
@@ -34,6 +39,20 @@ export const readBody = async (request, limit = BODY_LIMIT_BYTES) => {
     chunks.push(buffer);
   }
   return chunks.length > 0 ? Buffer.concat(chunks) : Buffer.alloc(0);
+};
+
+export const readJsonObject = async (request, limit = BODY_LIMIT_BYTES) => {
+  const rawBody = await readBody(request, limit);
+  let data;
+  try {
+    data = JSON.parse(rawBody.toString('utf8') || '{}');
+  } catch {
+    return { ok: false, error: 'Invalid JSON body' };
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return { ok: false, error: 'JSON body must be an object' };
+  }
+  return { ok: true, data };
 };
 
 export const parseCookies = (cookieHeader = '') => {

@@ -8,7 +8,15 @@ import { BODY_LIMIT_BYTES, MEDIA_BODY_LIMIT_BYTES, SESSION_COOKIE } from './cons
 import { appendAuditLog } from './auditStore.js';
 import { normalizeAuditWritePayload } from './auditContract.js';
 import { dbDelete, dbGetJson, dbSetJson, ensureDb } from './kvStore.js';
-import { getClientIp, jsonResponse, parseCookies, readBody, readBoundedInteger } from './httpUtils.js';
+import {
+  getClientIp,
+  jsonResponse,
+  methodNotAllowed,
+  parseCookies,
+  readBody,
+  readBoundedInteger,
+  readJsonObject
+} from './httpUtils.js';
 import { isBlockedRemoteHost, safeFetchAgent } from './remoteSecurity.js';
 import { enforceSameOrigin } from './requestOrigin.js';
 import {
@@ -56,8 +64,10 @@ export {
   getClientIp,
   isBlockedRemoteHost,
   jsonResponse,
+  methodNotAllowed,
   parseCookies,
   readBody,
+  readJsonObject,
   requireAuth,
   verifySession
 };
@@ -81,7 +91,7 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
 
     // /remote-image: 服务端代理外部图片（SSRF 防护 + 大小限制）
     if (url.pathname.endsWith('/remote-image')) {
-      if (req.method !== 'GET') { res.statusCode = 405; res.end(); return; }
+      if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
       if (!requireAuth(req, res, db)) return;
 
       const rawTarget = String(url.searchParams.get('url') || '').trim();
@@ -134,12 +144,11 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
 
     // /login
     if (url.pathname.endsWith('/login')) {
-      if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
+      if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
 
-      const rawBody = await readBody(req);
-      let body;
-      try { body = JSON.parse(rawBody.toString() || '{}'); }
-      catch { return jsonResponse(res, 400, { success: false, error: 'Invalid JSON body' }); }
+      const parsedBody = await readJsonObject(req);
+      if (!parsedBody.ok) return jsonResponse(res, 400, { success: false, error: parsedBody.error });
+      const body = parsedBody.data;
 
       const { username, password, remember } = body;
       const resolved = await resolveAdminCredentials(db, env);
@@ -184,7 +193,7 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
 
     // /logout
     if (url.pathname.endsWith('/logout')) {
-      if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
+      if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
       const cookies = parseCookies(req.headers.cookie || '');
       destroySession(db, cookies[SESSION_COOKIE]);
       res.setHeader('Set-Cookie', clearCookie(isProduction));
@@ -193,14 +202,14 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
 
     // /session
     if (url.pathname.endsWith('/session')) {
-      if (req.method !== 'GET') { res.statusCode = 405; res.end(); return; }
+      if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
       const cookies = parseCookies(req.headers.cookie || '');
       return jsonResponse(res, 200, { authenticated: verifySession(db, cookies[SESSION_COOKIE]) });
     }
 
     // /admin-profile
     if (url.pathname.endsWith('/admin-profile')) {
-      if (req.method !== 'GET') { res.statusCode = 405; res.end(); return; }
+      if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
       if (!requireAuth(req, res, db)) return;
       const resolved = await resolveAdminCredentials(db, env);
       if (!resolved.creds) {
@@ -220,10 +229,9 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
       }
 
       if (req.method === 'POST') {
-        const rawBody = await readBody(req);
-        let body;
-        try { body = JSON.parse(rawBody.toString() || '{}'); }
-        catch { return jsonResponse(res, 400, { success: false, error: 'Invalid JSON body' }); }
+        const parsedBody = await readJsonObject(req);
+        if (!parsedBody.ok) return jsonResponse(res, 400, { success: false, error: parsedBody.error });
+        const body = parsedBody.data;
 
         const normalized = normalizeAuditWritePayload(body);
         if (!normalized.data) return jsonResponse(res, 400, { success: false, error: normalized.error });
@@ -232,20 +240,17 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
         return jsonResponse(res, 200, { success: true });
       }
 
-      res.statusCode = 405;
-      res.end();
-      return;
+      return methodNotAllowed(res, ['GET', 'POST']);
     }
 
     // /admin-credentials
     if (url.pathname.endsWith('/admin-credentials')) {
-      if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
+      if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
       if (!requireAuth(req, res, db)) return;
 
-      const rawBody = await readBody(req);
-      let body;
-      try { body = JSON.parse(rawBody.toString() || '{}'); }
-      catch { return jsonResponse(res, 400, { success: false, error: 'Invalid JSON body' }); }
+      const parsedBody = await readJsonObject(req);
+      if (!parsedBody.ok) return jsonResponse(res, 400, { success: false, error: parsedBody.error });
+      const body = parsedBody.data;
 
       const resolved = await resolveAdminCredentials(db, env);
       if (!resolved.creds) {
@@ -272,7 +277,7 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
 
     // /media-gc
     if (url.pathname.endsWith('/media-gc')) {
-      if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
+      if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
       if (!requireAuth(req, res, db)) return;
 
       const limit = readBoundedInteger(url.searchParams.get('limit'), 100, 1, 500);
@@ -332,24 +337,28 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
         return jsonResponse(res, 200, { success: true });
       }
 
-      res.statusCode = 405;
-      res.end();
-      return;
+      return methodNotAllowed(res, ['GET', 'POST', 'DELETE']);
     }
 
     // 通用 KV：GET/POST
     const key = url.searchParams.get('key');
-    if (!key) return jsonResponse(res, 400, { error: 'Missing key parameter' });
+    if (!key) return jsonResponse(res, 400, { success: false, error: 'Missing key parameter' });
 
-    if (req.method === 'GET' && key === 'driver') return jsonResponse(res, 200, { driver: 'sqlite' });
-    if (req.method === 'GET' && key === 'ping') return jsonResponse(res, 200, { ok: true, driver: 'sqlite', runtime: 'node' });
+    if (key === 'driver') {
+      if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+      return jsonResponse(res, 200, { driver: 'sqlite' });
+    }
+    if (key === 'ping') {
+      if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+      return jsonResponse(res, 200, { ok: true, driver: 'sqlite', runtime: 'node' });
+    }
     const publicReadKeys = new Set(['public_data']);
     const writableKeys = new Set(['public_data', 'private_data']);
     if (req.method === 'GET' && key !== 'private_data' && !publicReadKeys.has(key)) {
-      return jsonResponse(res, 404, { error: 'Unknown key' });
+      return jsonResponse(res, 404, { success: false, error: 'Unknown key' });
     }
     if (req.method === 'POST' && !writableKeys.has(key)) {
-      return jsonResponse(res, 404, { error: 'Unknown key' });
+      return jsonResponse(res, 404, { success: false, error: 'Unknown key' });
     }
 
     const isWrite = req.method === 'POST';
@@ -375,10 +384,9 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
     }
 
     if (req.method === 'POST') {
-      const rawBody = await readBody(req);
-      let parsed;
-      try { parsed = JSON.parse(rawBody.toString() || '{}'); }
-      catch { return jsonResponse(res, 400, { error: 'Invalid JSON body' }); }
+      const parsedBody = await readJsonObject(req);
+      if (!parsedBody.ok) return jsonResponse(res, 400, { success: false, error: parsedBody.error });
+      const parsed = parsedBody.data;
 
       if (key === 'private_data') {
         const normalized = normalizePrivateDataPayload(parsed);
@@ -410,13 +418,12 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
       }
     }
 
-    res.statusCode = 405;
-    res.end();
+    return methodNotAllowed(res, ['GET', 'POST']);
   } catch (e) {
     if (e.code === 'PAYLOAD_TOO_LARGE') {
-      return jsonResponse(res, 413, { error: 'Payload too large' });
+      return jsonResponse(res, 413, { success: false, error: 'Payload too large' });
     }
     console.error('SQLite API Error:', e);
-    return jsonResponse(res, 500, { error: e.message });
+    return jsonResponse(res, 500, { success: false, error: 'Internal server error' });
   }
 };
