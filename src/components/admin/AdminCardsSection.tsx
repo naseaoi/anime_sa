@@ -79,8 +79,10 @@ export const AdminCardsSection: React.FC<AdminCardsSectionProps> = ({ data, onUp
       }
       onUpdate({ ...data, cards: newCards });
       setIsModalOpen(false);
+      return true;
     } catch (e: any) {
       showToast(`封面处理失败: ${e?.message || '未知错误'}`, 'error');
+      return false;
     }
   };
 

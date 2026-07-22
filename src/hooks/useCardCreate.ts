@@ -48,11 +48,14 @@ export const useCardCreate = (data: PublicData, refreshData?: () => Promise<void
         if (refreshData) await refreshData();
         setIsCreateModalOpen(false);
         showToast('创建成功', 'success');
+        return true;
       } else {
         showToast(result.error || '失败', 'error');
+        return false;
       }
     } catch (e: any) {
       showToast(`封面处理失败: ${e?.message || '未知错误'}`, 'error');
+      return false;
     }
   };
 

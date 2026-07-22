@@ -130,7 +130,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
   };
 
   const handleSave = async (updatedCard: Partial<CardData>) => {
-    if (!card) return;
+    if (!card) return false;
 
     try {
       const mergedCard: CardData = {
@@ -156,11 +156,14 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
         if (refreshData) await refreshData();
         showToast('更新成功', 'success');
         setIsEditing(false);
+        return true;
       } else {
         showToast(`保存失败: ${result.error}`, 'error');
+        return false;
       }
     } catch (e: any) {
       showToast(`封面处理失败: ${e?.message || '未知错误'}`, 'error');
+      return false;
     }
   };
 

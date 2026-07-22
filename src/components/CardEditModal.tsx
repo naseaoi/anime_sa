@@ -1,11 +1,17 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, PlayCircle, ThumbsUp, Upload, Trash2, Eye, Star } from 'lucide-react';
+import { Loader2, PlayCircle, ThumbsUp, Upload, Trash2, Eye, Star, RotateCcw } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { CardData, Tag } from '../types';
 import { Modal, Input, Select, TextArea, Button, ImagePreview } from './Common';
 import { DateField } from './card/DateField';
 import { getCardCoverUrl } from '../utils/cardCover';
+import {
+  CardDraft,
+  clearCardDraft,
+  loadCardDraft,
+  saveCardDraft
+} from '../utils/cardDraft';
 
 const COVER_TEXT_SHADOW = '[text-shadow:0_0_2px_rgba(0,0,0,1),0_0_6px_rgba(0,0,0,0.65)]';
 
@@ -15,7 +21,7 @@ interface CardEditModalProps {
   title: string;
   initialCard: Partial<CardData>;
   tags: Tag[];
-  onSave: (card: Partial<CardData>) => Promise<void>;
+  onSave: (card: Partial<CardData>) => Promise<boolean>;
 }
 
 export const CardEditModal: React.FC<CardEditModalProps> = ({
@@ -23,21 +29,53 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
 }) => {
   const [card, setCard] = useState<Partial<CardData>>(initialCard);
   const [saving, setSaving] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState<CardDraft | null>(null);
   const [isCoverPreviewOpen, setIsCoverPreviewOpen] = useState(false);
+  const cardRef = useRef<Partial<CardData>>(initialCard);
   const localCoverInputRef = useRef<HTMLInputElement | null>(null);
 
   // 当外部传入的 initialCard 变化或模态框打开时，重置内部状态
   useEffect(() => {
     if (isOpen) {
+      cardRef.current = initialCard;
       setCard(initialCard);
+      setPendingDraft(loadCardDraft(window.localStorage, initialCard));
       setIsCoverPreviewOpen(false);
     }
   }, [isOpen, initialCard]);
 
+  const updateCard = (updater: React.SetStateAction<Partial<CardData>>) => {
+    const nextCard = typeof updater === 'function' ? updater(cardRef.current) : updater;
+    cardRef.current = nextCard;
+    setPendingDraft(null);
+    setCard(nextCard);
+    saveCardDraft(window.localStorage, initialCard, nextCard);
+  };
+
+  const handleRestoreDraft = () => {
+    if (!pendingDraft) return;
+    const restoredCard = { ...initialCard, ...pendingDraft.card };
+    cardRef.current = restoredCard;
+    setCard(restoredCard);
+    setPendingDraft(null);
+  };
+
+  const handleDiscardDraft = () => {
+    clearCardDraft(window.localStorage, initialCard);
+    setPendingDraft(null);
+  };
+
   const handleSaveClick = async () => {
     setSaving(true);
-    await onSave(card);
-    setSaving(false);
+    try {
+      const saved = await onSave(card);
+      if (saved) {
+        clearCardDraft(window.localStorage, initialCard);
+        setPendingDraft(null);
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleLocalCoverChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,7 +90,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
     reader.onload = () => {
       const result = typeof reader.result === 'string' ? reader.result : '';
       if (!result) return;
-      setCard((prev) => ({ ...prev, coverLocalData: result }));
+      updateCard((prev) => ({ ...prev, coverLocalData: result }));
     };
     reader.readAsDataURL(file);
     event.target.value = '';
@@ -65,13 +103,29 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} className="max-w-7xl w-full">
+      {pendingDraft && (
+        <div role="alert" className="mb-4 flex flex-col gap-3 rounded-lg border border-amber-300/80 bg-amber-50 px-4 py-3 text-amber-950 dark:border-amber-500/35 dark:bg-amber-950/30 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">发现上次未保存的内容</p>
+            <p className="mt-0.5 text-xs opacity-75">本地暂存于 {new Date(pendingDraft.savedAt).toLocaleString()}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={handleDiscardDraft}>
+              <Trash2 size={14} /> 放弃
+            </Button>
+            <Button type="button" size="sm" onClick={handleRestoreDraft}>
+              <RotateCcw size={14} /> 恢复
+            </Button>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col md:flex-row gap-4 md:gap-5">
         {/* 左侧：主要信息 */}
         <div className="flex-1 space-y-4 glass-panel rounded-2xl p-4 md:p-5">
           <Input
             label="标题"
             value={card.title || ''}
-            onChange={e => setCard({...card, title: e.target.value})}
+            onChange={e => updateCard({...card, title: e.target.value})}
             className="h-11 text-base"
           />
 
@@ -81,7 +135,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
                  label="分类"
                  options={tags}
                  value={card.tagIds?.[0] || ''}
-                 onChange={val => setCard({...card, tagIds: val ? [val] : []})}
+                 onChange={val => updateCard({...card, tagIds: val ? [val] : []})}
                  placeholder="选择分类..."
                />
             </div>
@@ -90,7 +144,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
             <div className="flex items-end gap-2 self-end">
               <button
                 type="button"
-                onClick={() => setCard({...card, isRecommended: !card.isRecommended})}
+                onClick={() => updateCard({...card, isRecommended: !card.isRecommended})}
                 className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border transition-all shrink-0 ${card.isRecommended ? 'bg-amber-500/20 border-amber-400/60 text-amber-700 dark:text-amber-300' : 'bg-[color:var(--surface)] border-[color:var(--line)] text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]'}`}
                 title="推荐"
               >
@@ -98,7 +152,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setCard({...card, isWatching: !card.isWatching})}
+                onClick={() => updateCard({...card, isWatching: !card.isWatching})}
                 className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border transition-all shrink-0 ${card.isWatching ? 'bg-sky-500/20 border-sky-400/60 text-sky-700 dark:text-sky-300' : 'bg-[color:var(--surface)] border-[color:var(--line)] text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]'}`}
                 title="观看中"
               >
@@ -111,7 +165,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
             <Input
               label="封面链接 (URL)"
               value={card.coverUrl || ''}
-              onChange={e => setCard({...card, coverUrl: e.target.value})}
+              onChange={e => updateCard({...card, coverUrl: e.target.value})}
               className="h-11"
             />
             <div className="space-y-3">
@@ -129,7 +183,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
                   {card.coverLocalData && (
                     <button
                       type="button"
-                      onClick={() => setCard((prev) => ({ ...prev, coverLocalData: '' }))}
+                      onClick={() => updateCard((prev) => ({ ...prev, coverLocalData: '' }))}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[color:var(--line)] text-xs font-semibold text-[color:var(--text-secondary)] hover:text-red-600 hover:border-red-300 transition-colors"
                     >
                       <Trash2 size={13} />
@@ -172,7 +226,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
                   step="0.1"
                   className="relative w-full h-2 appearance-none bg-transparent cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-amber-500 [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-amber-500"
                   value={card.rating || 0}
-                  onChange={e => setCard({...card, rating: parseFloat(parseFloat(e.target.value).toFixed(1))})}
+                  onChange={e => updateCard({...card, rating: parseFloat(parseFloat(e.target.value).toFixed(1))})}
                 />
               </div>
               <span className="text-sm font-bold text-[color:var(--text-primary)] w-8 text-right">
@@ -185,12 +239,12 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
             <DateField
               label="开始日期"
               value={card.startDate || ''}
-              onChange={(val) => setCard({ ...card, startDate: val })}
+              onChange={(val) => updateCard({ ...card, startDate: val })}
             />
             <DateField
               label="结束日期"
               value={card.endDate || ''}
-              onChange={(val) => setCard({ ...card, endDate: val })}
+              onChange={(val) => updateCard({ ...card, endDate: val })}
             />
           </div>
         </div>
@@ -201,7 +255,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
             <TextArea
               label="观后感"
               value={card.description || ''}
-              onChange={e => setCard({...card, description: e.target.value})}
+              onChange={e => updateCard({...card, description: e.target.value})}
               className="flex-1 min-h-[260px] md:min-h-[320px] text-base !resize-none"
               style={{ height: '100%' }}
               wrapperClassName="flex-1 flex flex-col h-full"
