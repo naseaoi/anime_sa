@@ -91,7 +91,13 @@ describe('Vercel Redis store', () => {
     await appendRedisAudit(redis, env, { id: 'first' });
     await appendRedisAudit(redis, env, { id: 'second' });
 
-    expect(await readRedisAudit(redis, env, 1)).toEqual([{ id: 'second' }]);
+    expect(await readRedisAudit(redis, env, 1)).toEqual([expect.objectContaining({
+      id: 'second',
+      action: 'unknown',
+      status: 'success',
+      details: '',
+      message: ''
+    })]);
   });
 
   it('rebuilds the client after a failed initial connection', async () => {

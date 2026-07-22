@@ -5,13 +5,15 @@ import {
   preparePublicDataWrite
 } from './publicDataWrite.js';
 import { BODY_LIMIT_BYTES, MEDIA_BODY_LIMIT_BYTES, SESSION_COOKIE } from './constants.js';
-import { appendAuditLog, cleanAuditText } from './auditStore.js';
+import { appendAuditLog } from './auditStore.js';
+import { normalizeAuditWritePayload } from './auditContract.js';
 import { dbDelete, dbGetJson, dbSetJson, ensureDb } from './kvStore.js';
-import { getClientIp, jsonResponse, parseCookies, readBody } from './httpUtils.js';
+import { getClientIp, jsonResponse, parseCookies, readBody, readBoundedInteger } from './httpUtils.js';
 import { isBlockedRemoteHost, safeFetchAgent } from './remoteSecurity.js';
 import { enforceSameOrigin } from './requestOrigin.js';
 import {
   buildAdminCredentialsForSave,
+  buildAdminCredentialsResponse,
   ensureSqliteAdminFromEnv,
   resolveAdminCredentials
 } from './adminCredentials.js';
@@ -162,10 +164,21 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
           });
         }
         const session = createSession(db, !!remember);
+        appendAuditLog(db, {
+          action: 'login',
+          status: 'success',
+          details: `username=${resolved.creds.username} ip=${getClientIp(req, env)}`
+        });
         res.setHeader('Set-Cookie', buildCookie(session.token, session.maxAgeSec, isProduction));
         return jsonResponse(res, 200, { success: true, expiresAt: session.expiresAt });
       }
 
+      appendAuditLog(db, {
+        action: 'login',
+        status: 'failed',
+        details: `ip=${getClientIp(req, env)}`,
+        message: 'Invalid credentials'
+      });
       return jsonResponse(res, 401, { success: false, error: 'Invalid credentials' });
     }
 
@@ -201,8 +214,7 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
       if (!requireAuth(req, res, db)) return;
 
       if (req.method === 'GET') {
-        const limitRaw = Number(url.searchParams.get('limit') || 50);
-        const limit = Math.min(200, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 50));
+        const limit = readBoundedInteger(url.searchParams.get('limit'), 50, 1, 200);
         const logs = dbGetJson(db, 'audit_logs');
         return jsonResponse(res, 200, { items: Array.isArray(logs) ? logs.slice(0, limit) : [] });
       }
@@ -213,17 +225,10 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
         try { body = JSON.parse(rawBody.toString() || '{}'); }
         catch { return jsonResponse(res, 400, { success: false, error: 'Invalid JSON body' }); }
 
-        const action = cleanAuditText(body?.action, 64);
-        if (!/^[a-z0-9_:-]+$/i.test(action)) {
-          return jsonResponse(res, 400, { success: false, error: 'Invalid action' });
-        }
+        const normalized = normalizeAuditWritePayload(body);
+        if (!normalized.data) return jsonResponse(res, 400, { success: false, error: normalized.error });
 
-        appendAuditLog(db, {
-          action,
-          status: body?.status === 'failed' ? 'failed' : 'success',
-          details: cleanAuditText(body?.details, 300),
-          message: cleanAuditText(body?.message, 800)
-        });
+        appendAuditLog(db, normalized.data);
         return jsonResponse(res, 200, { success: true });
       }
 
@@ -259,15 +264,10 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
       appendAuditLog(db, {
         action: 'update_admin_credentials',
         status: 'success',
-        details: `source=${resolved.source} changed=${next.changed ? '1' : '0'} ip=${getClientIp(req)}`
+        details: `source=${resolved.source} changed=${next.changed ? '1' : '0'} ip=${getClientIp(req, env)}`
       });
 
-      return jsonResponse(res, 200, {
-        success: true,
-        username: next.data.username,
-        passwordChanged: next.passwordChanged,
-        requireRelogin: !!next.changed
-      });
+      return jsonResponse(res, 200, buildAdminCredentialsResponse(next));
     }
 
     // /media-gc
@@ -275,8 +275,7 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
       if (req.method !== 'POST') { res.statusCode = 405; res.end(); return; }
       if (!requireAuth(req, res, db)) return;
 
-      const limitRaw = Number(url.searchParams.get('limit') || 100);
-      const limit = Math.min(500, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 100));
+      const limit = readBoundedInteger(url.searchParams.get('limit'), 100, 1, 500);
 
       try {
         const data = dbGetJson(db, 'public_data') || { cards: [] };
@@ -284,14 +283,14 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
         appendAuditLog(db, {
           action: 'run_media_gc',
           status: 'success',
-          details: `driver=sqlite removed=${result.removed} pending=${result.pending} ip=${getClientIp(req)}`
+          details: `driver=sqlite removed=${result.removed} pending=${result.pending} ip=${getClientIp(req, env)}`
         });
         return jsonResponse(res, 200, { success: true, ...result });
       } catch {
         appendAuditLog(db, {
           action: 'run_media_gc',
           status: 'failed',
-          details: `driver=sqlite ip=${getClientIp(req)}`,
+          details: `driver=sqlite ip=${getClientIp(req, env)}`,
           message: '封面资源清理失败'
         });
         return jsonResponse(res, 500, { success: false, error: '封面资源清理失败' });
@@ -390,7 +389,7 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
           passwordUpdatedAt: normalized.passwordUpdatedAt || Date.now()
         };
         dbSetJson(db, key, privateData);
-        appendAuditLog(db, { action: 'write_private_data', status: 'success', details: `ip=${getClientIp(req)}` });
+        appendAuditLog(db, { action: 'write_private_data', status: 'success', details: `ip=${getClientIp(req, env)}` });
         return jsonResponse(res, 200, { success: true });
       }
 
@@ -406,7 +405,7 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
         }
 
         dbSetJson(db, key, prepared.data);
-        appendAuditLog(db, { action: 'write_public_data', status: 'success', details: `ip=${getClientIp(req)}` });
+        appendAuditLog(db, { action: 'write_public_data', status: 'success', details: `ip=${getClientIp(req, env)}` });
         return jsonResponse(res, 200, buildPublicDataWriteSuccess(prepared.data));
       }
     }

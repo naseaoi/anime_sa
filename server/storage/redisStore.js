@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { createClient } from 'redis';
+import { AUDIT_LIMITS, normalizeAuditEntry } from '../core/auditContract.js';
 
 let redisClient = null;
 let redisIdentity = '';
@@ -105,8 +106,12 @@ export const consumeRateLimit = async (redis, env, scope, clientId, limit, windo
 };
 
 export const appendRedisAudit = async (redis, env, entry) => {
-  await redis.lPush(auditKey(env), JSON.stringify(entry));
-  await redis.lTrim(auditKey(env), 0, 199);
+  await redis.lPush(auditKey(env), JSON.stringify({
+    id: String(entry?.id || crypto.randomUUID()),
+    ts: Number(entry?.ts || Date.now()),
+    ...normalizeAuditEntry(entry)
+  }));
+  await redis.lTrim(auditKey(env), 0, AUDIT_LIMITS.entries - 1);
 };
 
 export const readRedisAudit = async (redis, env, limit) => {

@@ -47,19 +47,30 @@ export const parseCookies = (cookieHeader = '') => {
   }, {});
 };
 
-export const getClientIp = (request) => {
-  const remoteAddress = String(request.socket?.remoteAddress || 'unknown').slice(0, 128);
-  if (process.env.TRUST_PROXY !== '1') return remoteAddress;
+const cleanClientIp = (value) => (
+  String(value || 'unknown').trim().replace(/[^a-zA-Z0-9:._-]/g, '').slice(0, 128) || 'unknown'
+);
+
+export const getClientIp = (request, env = process.env, trustPlatformProxy = false) => {
+  const remoteAddress = cleanClientIp(request.socket?.remoteAddress);
+  if (!trustPlatformProxy && env?.TRUST_PROXY !== '1') return remoteAddress;
 
   const realIp = request.headers['x-real-ip'];
-  if (typeof realIp === 'string' && realIp.trim()) return realIp.trim().slice(0, 128);
+  if (typeof realIp === 'string' && realIp.trim()) return cleanClientIp(realIp);
 
   const forwardedFor = request.headers['x-forwarded-for'];
   if (typeof forwardedFor === 'string' && forwardedFor.length > 0) {
-    return forwardedFor.split(',').at(-1).trim().slice(0, 128);
+    return cleanClientIp(forwardedFor.split(',').at(-1));
   }
   if (Array.isArray(forwardedFor) && forwardedFor.length > 0) {
-    return String(forwardedFor.at(-1)).split(',').at(-1).trim().slice(0, 128);
+    return cleanClientIp(String(forwardedFor.at(-1)).split(',').at(-1));
   }
   return remoteAddress;
+};
+
+export const readBoundedInteger = (value, fallback, min, max) => {
+  if (value === null || value === undefined || String(value).trim() === '') return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(parsed)));
 };

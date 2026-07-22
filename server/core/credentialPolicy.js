@@ -28,3 +28,10 @@ export const buildAdminCredentialsForSave = async (existing, payload) => {
     changed: usernameChanged || hasNewPassword
   };
 };
+
+export const buildAdminCredentialsResponse = (result) => ({
+  success: true,
+  username: result.data.username,
+  passwordChanged: !!result.passwordChanged,
+  requireRelogin: !!result.changed
+});

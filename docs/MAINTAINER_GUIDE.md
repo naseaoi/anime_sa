@@ -32,7 +32,7 @@
 
 API 业务修改不能只验证其中一个入口。SQLite 主要走 `server/core/apiCore.js`，Redis 走 `server/storage/redisApi.js`；两边复用了部分安全与校验模块，但路由分支仍是两套实现。
 
-`server.js` 设置的 CSP、HSTS 等响应头只覆盖 Node.js 静态服务和 API。它们不会自动作用于 Vercel 的静态页面；当前 `vercel.json` 没有配置同等的静态响应头。
+`server.js` 和 `vercel.json` 分别维护 Node.js 与 Vercel 的 CSP、HSTS 等安全响应头。修改安全策略时必须同步两处；`server/vercelConfig.test.js` 只检查关键头存在，不能证明两份 CSP 文本完全一致。
 
 ## 数据写入与乐观锁
 
@@ -98,7 +98,9 @@ Media GC 只把以下路径中的 `name` 视为本站引用：
 
 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD` 只在存储中不存在管理员凭据时用于初始化。数据库已有 `private_data` 后，修改 `.env` 不会覆盖账号密码；应通过后台设置修改，或在明确的数据恢复流程中处理。
 
-后台修改账号或密码会清除全部 Session，并要求重新登录。SQLite 与 Redis 必须保持这一行为一致。历史明文密码只用于兼容迁移，成功登录后会升级为 scrypt 哈希；新代码不得重新写入明文 `password`。
+后台修改账号或密码会清除全部 Session，并要求重新登录；提交与现有凭据相同的内容不会注销 Session。SQLite 与 Redis 必须保持这一行为一致。历史明文密码只用于兼容迁移，成功登录后会升级为 scrypt 哈希；新代码不得重新写入明文 `password`。
+
+审计日志输入统一经过 `server/core/auditContract.js`，客户端提交的 `action` 只能包含字母、数字、下划线、冒号和横线，`status` 只能是 `success` 或 `failed`。不要绕过 `appendAuditLog` / `appendRedisAudit` 直接写底层存储。
 
 生产模式的 Session Cookie 带 `Secure`。本机以 HTTP 启动 `NODE_ENV=production` 时，浏览器不会正常回传该 Cookie，这通常表现为“登录成功后仍未登录”。
 
@@ -152,9 +154,9 @@ Media GC 只把以下路径中的 `name` 视为本站引用：
 以下内容是已知技术债，不应被新功能继续复制：
 
 1. 继续统一后台暂存与前台立即保存的结果类型，明确 `staged`、`persisted`、`conflict`，避免新入口误用 `onSave` 命名。
-2. 在公共数据写入契约的基础上继续收敛 SQLite/Redis API，减少认证、审计和其余错误码在两套 handler 之间漂移。
+2. 在公共数据、凭据和审计契约的基础上继续收敛 SQLite/Redis API，优先统一 JSON 请求解析、405 响应和其余错误码。
 3. 将 `PublicData` 的 TypeScript 类型进一步由运行时 Schema 派生，消除 `shared/publicDataSchema.d.ts` 的手工声明同步点。
 4. 明确卡片是单分类还是多标签，再统一数据模型、编辑器与路由。
-5. 补齐 Vercel 静态响应的安全头，使其与 Node.js 部署边界一致。
+5. 把 Node.js 与 Vercel 的安全响应头提取为可生成配置，避免两份 CSP 手工同步。
 
 重构这些区域时，先为现有行为补回归测试，再改变契约；本文中标记为兼容入口的内容，应在有迁移方案和弃用周期后删除。

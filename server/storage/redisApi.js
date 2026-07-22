@@ -1,9 +1,10 @@
 import crypto from 'crypto';
 import { buildCookie, clearCookie } from '../core/sessionCookie.js';
 import { BODY_LIMIT_BYTES, MEDIA_BODY_LIMIT_BYTES } from '../core/constants.js';
-import { buildAdminCredentialsForSave } from '../core/credentialPolicy.js';
+import { buildAdminCredentialsForSave, buildAdminCredentialsResponse } from '../core/credentialPolicy.js';
+import { normalizeAuditEntry, normalizeAuditWritePayload } from '../core/auditContract.js';
 import { parseMediaReferences } from '../core/mediaGc.js';
-import { jsonResponse, readBody } from '../core/httpUtils.js';
+import { getClientIp, jsonResponse, readBody, readBoundedInteger } from '../core/httpUtils.js';
 import { isBlockedRemoteHost, safeFetchAgent } from '../core/remoteSecurity.js';
 import { enforceSameOrigin } from '../core/requestOrigin.js';
 import { getPublicDataUpdatedAt, normalizePublicDataPayload } from '../publicDataValidation.js';
@@ -40,17 +41,8 @@ const parseJsonBody = async (request, limit = BODY_LIMIT_BYTES) => {
   catch { return null; }
 };
 
-const getClientIp = (request) => {
-  const realIp = request.headers['x-real-ip'];
-  const forwardedFor = request.headers['x-forwarded-for'];
-  const raw = typeof realIp === 'string' && realIp.trim()
-    ? realIp
-    : String(Array.isArray(forwardedFor) ? forwardedFor.at(-1) : forwardedFor || request.socket?.remoteAddress || 'unknown').split(',').at(-1);
-  return String(raw || 'unknown').trim().replace(/[^a-zA-Z0-9:._-]/g, '').slice(0, 128) || 'unknown';
-};
-
-const checkRateLimit = async (request, response, redis, env, scope, limit, windowSeconds) => {
-  const result = await consumeRateLimit(redis, env, scope, getClientIp(request), limit, windowSeconds);
+const checkRateLimit = async (response, redis, env, scope, limit, windowSeconds, clientIp) => {
+  const result = await consumeRateLimit(redis, env, scope, clientIp, limit, windowSeconds);
   if (result.allowed) return true;
   response.setHeader('Retry-After', String(result.retryAfter));
   jsonResponse(response, 429, { error: 'Too many requests' });
@@ -69,13 +61,11 @@ const loadCredentials = async (redis, env) => {
 };
 
 const appendAudit = async (redis, env, action, status, details = '', message = '') => {
+  const normalized = normalizeAuditEntry({ action, status, details, message });
   await appendRedisAudit(redis, env, {
     id: crypto.randomUUID(),
     ts: Date.now(),
-    action: String(action).slice(0, 80),
-    status,
-    details: String(details).slice(0, 500),
-    message: String(message).slice(0, 500)
+    ...normalized
   });
 };
 
@@ -143,17 +133,18 @@ export const handleRedisStorageApi = async (request, response, { env, isProducti
   try {
     const url = new URL(request.url || '', `http://${request.headers.host || 'local'}`);
     const key = url.searchParams.get('key');
+    const clientIp = getClientIp(request, env, runtime === 'vercel');
     if (request.method === 'GET' && key === 'driver') return jsonResponse(response, 200, { driver: 'redis' });
     if (request.method === 'GET' && key === 'ping') return jsonResponse(response, 200, { ok: true, driver: 'redis', runtime });
 
     const redis = await getRedisClient(env);
-    if (!(await checkRateLimit(request, response, redis, env, 'api', 600, 60))) return;
+    if (!(await checkRateLimit(response, redis, env, 'api', 600, 60, clientIp))) return;
     if (url.pathname.endsWith('/remote-image')) return handleRemoteImage(request, response, url, redis, env);
     if (url.pathname.endsWith('/media')) return handleMedia(request, response, url, redis, env);
 
     if (url.pathname.endsWith('/login')) {
       if (request.method !== 'POST') { response.statusCode = 405; response.end(); return; }
-      if (!(await checkRateLimit(request, response, redis, env, 'login', 20, 600))) return;
+      if (!(await checkRateLimit(response, redis, env, 'login', 20, 600, clientIp))) return;
       const body = await parseJsonBody(request);
       if (!body) return jsonResponse(response, 400, { success: false, error: 'Invalid JSON body' });
       const credentials = await loadCredentials(redis, env);
@@ -163,7 +154,7 @@ export const handleRedisStorageApi = async (request, response, { env, isProducti
         ? await verifyPasswordHash(body.password, credentials.passwordHash)
         : timingSafeEqualText(body.password, credentials.password || '');
       if (!usernameOk || !passwordOk) {
-        await appendAudit(redis, env, 'login', 'failed', '', 'Invalid credentials');
+        await appendAudit(redis, env, 'login', 'failed', `ip=${clientIp}`, 'Invalid credentials');
         return jsonResponse(response, 401, { success: false, error: 'Invalid credentials' });
       }
       if (!credentials.passwordHash) {
@@ -174,9 +165,9 @@ export const handleRedisStorageApi = async (request, response, { env, isProducti
         });
       }
       const session = await createRedisSession(redis, env, !!body.remember);
-      await appendAudit(redis, env, 'login', 'success', `username=${credentials.username}`);
+      await appendAudit(redis, env, 'login', 'success', `username=${credentials.username} ip=${clientIp}`);
       response.setHeader('Set-Cookie', buildCookie(session.token, session.maxAgeSec, isProduction));
-      return jsonResponse(response, 200, { success: true });
+      return jsonResponse(response, 200, { success: true, expiresAt: session.expiresAt });
     }
 
     if (url.pathname.endsWith('/logout')) {
@@ -186,6 +177,7 @@ export const handleRedisStorageApi = async (request, response, { env, isProducti
       return jsonResponse(response, 200, { success: true });
     }
     if (url.pathname.endsWith('/session')) {
+      if (request.method !== 'GET') { response.statusCode = 405; response.end(); return; }
       return jsonResponse(response, 200, { authenticated: await verifyRedisSession(redis, env, getSessionToken(request)) });
     }
     if (!(await requireRedisAuth(request, response, redis, env))) return;
@@ -196,6 +188,7 @@ export const handleRedisStorageApi = async (request, response, { env, isProducti
     }
 
     if (url.pathname.endsWith('/admin-profile')) {
+      if (request.method !== 'GET') { response.statusCode = 405; response.end(); return; }
       const credentials = await loadCredentials(redis, env);
       if (!credentials) return jsonResponse(response, 503, { error: '管理员账号未初始化' });
       return jsonResponse(response, 200, { username: credentials.username });
@@ -203,18 +196,22 @@ export const handleRedisStorageApi = async (request, response, { env, isProducti
     if (url.pathname.endsWith('/admin-credentials')) {
       if (request.method !== 'POST') { response.statusCode = 405; response.end(); return; }
       const body = await parseJsonBody(request);
+      if (!body) return jsonResponse(response, 400, { success: false, error: 'Invalid JSON body' });
       const current = await loadCredentials(redis, env);
-      const next = body && current ? await buildAdminCredentialsForSave(current, body) : { error: 'Invalid credentials payload' };
-      if (!next.data) return jsonResponse(response, 400, { error: next.error });
+      if (!current) return jsonResponse(response, 503, { success: false, error: '管理员账号未初始化' });
+      const next = await buildAdminCredentialsForSave(current, body);
+      if (!next.data) return jsonResponse(response, 400, { success: false, error: next.error });
       await writeRedisJson(redis, env, 'private_data', next.data);
-      await appendAudit(redis, env, 'update_admin_credentials', 'success', `username=${next.data.username}`);
-      await clearRedisSessions(redis, env);
-      response.setHeader('Set-Cookie', clearCookie(isProduction));
-      return jsonResponse(response, 200, { success: true, requireRelogin: true });
+      await appendAudit(redis, env, 'update_admin_credentials', 'success', `source=redis changed=${next.changed ? '1' : '0'} ip=${clientIp}`);
+      if (next.changed) {
+        await clearRedisSessions(redis, env);
+        response.setHeader('Set-Cookie', clearCookie(isProduction));
+      }
+      return jsonResponse(response, 200, buildAdminCredentialsResponse(next));
     }
     if (url.pathname.endsWith('/media-gc')) {
       if (request.method !== 'POST') { response.statusCode = 405; response.end(); return; }
-      const limit = Math.min(500, Math.max(1, Number(url.searchParams.get('limit') || 100)));
+      const limit = readBoundedInteger(url.searchParams.get('limit'), 100, 1, 500);
       const publicData = await readRedisJson(redis, env, 'public_data') || { cards: [] };
       const references = parseMediaReferences(publicData);
       const allNames = await listRedisMediaNames(redis, env);
@@ -222,18 +219,20 @@ export const handleRedisStorageApi = async (request, response, { env, isProducti
       const candidates = removable.slice(0, limit);
       for (const name of candidates) await deleteRedisKey(redis, env, `media:${name}`);
       const pending = Math.max(0, removable.length - candidates.length);
-      await appendAudit(redis, env, 'run_media_gc', 'success', `driver=redis removed=${candidates.length}`);
+      await appendAudit(redis, env, 'run_media_gc', 'success', `driver=redis removed=${candidates.length} pending=${pending} ip=${clientIp}`);
       return jsonResponse(response, 200, { success: true, checked: allNames.length, removed: candidates.length, pending, hasMore: pending > 0 });
     }
     if (url.pathname.endsWith('/audit-logs')) {
       if (request.method === 'GET') {
-        const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') || 50)));
+        const limit = readBoundedInteger(url.searchParams.get('limit'), 50, 1, 200);
         return jsonResponse(response, 200, { items: await readRedisAudit(redis, env, limit) });
       }
       if (request.method === 'POST') {
         const body = await parseJsonBody(request);
-        if (!body || !['success', 'failed'].includes(body.status)) return jsonResponse(response, 400, { error: 'Invalid audit payload' });
-        await appendAudit(redis, env, body.action, body.status, body.details, body.message);
+        if (!body) return jsonResponse(response, 400, { success: false, error: 'Invalid JSON body' });
+        const normalized = normalizeAuditWritePayload(body);
+        if (!normalized.data) return jsonResponse(response, 400, { success: false, error: normalized.error });
+        await appendAudit(redis, env, normalized.data.action, normalized.data.status, normalized.data.details, normalized.data.message);
         return jsonResponse(response, 200, { success: true });
       }
       response.statusCode = 405;
@@ -263,14 +262,14 @@ export const handleRedisStorageApi = async (request, response, { env, isProducti
         const normalized = normalizePrivateDataPayload(body);
         if (!normalized) return jsonResponse(response, 400, { error: 'Invalid private_data payload' });
         await writeRedisJson(redis, env, key, normalized);
-        await appendAudit(redis, env, 'write_private_data', 'success', `ip=${getClientIp(request)}`);
+        await appendAudit(redis, env, 'write_private_data', 'success', `ip=${clientIp}`);
         return jsonResponse(response, 200, { success: true });
       }
       const prepared = preparePublicDataWrite(body, request.headers);
       if (!prepared.ok) return jsonResponse(response, prepared.status, { error: prepared.error });
       const result = await saveRedisPublicData(redis, env, prepared.data, prepared.expectedUpdatedAt);
       if (!result.success) return jsonResponse(response, 409, buildPublicDataConflict(result.currentUpdatedAt));
-      await appendAudit(redis, env, 'write_public_data', 'success', `updatedAt=${getPublicDataUpdatedAt(prepared.data)} ip=${getClientIp(request)}`);
+      await appendAudit(redis, env, 'write_public_data', 'success', `updatedAt=${getPublicDataUpdatedAt(prepared.data)} ip=${clientIp}`);
       return jsonResponse(response, 200, buildPublicDataWriteSuccess(prepared.data));
     }
     response.statusCode = 405;

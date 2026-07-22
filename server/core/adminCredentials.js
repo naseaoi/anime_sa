@@ -1,6 +1,6 @@
 import { hashPassword } from '../sharedSecurity.js';
 import { dbGetJson, dbSetJson } from './kvStore.js';
-export { buildAdminCredentialsForSave } from './credentialPolicy.js';
+export { buildAdminCredentialsForSave, buildAdminCredentialsResponse } from './credentialPolicy.js';
 
 export const ensureSqliteAdminFromEnv = async (database, env) => {
   const username = (env.ADMIN_USERNAME || '').trim();

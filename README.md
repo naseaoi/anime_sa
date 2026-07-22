@@ -8,7 +8,7 @@
 - **后台管理** — 卡片 / 分类 / 站点配置 / 数据同步（路径 `/tat`）
 - **存储驱动** — SQLite 与 Redis 共用统一 API，Node.js / Docker 可通过 `STORAGE_DRIVER` 切换，支持后台跨存储传输
 - **封面管理** — 外置存储 + 分批清理未引用封面（Media GC）
-- **安全** — Session 鉴权、登录限流、scrypt、同源写校验与请求体限制；Node.js 服务额外设置 CSP 等安全响应头
+- **安全** — Session 鉴权、登录限流、scrypt、同源写校验、请求体限制，以及 Node.js / Vercel 静态响应安全头
 
 ## 快速开始
 
