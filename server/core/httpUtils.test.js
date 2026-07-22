@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  errorResponse,
   getClientIp,
   methodNotAllowed,
   readBoundedInteger,
@@ -59,5 +60,20 @@ describe('HTTP utilities', () => {
     expect(response.statusCode).toBe(405);
     expect(headers.get('Allow')).toBe('GET, POST');
     expect(JSON.parse(response.body)).toEqual({ success: false, error: 'Method not allowed' });
+  });
+
+  it('keeps extra error details while enforcing the failure shape', () => {
+    const response = {
+      setHeader() {},
+      end(value) { this.body = value; }
+    };
+
+    errorResponse(response, 429, 'Too many requests', { retryAfterSec: 10 });
+
+    expect(JSON.parse(response.body)).toEqual({
+      success: false,
+      error: 'Too many requests',
+      retryAfterSec: 10
+    });
   });
 });

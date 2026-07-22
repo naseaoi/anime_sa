@@ -5,6 +5,7 @@ import { buildAdminCredentialsForSave, buildAdminCredentialsResponse } from '../
 import { normalizeAuditEntry, normalizeAuditWritePayload } from '../core/auditContract.js';
 import { parseMediaReferences } from '../core/mediaGc.js';
 import {
+  errorResponse,
   getClientIp,
   jsonResponse,
   methodNotAllowed,
@@ -46,7 +47,7 @@ const checkRateLimit = async (response, redis, env, scope, limit, windowSeconds,
   const result = await consumeRateLimit(redis, env, scope, clientIp, limit, windowSeconds);
   if (result.allowed) return true;
   response.setHeader('Retry-After', String(result.retryAfter));
-  jsonResponse(response, 429, { error: 'Too many requests' });
+  errorResponse(response, 429, 'Too many requests');
   return false;
 };
 
@@ -74,11 +75,11 @@ const handleRemoteImage = async (request, response, url, redis, env) => {
   if (request.method !== 'GET') return methodNotAllowed(response, ['GET']);
   if (!(await requireRedisAuth(request, response, redis, env))) return;
   const rawTarget = String(url.searchParams.get('url') || '').trim();
-  if (!rawTarget) return jsonResponse(response, 400, { error: 'Missing url parameter' });
+  if (!rawTarget) return errorResponse(response, 400, 'Missing url parameter');
   let target;
-  try { target = new URL(rawTarget); } catch { return jsonResponse(response, 400, { error: 'Invalid remote image url' }); }
-  if (!['http:', 'https:'].includes(target.protocol)) return jsonResponse(response, 400, { error: 'Only http/https urls are allowed' });
-  if (isBlockedRemoteHost(target.hostname)) return jsonResponse(response, 403, { error: 'Remote host is not allowed' });
+  try { target = new URL(rawTarget); } catch { return errorResponse(response, 400, 'Invalid remote image url'); }
+  if (!['http:', 'https:'].includes(target.protocol)) return errorResponse(response, 400, 'Only http/https urls are allowed');
+  if (isBlockedRemoteHost(target.hostname)) return errorResponse(response, 403, 'Remote host is not allowed');
   const upstream = await fetch(target.toString(), {
     method: 'GET',
     redirect: 'follow',
@@ -87,14 +88,14 @@ const handleRemoteImage = async (request, response, url, redis, env) => {
   });
   let finalUrl = null;
   try { finalUrl = upstream.url ? new URL(upstream.url) : null; } catch {}
-  if (finalUrl && isBlockedRemoteHost(finalUrl.hostname)) return jsonResponse(response, 403, { error: 'Redirected host is not allowed' });
-  if (!upstream.ok) return jsonResponse(response, 502, { error: `Remote fetch failed (${upstream.status})` });
+  if (finalUrl && isBlockedRemoteHost(finalUrl.hostname)) return errorResponse(response, 403, 'Redirected host is not allowed');
+  if (!upstream.ok) return errorResponse(response, 502, `Remote fetch failed (${upstream.status})`);
   const contentType = String(upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-  if (!contentType.startsWith('image/')) return jsonResponse(response, 415, { error: 'Remote resource is not an image' });
+  if (!contentType.startsWith('image/')) return errorResponse(response, 415, 'Remote resource is not an image');
   const contentLength = Number(upstream.headers.get('content-length') || '0');
-  if (Number.isFinite(contentLength) && contentLength > MEDIA_BODY_LIMIT_BYTES) return jsonResponse(response, 413, { error: 'Remote image too large' });
+  if (Number.isFinite(contentLength) && contentLength > MEDIA_BODY_LIMIT_BYTES) return errorResponse(response, 413, 'Remote image too large');
   const bytes = Buffer.from(await upstream.arrayBuffer());
-  if (bytes.length > MEDIA_BODY_LIMIT_BYTES) return jsonResponse(response, 413, { error: 'Remote image too large' });
+  if (bytes.length > MEDIA_BODY_LIMIT_BYTES) return errorResponse(response, 413, 'Remote image too large');
   response.statusCode = 200;
   response.setHeader('Cache-Control', 'no-store');
   response.setHeader('Content-Type', contentType);
@@ -104,13 +105,13 @@ const handleRemoteImage = async (request, response, url, redis, env) => {
 
 const handleMedia = async (request, response, url, redis, env) => {
   const name = normalizeMediaName(url.searchParams.get('name'));
-  if (!name) return jsonResponse(response, 400, { error: 'Invalid media name' });
+  if (!name) return errorResponse(response, 400, 'Invalid media name');
   if (!['GET', 'POST', 'DELETE'].includes(request.method)) {
     return methodNotAllowed(response, ['GET', 'POST', 'DELETE']);
   }
   if (request.method === 'GET') {
     const media = await readRedisMedia(redis, env, name);
-    if (!media) return jsonResponse(response, 404, { error: 'Media not found' });
+    if (!media) return errorResponse(response, 404, 'Media not found');
     response.statusCode = 200;
     response.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     response.setHeader('Content-Type', media.contentType);
@@ -154,17 +155,17 @@ export const handleRedisStorageApi = async (request, response, { env, isProducti
       if (request.method !== 'POST') return methodNotAllowed(response, ['POST']);
       if (!(await checkRateLimit(response, redis, env, 'login', 20, 600, clientIp))) return;
       const parsedBody = await readJsonObject(request);
-      if (!parsedBody.ok) return jsonResponse(response, 400, { success: false, error: parsedBody.error });
+      if (!parsedBody.ok) return errorResponse(response, 400, parsedBody.error);
       const body = parsedBody.data;
       const credentials = await loadCredentials(redis, env);
-      if (!credentials) return jsonResponse(response, 503, { success: false, error: '管理员账号未初始化' });
+      if (!credentials) return errorResponse(response, 503, '管理员账号未初始化');
       const usernameOk = timingSafeEqualText(body.username, credentials.username || '');
       const passwordOk = typeof credentials.passwordHash === 'string'
         ? await verifyPasswordHash(body.password, credentials.passwordHash)
         : timingSafeEqualText(body.password, credentials.password || '');
       if (!usernameOk || !passwordOk) {
         await appendAudit(redis, env, 'login', 'failed', `ip=${clientIp}`, 'Invalid credentials');
-        return jsonResponse(response, 401, { success: false, error: 'Invalid credentials' });
+        return errorResponse(response, 401, 'Invalid credentials');
       }
       if (!credentials.passwordHash) {
         await writeRedisJson(redis, env, 'private_data', {
@@ -193,26 +194,26 @@ export const handleRedisStorageApi = async (request, response, { env, isProducti
     if (url.pathname.endsWith('/transfer')) {
       if (!(await requireRedisAuth(request, response, redis, env))) return;
       if (request.method === 'GET') return jsonResponse(response, 200, { driver: 'redis', available: ['redis'] });
-      return jsonResponse(response, 501, { success: false, error: 'Storage transfer requires the Node runtime' });
+      return errorResponse(response, 501, 'Storage transfer requires the Node runtime');
     }
 
     if (url.pathname.endsWith('/admin-profile')) {
       if (request.method !== 'GET') return methodNotAllowed(response, ['GET']);
       if (!(await requireRedisAuth(request, response, redis, env))) return;
       const credentials = await loadCredentials(redis, env);
-      if (!credentials) return jsonResponse(response, 503, { success: false, error: '管理员账号未初始化' });
+      if (!credentials) return errorResponse(response, 503, '管理员账号未初始化');
       return jsonResponse(response, 200, { username: credentials.username });
     }
     if (url.pathname.endsWith('/admin-credentials')) {
       if (request.method !== 'POST') return methodNotAllowed(response, ['POST']);
       if (!(await requireRedisAuth(request, response, redis, env))) return;
       const parsedBody = await readJsonObject(request);
-      if (!parsedBody.ok) return jsonResponse(response, 400, { success: false, error: parsedBody.error });
+      if (!parsedBody.ok) return errorResponse(response, 400, parsedBody.error);
       const body = parsedBody.data;
       const current = await loadCredentials(redis, env);
-      if (!current) return jsonResponse(response, 503, { success: false, error: '管理员账号未初始化' });
+      if (!current) return errorResponse(response, 503, '管理员账号未初始化');
       const next = await buildAdminCredentialsForSave(current, body);
-      if (!next.data) return jsonResponse(response, 400, { success: false, error: next.error });
+      if (!next.data) return errorResponse(response, 400, next.error);
       await writeRedisJson(redis, env, 'private_data', next.data);
       await appendAudit(redis, env, 'update_admin_credentials', 'success', `source=redis changed=${next.changed ? '1' : '0'} ip=${clientIp}`);
       if (next.changed) {
@@ -243,18 +244,18 @@ export const handleRedisStorageApi = async (request, response, { env, isProducti
       }
       if (request.method === 'POST') {
         const parsedBody = await readJsonObject(request);
-        if (!parsedBody.ok) return jsonResponse(response, 400, { success: false, error: parsedBody.error });
+        if (!parsedBody.ok) return errorResponse(response, 400, parsedBody.error);
         const body = parsedBody.data;
         const normalized = normalizeAuditWritePayload(body);
-        if (!normalized.data) return jsonResponse(response, 400, { success: false, error: normalized.error });
+        if (!normalized.data) return errorResponse(response, 400, normalized.error);
         await appendAudit(redis, env, normalized.data.action, normalized.data.status, normalized.data.details, normalized.data.message);
         return jsonResponse(response, 200, { success: true });
       }
       return methodNotAllowed(response, ['GET', 'POST']);
     }
 
-    if (!key) return jsonResponse(response, 400, { success: false, error: 'Missing key parameter' });
-    if (!['public_data', 'private_data'].includes(key)) return jsonResponse(response, 404, { success: false, error: 'Unknown key' });
+    if (!key) return errorResponse(response, 400, 'Missing key parameter');
+    if (!['public_data', 'private_data'].includes(key)) return errorResponse(response, 404, 'Unknown key');
     if (!['GET', 'POST'].includes(request.method)) return methodNotAllowed(response, ['GET', 'POST']);
     if (request.method === 'POST' || key === 'private_data') {
       if (!(await requireRedisAuth(request, response, redis, env))) return;
@@ -271,21 +272,21 @@ export const handleRedisStorageApi = async (request, response, { env, isProducti
       const value = await readRedisJson(redis, env, key);
       if (!value) return jsonResponse(response, 200, null);
       const normalized = normalizePublicDataPayload(value);
-      return normalized ? jsonResponse(response, 200, normalized) : jsonResponse(response, 500, { error: 'Stored public_data is invalid' });
+      return normalized ? jsonResponse(response, 200, normalized) : errorResponse(response, 500, 'Stored public_data is invalid');
     }
     if (request.method === 'POST') {
       const parsedBody = await readJsonObject(request);
-      if (!parsedBody.ok) return jsonResponse(response, 400, { success: false, error: parsedBody.error });
+      if (!parsedBody.ok) return errorResponse(response, 400, parsedBody.error);
       const body = parsedBody.data;
       if (key === 'private_data') {
         const normalized = normalizePrivateDataPayload(body);
-        if (!normalized) return jsonResponse(response, 400, { error: 'Invalid private_data payload' });
+        if (!normalized) return errorResponse(response, 400, 'Invalid private_data payload');
         await writeRedisJson(redis, env, key, normalized);
         await appendAudit(redis, env, 'write_private_data', 'success', `ip=${clientIp}`);
         return jsonResponse(response, 200, { success: true });
       }
       const prepared = preparePublicDataWrite(body, request.headers);
-      if (!prepared.ok) return jsonResponse(response, prepared.status, { error: prepared.error });
+      if (!prepared.ok) return errorResponse(response, prepared.status, prepared.error);
       const result = await saveRedisPublicData(redis, env, prepared.data, prepared.expectedUpdatedAt);
       if (!result.success) return jsonResponse(response, 409, buildPublicDataConflict(result.currentUpdatedAt));
       await appendAudit(redis, env, 'write_public_data', 'success', `updatedAt=${getPublicDataUpdatedAt(prepared.data)} ip=${clientIp}`);
@@ -293,8 +294,8 @@ export const handleRedisStorageApi = async (request, response, { env, isProducti
     }
     return methodNotAllowed(response, ['GET', 'POST']);
   } catch (error) {
-    if (error?.code === 'PAYLOAD_TOO_LARGE') return jsonResponse(response, 413, { success: false, error: 'Payload too large' });
+    if (error?.code === 'PAYLOAD_TOO_LARGE') return errorResponse(response, 413, 'Payload too large');
     console.error('Redis storage API error:', error);
-    return jsonResponse(response, 500, { success: false, error: 'Internal server error' });
+    return errorResponse(response, 500, 'Internal server error');
   }
 };

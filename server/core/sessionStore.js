@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { SESSION_COOKIE } from './constants.js';
 import { dbDelete, dbGetJson, dbSetJson } from './kvStore.js';
-import { jsonResponse, parseCookies } from './httpUtils.js';
+import { errorResponse, parseCookies } from './httpUtils.js';
 export { buildCookie, clearCookie } from './sessionCookie.js';
 
 export const createSession = (database, remember) => {
@@ -34,7 +34,7 @@ export const clearAllSessions = (database) => {
 export const requireAuth = (request, response, database) => {
   const cookies = parseCookies(request.headers.cookie || '');
   if (!verifySession(database, cookies[SESSION_COOKIE])) {
-    jsonResponse(response, 401, { error: 'Unauthorized: Login required' });
+    errorResponse(response, 401, 'Unauthorized: Login required');
     return false;
   }
   return true;

@@ -1,4 +1,4 @@
-import { jsonResponse } from './httpUtils.js';
+import { errorResponse } from './httpUtils.js';
 
 const STATE_CHANGING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const STATE_CHANGING_DAV_METHODS = new Set(['PUT', 'DELETE', 'MKCOL', 'PROPPATCH', 'MOVE', 'COPY', 'LOCK', 'UNLOCK', 'PROPFIND']);
@@ -31,6 +31,6 @@ const isSameOriginRequest = (request) => {
 
 export const enforceSameOrigin = (request, response) => {
   if (!isStateChangingRequest(request) || isSameOriginRequest(request)) return true;
-  jsonResponse(response, 403, { error: 'Cross-origin request not allowed' });
+  errorResponse(response, 403, 'Cross-origin request not allowed');
   return false;
 };

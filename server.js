@@ -3,14 +3,15 @@ import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 import {
+  errorResponse,
   handleStorageApi,
-  jsonResponse,
   getClientIp
 } from './server/core/apiCore.js';
 import { resolveStorageDriver } from './server/core/storageDriver.js';
 import { handleRedisStorageApi } from './server/storage/redisApi.js';
 import { handleStorageTransferApi } from './server/storage/transferApi.js';
 import { resolveSqliteDataDir } from './server/core/kvStore.js';
+import { setSecurityHeaders } from './server/core/securityHeaders.js';
 
 // ===== 环境变量加载 =====
 const envPath = path.join(process.cwd(), '.env');
@@ -155,41 +156,17 @@ const checkRateLimit = (req, res, scope, max, windowMs) => {
   if (record.count >= max) {
     const retryAfterSec = Math.max(1, Math.ceil((record.resetAt - now) / 1000));
     res.setHeader('Retry-After', String(retryAfterSec));
-    jsonResponse(res, 429, { error: 'Too many requests', retryAfterSec });
+    errorResponse(res, 429, 'Too many requests', { retryAfterSec });
     return false;
   }
   record.count += 1;
   return true;
 };
 
-// ===== 通用安全响应头 =====
-const CSP_HEADER_VALUE = [
-  "default-src 'self'",
-  "img-src 'self' data: blob: https: http:",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' data: https://fonts.gstatic.com",
-  "script-src 'self'",
-  "connect-src 'self' https:",
-  "frame-ancestors 'self'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "object-src 'none'"
-].join('; ');
-
-const setSecurityHeaders = (res) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Content-Security-Policy', CSP_HEADER_VALUE);
-  if (IS_PRODUCTION) {
-    res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
-  }
-};
-
 // ===== HTTP 服务器 =====
 
 const server = http.createServer(async (req, res) => {
-  setSecurityHeaders(res);
+  setSecurityHeaders(res, IS_PRODUCTION);
   const url = new URL(req.url, `http://${req.headers.host}`);
 
   if (url.pathname.startsWith('/api/storage') || url.pathname.startsWith('/api/sqlite')) {

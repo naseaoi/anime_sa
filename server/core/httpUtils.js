@@ -8,9 +8,13 @@ export const jsonResponse = (response, status, payload) => {
   response.end(JSON.stringify(payload));
 };
 
+export const errorResponse = (response, status, error, details = {}) => (
+  jsonResponse(response, status, { ...details, success: false, error })
+);
+
 export const methodNotAllowed = (response, allowedMethods) => {
   if (allowedMethods.length > 0) response.setHeader('Allow', allowedMethods.join(', '));
-  return jsonResponse(response, 405, { success: false, error: 'Method not allowed' });
+  return errorResponse(response, 405, 'Method not allowed');
 };
 
 export const readBody = async (request, limit = BODY_LIMIT_BYTES) => {

@@ -32,9 +32,9 @@
 
 API 业务修改不能只验证其中一个入口。SQLite 主要走 `server/core/apiCore.js`，Redis 走 `server/storage/redisApi.js`；两边复用了部分安全与校验模块，但路由分支仍是两套实现。
 
-请求体统一由 `server/core/httpUtils.js` 的 `readJsonObject` 解析：空 body 按空对象处理，JSON 原始值和数组会返回 400。方法不匹配必须使用 `methodNotAllowed`，返回 JSON 405 和 `Allow` 头，不要直接 `res.end()`。`public_data` 的 GET 是唯一公开的通用数据读取；`private_data` 读取和所有写入都必须鉴权，Redis handler 不要把鉴权提前放到通用 KV 分支之前。
+请求体统一由 `server/core/httpUtils.js` 的 `readJsonObject` 解析：空 body 按空对象处理，JSON 原始值和数组会返回 400。方法不匹配必须使用 `methodNotAllowed`，其余错误使用 `errorResponse`，保证返回 JSON、`success: false` 和稳定的 `error` 字段。`public_data` 的 GET 是唯一公开的通用数据读取；`private_data` 读取和所有写入都必须鉴权，Redis handler 不要把鉴权提前放到通用 KV 分支之前。
 
-`server.js` 和 `vercel.json` 分别维护 Node.js 与 Vercel 的 CSP、HSTS 等安全响应头。修改安全策略时必须同步两处；`server/vercelConfig.test.js` 只检查关键头存在，不能证明两份 CSP 文本完全一致。
+安全响应头的唯一来源是 `server/core/securityHeaders.js`。修改后执行 `npm run sync:vercel-headers` 更新 `vercel.json`；`npm run lint` 会通过 `check:config` 检查配置是否失步。Node.js 开发环境不发送 HSTS，生产环境和 Vercel 会发送。
 
 ## 数据写入与乐观锁
 
@@ -156,9 +156,7 @@ Media GC 只把以下路径中的 `name` 视为本站引用：
 以下内容是已知技术债，不应被新功能继续复制：
 
 1. 继续统一后台暂存与前台立即保存的结果类型，明确 `staged`、`persisted`、`conflict`，避免新入口误用 `onSave` 命名。
-2. 在公共数据、凭据和审计契约的基础上继续收敛 SQLite/Redis API，优先统一其余错误码和请求体校验。
-3. 将 `PublicData` 的 TypeScript 类型进一步由运行时 Schema 派生，消除 `shared/publicDataSchema.d.ts` 的手工声明同步点。
-4. 明确卡片是单分类还是多标签，再统一数据模型、编辑器与路由。
-5. 把 Node.js 与 Vercel 的安全响应头提取为可生成配置，避免两份 CSP 手工同步。
+2. 将 `PublicData` 的 TypeScript 类型进一步由运行时 Schema 派生，消除 `shared/publicDataSchema.d.ts` 的手工声明同步点。
+3. 明确卡片是单分类还是多标签，再统一数据模型、编辑器与路由。
 
 重构这些区域时，先为现有行为补回归测试，再改变契约；本文中标记为兼容入口的内容，应在有迁移方案和弃用周期后删除。

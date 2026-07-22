@@ -9,6 +9,7 @@ import { appendAuditLog } from './auditStore.js';
 import { normalizeAuditWritePayload } from './auditContract.js';
 import { dbDelete, dbGetJson, dbSetJson, ensureDb } from './kvStore.js';
 import {
+  errorResponse,
   getClientIp,
   jsonResponse,
   methodNotAllowed,
@@ -61,6 +62,7 @@ export {
   dbSetJson,
   destroySession,
   ensureDb,
+  errorResponse,
   getClientIp,
   isBlockedRemoteHost,
   jsonResponse,
@@ -95,15 +97,15 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
       if (!requireAuth(req, res, db)) return;
 
       const rawTarget = String(url.searchParams.get('url') || '').trim();
-      if (!rawTarget) return jsonResponse(res, 400, { error: 'Missing url parameter' });
+      if (!rawTarget) return errorResponse(res, 400, 'Missing url parameter');
 
       let target;
-      try { target = new URL(rawTarget); } catch { return jsonResponse(res, 400, { error: 'Invalid remote image url' }); }
+      try { target = new URL(rawTarget); } catch { return errorResponse(res, 400, 'Invalid remote image url'); }
       if (!['http:', 'https:'].includes(target.protocol)) {
-        return jsonResponse(res, 400, { error: 'Only http/https urls are allowed' });
+        return errorResponse(res, 400, 'Only http/https urls are allowed');
       }
       if (isBlockedRemoteHost(target.hostname)) {
-        return jsonResponse(res, 403, { error: 'Remote host is not allowed' });
+        return errorResponse(res, 403, 'Remote host is not allowed');
       }
 
       const upstream = await fetch(target.toString(), {
@@ -116,22 +118,22 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
       let finalUrl = null;
       try { finalUrl = upstream.url ? new URL(upstream.url) : null; } catch { finalUrl = null; }
       if (finalUrl && isBlockedRemoteHost(finalUrl.hostname)) {
-        return jsonResponse(res, 403, { error: 'Redirected host is not allowed' });
+        return errorResponse(res, 403, 'Redirected host is not allowed');
       }
-      if (!upstream.ok) return jsonResponse(res, 502, { error: `Remote fetch failed (${upstream.status})` });
+      if (!upstream.ok) return errorResponse(res, 502, `Remote fetch failed (${upstream.status})`);
 
       const contentType = String(upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
       if (!contentType.startsWith('image/')) {
-        return jsonResponse(res, 415, { error: 'Remote resource is not an image' });
+        return errorResponse(res, 415, 'Remote resource is not an image');
       }
       const contentLength = Number(upstream.headers.get('content-length') || '0');
       if (Number.isFinite(contentLength) && contentLength > MEDIA_BODY_LIMIT_BYTES) {
-        return jsonResponse(res, 413, { error: 'Remote image too large' });
+        return errorResponse(res, 413, 'Remote image too large');
       }
 
       const bytes = Buffer.from(await upstream.arrayBuffer());
       if (bytes.length > MEDIA_BODY_LIMIT_BYTES) {
-        return jsonResponse(res, 413, { error: 'Remote image too large' });
+        return errorResponse(res, 413, 'Remote image too large');
       }
 
       res.statusCode = 200;
@@ -147,13 +149,13 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
       if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
 
       const parsedBody = await readJsonObject(req);
-      if (!parsedBody.ok) return jsonResponse(res, 400, { success: false, error: parsedBody.error });
+      if (!parsedBody.ok) return errorResponse(res, 400, parsedBody.error);
       const body = parsedBody.data;
 
       const { username, password, remember } = body;
       const resolved = await resolveAdminCredentials(db, env);
       if (!resolved.creds) {
-        return jsonResponse(res, 503, { success: false, error: resolved.error || '管理员账号不可用' });
+        return errorResponse(res, 503, resolved.error || '管理员账号不可用');
       }
 
       const usernameOk = timingSafeEqualText(username, resolved.creds.username || '');
@@ -188,7 +190,7 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
         details: `ip=${getClientIp(req, env)}`,
         message: 'Invalid credentials'
       });
-      return jsonResponse(res, 401, { success: false, error: 'Invalid credentials' });
+      return errorResponse(res, 401, 'Invalid credentials');
     }
 
     // /logout
@@ -213,7 +215,7 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
       if (!requireAuth(req, res, db)) return;
       const resolved = await resolveAdminCredentials(db, env);
       if (!resolved.creds) {
-        return jsonResponse(res, 503, { success: false, error: resolved.error || '管理员账号不可用' });
+        return errorResponse(res, 503, resolved.error || '管理员账号不可用');
       }
       return jsonResponse(res, 200, { username: String(resolved.creds.username || '') });
     }
@@ -230,11 +232,11 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
 
       if (req.method === 'POST') {
         const parsedBody = await readJsonObject(req);
-        if (!parsedBody.ok) return jsonResponse(res, 400, { success: false, error: parsedBody.error });
+        if (!parsedBody.ok) return errorResponse(res, 400, parsedBody.error);
         const body = parsedBody.data;
 
         const normalized = normalizeAuditWritePayload(body);
-        if (!normalized.data) return jsonResponse(res, 400, { success: false, error: normalized.error });
+        if (!normalized.data) return errorResponse(res, 400, normalized.error);
 
         appendAuditLog(db, normalized.data);
         return jsonResponse(res, 200, { success: true });
@@ -249,17 +251,17 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
       if (!requireAuth(req, res, db)) return;
 
       const parsedBody = await readJsonObject(req);
-      if (!parsedBody.ok) return jsonResponse(res, 400, { success: false, error: parsedBody.error });
+      if (!parsedBody.ok) return errorResponse(res, 400, parsedBody.error);
       const body = parsedBody.data;
 
       const resolved = await resolveAdminCredentials(db, env);
       if (!resolved.creds) {
-        return jsonResponse(res, 503, { success: false, error: resolved.error || '管理员账号不可用' });
+        return errorResponse(res, 503, resolved.error || '管理员账号不可用');
       }
 
       const next = await buildAdminCredentialsForSave(resolved.creds, body);
       if (!next.data) {
-        return jsonResponse(res, 400, { success: false, error: next.error || '参数无效' });
+        return errorResponse(res, 400, next.error || '参数无效');
       }
 
       dbSetJson(db, 'private_data', next.data);
@@ -298,19 +300,19 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
           details: `driver=sqlite ip=${getClientIp(req, env)}`,
           message: '封面资源清理失败'
         });
-        return jsonResponse(res, 500, { success: false, error: '封面资源清理失败' });
+        return errorResponse(res, 500, '封面资源清理失败');
       }
     }
 
     // /media
     if (url.pathname.endsWith('/media')) {
       const mediaName = normalizeMediaName(url.searchParams.get('name'));
-      if (!mediaName) return jsonResponse(res, 400, { error: 'Invalid media name' });
+      if (!mediaName) return errorResponse(res, 400, 'Invalid media name');
 
       const mediaKey = `media:${mediaName}`;
       if (req.method === 'GET') {
         const media = dbGetJson(db, mediaKey);
-        if (!media?.base64) return jsonResponse(res, 404, { error: 'Media not found' });
+        if (!media?.base64) return errorResponse(res, 404, 'Media not found');
         const bytes = Buffer.from(media.base64, 'base64');
         res.statusCode = 200;
         res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
@@ -342,7 +344,7 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
 
     // 通用 KV：GET/POST
     const key = url.searchParams.get('key');
-    if (!key) return jsonResponse(res, 400, { success: false, error: 'Missing key parameter' });
+    if (!key) return errorResponse(res, 400, 'Missing key parameter');
 
     if (key === 'driver') {
       if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
@@ -355,10 +357,10 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
     const publicReadKeys = new Set(['public_data']);
     const writableKeys = new Set(['public_data', 'private_data']);
     if (req.method === 'GET' && key !== 'private_data' && !publicReadKeys.has(key)) {
-      return jsonResponse(res, 404, { success: false, error: 'Unknown key' });
+      return errorResponse(res, 404, 'Unknown key');
     }
     if (req.method === 'POST' && !writableKeys.has(key)) {
-      return jsonResponse(res, 404, { success: false, error: 'Unknown key' });
+      return errorResponse(res, 404, 'Unknown key');
     }
 
     const isWrite = req.method === 'POST';
@@ -377,7 +379,7 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
       }
       if (key === 'public_data' && value) {
         const normalized = normalizePublicDataPayload(value);
-        if (!normalized) return jsonResponse(res, 500, { error: 'Stored public_data is invalid' });
+        if (!normalized) return errorResponse(res, 500, 'Stored public_data is invalid');
         return jsonResponse(res, 200, normalized);
       }
       return jsonResponse(res, 200, value || null);
@@ -385,12 +387,12 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
 
     if (req.method === 'POST') {
       const parsedBody = await readJsonObject(req);
-      if (!parsedBody.ok) return jsonResponse(res, 400, { success: false, error: parsedBody.error });
+      if (!parsedBody.ok) return errorResponse(res, 400, parsedBody.error);
       const parsed = parsedBody.data;
 
       if (key === 'private_data') {
         const normalized = normalizePrivateDataPayload(parsed);
-        if (!normalized) return jsonResponse(res, 400, { error: 'Invalid private_data payload' });
+        if (!normalized) return errorResponse(res, 400, 'Invalid private_data payload');
         const privateData = {
           username: normalized.username,
           passwordHash: normalized.passwordHash,
@@ -403,7 +405,7 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
 
       if (key === 'public_data') {
         const prepared = preparePublicDataWrite(parsed, req.headers);
-        if (!prepared.ok) return jsonResponse(res, prepared.status, { error: prepared.error });
+        if (!prepared.ok) return errorResponse(res, prepared.status, prepared.error);
 
         if (prepared.expectedUpdatedAt !== undefined) {
           const currentUpdatedAt = getPublicDataUpdatedAt(dbGetJson(db, key));
@@ -421,9 +423,9 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
     return methodNotAllowed(res, ['GET', 'POST']);
   } catch (e) {
     if (e.code === 'PAYLOAD_TOO_LARGE') {
-      return jsonResponse(res, 413, { success: false, error: 'Payload too large' });
+      return errorResponse(res, 413, 'Payload too large');
     }
     console.error('SQLite API Error:', e);
-    return jsonResponse(res, 500, { success: false, error: 'Internal server error' });
+    return errorResponse(res, 500, 'Internal server error');
   }
 };
