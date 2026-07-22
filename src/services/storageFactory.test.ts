@@ -42,6 +42,36 @@ describe('storageFactory', () => {
     expect(fetchMock.mock.calls[0][1]?.headers).toEqual(expect.objectContaining({ 'X-Expected-Updated-At': '10' }));
   });
 
+  it('normalizes public data responses through the shared schema', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      settings: { title: '收藏', iconUrl: '' },
+      tags: [],
+      cards: [],
+      updatedAt: 10,
+      ignored: 'field'
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    })));
+
+    const { storageAdapter } = await loadStorageFactory();
+    const result = await storageAdapter.getPublicData();
+
+    expect(result.updatedAt).toBe(10);
+    expect(result).not.toHaveProperty('ignored');
+  });
+
+  it('rejects invalid public data responses before they reach the UI', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ cards: [] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    })));
+
+    const { storageAdapter } = await loadStorageFactory();
+
+    await expect(storageAdapter.getPublicData()).rejects.toThrow('服务端返回的公共数据格式无效');
+  });
+
   it('loads the active storage driver', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ driver: 'redis' }), {
       status: 200,

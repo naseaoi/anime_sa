@@ -2,6 +2,7 @@ import { dbGetJson, dbSetJson } from '../core/kvStore.js';
 import { collectSqliteMediaNames } from '../core/mediaGc.js';
 import { normalizeMediaName } from '../sharedSecurity.js';
 import { listRedisMediaNames, readRedisJson, writeRedisJson } from './redisStore.js';
+import { normalizePublicDataPayload } from '../publicDataValidation.js';
 
 export const TRANSFER_DATA_KEYS = ['public_data', 'private_data'];
 
@@ -22,8 +23,12 @@ export const createRedisTransferDriver = (redis, env) => ({
 export const transferStorageData = async (source, target) => {
   const copied = [];
   for (const key of TRANSFER_DATA_KEYS) {
-    const value = await source.readJson(key);
+    let value = await source.readJson(key);
     if (value === null || value === undefined) continue;
+    if (key === 'public_data') {
+      value = normalizePublicDataPayload(value);
+      if (!value) throw new Error('Source public_data is invalid');
+    }
     await target.writeJson(key, value);
     copied.push(key);
   }

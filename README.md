@@ -265,11 +265,12 @@ src/
 ├── services/          API 客户端、存储适配与封面服务
 ├── hooks/             跨组件复用的状态逻辑
 └── utils/             工具函数
+shared/                前后端共享的运行时契约入口
 server.js              生产服务器（HTTP、静态文件、驱动分发，API 委托 server/）
 server/core/           SQLite API、Session、审计与安全模块
 server/storage/        Redis API 与数据能力、跨存储传输
 server/sharedSecurity.js 密码哈希、输入校验等共享模块
-server/publicDataValidation.js 公共数据校验
+server/publicDataValidation.js 公共数据 Schema 实现与兼容入口
 api/                   Vercel Functions 入口
 vite.config.ts         Vite 配置 + 开发态 API 中间件
 data/local.db          SQLite 数据文件（运行时自动创建）

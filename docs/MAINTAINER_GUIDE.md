@@ -46,7 +46,7 @@ API 业务修改不能只验证其中一个入口。SQLite 主要走 `server/cor
 
 旧数据可能没有顶层 `updatedAt`。`applyDerivedPublicDataVersion` 会从卡片的最大 `updatedAt` 推导兼容值，删除这段逻辑会使旧数据第一次保存更容易误报冲突。
 
-服务端 `normalizePublicDataPayload` 是最终写入边界。新增 `CardData`、`Tag` 或 `SiteSettings` 字段时，如果只改前端类型，保存时字段会被丢弃或整个请求返回 400。
+`normalizePublicDataPayload` 是公共数据的运行时边界，通过 `shared/publicDataSchema.js` 同时用于客户端读取、SQLite、Redis 和跨存储传输。新增 `CardData`、`Tag` 或 `SiteSettings` 字段时，如果只改前端类型，读取时会报格式错误，保存会丢弃字段或返回 400。
 
 当前重要上限：最多 200 个标签、2000 张卡片；标题 200 字符、简介 20000 字符、普通资源 URL 4096 字符、内嵌封面 1 MiB、单次媒体上传 10 MiB。
 
@@ -82,7 +82,7 @@ Media GC 只把以下路径中的 `name` 视为本站引用：
 
 它会扫描 `coverUrl` 和全部 `coverVariants`。如果新增媒体 URL 形式或新增资源字段，必须同步修改 `server/core/mediaGc.js`，否则仍在使用的资源可能被清理。
 
-跨存储传输先覆盖 `public_data` 和 `private_data`，再按名称差集分批复制媒体。它不是跨数据与媒体的原子事务；中途失败时目标可能已经拥有新数据但缺少部分封面。目标端多余媒体不会删除，Session、限流和审计日志也不传输。
+跨存储传输先校验并覆盖 `public_data`，再复制 `private_data`，最后按名称差集分批复制媒体。无效的源公共数据不会覆盖目标。它不是跨数据与媒体的原子事务；中途失败时目标可能已经拥有新数据但缺少部分封面。目标端多余媒体不会删除，Session、限流和审计日志也不传输。
 
 `coverAssetService` 中部分内部函数保留了 `targetStorage` 参数，但媒体上传端点始终是活动驱动的 `/api/storage/media`。真正的 SQLite/Redis 双向复制由服务端 `/api/storage/transfer` 完成，不要把该参数误当成客户端可直接指定写入驱动的能力。
 
@@ -126,7 +126,8 @@ Media GC 只把以下路径中的 `name` 视为本站引用：
 - `src/domain/publicData.ts` 默认值
 - `src/domain/card.ts` 卡片创建与合并规则
 - 所有新建/合并对象的构造点
-- `server/publicDataValidation.js`
+- `server/publicDataValidation.js` Schema 实现与限制常量
+- `shared/publicDataSchema.d.ts` 共享入口的 TypeScript 声明
 - 编辑草稿白名单（字段需要恢复时）
 - SQLite 与 Redis 读写测试、旧数据兼容测试
 
@@ -151,8 +152,8 @@ Media GC 只把以下路径中的 `name` 视为本站引用：
 以下内容是已知技术债，不应被新功能继续复制：
 
 1. 继续统一后台暂存与前台立即保存的结果类型，明确 `staged`、`persisted`、`conflict`，避免新入口误用 `onSave` 命名。
-2. 抽出 SQLite/Redis API 的共享请求契约，减少认证、校验、审计和错误码在两套 handler 之间漂移。
-3. 让公共数据 schema 成为前后端共享的单一来源，降低新增字段被服务端丢弃的风险。
+2. 在公共数据写入契约的基础上继续收敛 SQLite/Redis API，减少认证、审计和其余错误码在两套 handler 之间漂移。
+3. 将 `PublicData` 的 TypeScript 类型进一步由运行时 Schema 派生，消除 `shared/publicDataSchema.d.ts` 的手工声明同步点。
 4. 明确卡片是单分类还是多标签，再统一数据模型、编辑器与路由。
 5. 补齐 Vercel 静态响应的安全头，使其与 Node.js 部署边界一致。
 

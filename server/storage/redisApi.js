@@ -7,6 +7,11 @@ import { jsonResponse, readBody } from '../core/httpUtils.js';
 import { isBlockedRemoteHost, safeFetchAgent } from '../core/remoteSecurity.js';
 import { enforceSameOrigin } from '../core/requestOrigin.js';
 import { getPublicDataUpdatedAt, normalizePublicDataPayload } from '../publicDataValidation.js';
+import {
+  buildPublicDataConflict,
+  buildPublicDataWriteSuccess,
+  preparePublicDataWrite
+} from '../core/publicDataWrite.js';
 import { hashPassword, normalizeMediaName, normalizePrivateDataPayload, timingSafeEqualText, verifyPasswordHash } from '../sharedSecurity.js';
 import {
   appendRedisAudit,
@@ -261,17 +266,12 @@ export const handleRedisStorageApi = async (request, response, { env, isProducti
         await appendAudit(redis, env, 'write_private_data', 'success', `ip=${getClientIp(request)}`);
         return jsonResponse(response, 200, { success: true });
       }
-      const normalized = normalizePublicDataPayload(body);
-      if (!normalized) return jsonResponse(response, 400, { error: 'Invalid public_data payload' });
-      const expectedHeader = Array.isArray(request.headers['x-expected-updated-at'])
-        ? request.headers['x-expected-updated-at'][0]
-        : request.headers['x-expected-updated-at'];
-      const expected = expectedHeader === undefined ? undefined : Number(expectedHeader);
-      if (expected !== undefined && (!Number.isFinite(expected) || expected < 0)) return jsonResponse(response, 400, { error: 'Invalid expected data version' });
-      const result = await saveRedisPublicData(redis, env, normalized, expected);
-      if (!result.success) return jsonResponse(response, 409, { error: '数据已被其他会话更新，请刷新后重试', currentUpdatedAt: result.currentUpdatedAt });
-      await appendAudit(redis, env, 'write_public_data', 'success', `updatedAt=${getPublicDataUpdatedAt(normalized)} ip=${getClientIp(request)}`);
-      return jsonResponse(response, 200, { success: true });
+      const prepared = preparePublicDataWrite(body, request.headers);
+      if (!prepared.ok) return jsonResponse(response, prepared.status, { error: prepared.error });
+      const result = await saveRedisPublicData(redis, env, prepared.data, prepared.expectedUpdatedAt);
+      if (!result.success) return jsonResponse(response, 409, buildPublicDataConflict(result.currentUpdatedAt));
+      await appendAudit(redis, env, 'write_public_data', 'success', `updatedAt=${getPublicDataUpdatedAt(prepared.data)} ip=${getClientIp(request)}`);
+      return jsonResponse(response, 200, buildPublicDataWriteSuccess(prepared.data));
     }
     response.statusCode = 405;
     response.end();

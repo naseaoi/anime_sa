@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getPublicDataUpdatedAt, normalizePublicDataPayload } from './publicDataValidation.js';
+import { PUBLIC_DATA_LIMITS, getPublicDataUpdatedAt, normalizePublicDataPayload } from './publicDataValidation.js';
 
 const createData = () => ({
   settings: {
@@ -24,6 +24,11 @@ const createData = () => ({
 });
 
 describe('public data validation', () => {
+  it('exports the limits used by browser-side validation', () => {
+    expect(PUBLIC_DATA_LIMITS.maxTitleLength).toBe(200);
+    expect(PUBLIC_DATA_LIMITS.maxTextLength).toBe(20000);
+  });
+
   it('normalizes valid data and derives its version', () => {
     const result = normalizePublicDataPayload(createData());
     expect(result).not.toBeNull();

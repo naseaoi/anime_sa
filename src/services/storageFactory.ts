@@ -3,6 +3,7 @@ import { applyDerivedPublicDataVersion, DEFAULT_PRIVATE_DATA, DEFAULT_PUBLIC_DAT
 import { isStorageMode, StorageMode } from '../domain/storage';
 import { readApiError, requestWithSession } from './apiClient';
 import { SavePublicDataOptions, StorageAdapter } from './storageAdapter';
+import { normalizePublicDataPayload } from '../../shared/publicDataSchema.js';
 
 const STORAGE_API_URL = '/api/storage';
 
@@ -68,7 +69,10 @@ export const storageAdapter: StorageAdapter = {
     const response = await requestWithSession(`${STORAGE_API_URL}?key=public_data`);
     if (!response.ok) throw new Error(await response.text().catch(() => '') || `数据读取失败 (${response.status})`);
     const data = await response.json();
-    return data ? applyDerivedPublicDataVersion(data) : DEFAULT_PUBLIC_DATA;
+    if (!data) return DEFAULT_PUBLIC_DATA;
+    const normalized = normalizePublicDataPayload(data);
+    if (!normalized) throw new Error('服务端返回的公共数据格式无效');
+    return applyDerivedPublicDataVersion(normalized);
   },
   savePublicData: async (data: PublicData, options: SavePublicDataOptions = {}) => {
     try {

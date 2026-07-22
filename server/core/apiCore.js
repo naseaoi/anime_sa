@@ -1,4 +1,9 @@
 import { getPublicDataUpdatedAt, normalizePublicDataPayload } from '../publicDataValidation.js';
+import {
+  buildPublicDataConflict,
+  buildPublicDataWriteSuccess,
+  preparePublicDataWrite
+} from './publicDataWrite.js';
 import { BODY_LIMIT_BYTES, MEDIA_BODY_LIMIT_BYTES, SESSION_COOKIE } from './constants.js';
 import { appendAuditLog, cleanAuditText } from './auditStore.js';
 import { dbDelete, dbGetJson, dbSetJson, ensureDb } from './kvStore.js';
@@ -390,29 +395,19 @@ export const handleStorageApi = async (req, res, { env, isProduction = false } =
       }
 
       if (key === 'public_data') {
-        const normalized = normalizePublicDataPayload(parsed);
-        if (!normalized) return jsonResponse(res, 400, { error: 'Invalid public_data payload' });
+        const prepared = preparePublicDataWrite(parsed, req.headers);
+        if (!prepared.ok) return jsonResponse(res, prepared.status, { error: prepared.error });
 
-        const expectedHeader = Array.isArray(req.headers['x-expected-updated-at'])
-          ? req.headers['x-expected-updated-at'][0]
-          : req.headers['x-expected-updated-at'];
-        if (expectedHeader !== undefined) {
-          const expectedUpdatedAt = Number(expectedHeader);
-          if (!Number.isFinite(expectedUpdatedAt) || expectedUpdatedAt < 0) {
-            return jsonResponse(res, 400, { error: 'Invalid expected data version' });
-          }
+        if (prepared.expectedUpdatedAt !== undefined) {
           const currentUpdatedAt = getPublicDataUpdatedAt(dbGetJson(db, key));
-          if (currentUpdatedAt !== expectedUpdatedAt) {
-            return jsonResponse(res, 409, {
-              error: '数据已被其他会话更新，请刷新后重试',
-              currentUpdatedAt
-            });
+          if (currentUpdatedAt !== prepared.expectedUpdatedAt) {
+            return jsonResponse(res, 409, buildPublicDataConflict(currentUpdatedAt));
           }
         }
 
-        dbSetJson(db, key, normalized);
+        dbSetJson(db, key, prepared.data);
         appendAuditLog(db, { action: 'write_public_data', status: 'success', details: `ip=${getClientIp(req)}` });
-        return jsonResponse(res, 200, { success: true, updatedAt: normalized.updatedAt });
+        return jsonResponse(res, 200, buildPublicDataWriteSuccess(prepared.data));
       }
     }
 

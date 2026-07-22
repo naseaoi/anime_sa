@@ -1,4 +1,5 @@
 import type { CardData } from '../types';
+import { PUBLIC_DATA_LIMITS } from '../../shared/publicDataSchema.js';
 
 const CARD_DRAFT_VERSION = 1;
 const CARD_DRAFT_PREFIX = 'tat_card_draft:';
@@ -39,14 +40,19 @@ const isBoundedString = (value: unknown, maxLength: number): value is string => 
 
 const parseDraftCard = (value: unknown): CardDraftData | null => {
   if (!isRecord(value)) return null;
-  if (!isBoundedString(value.title, 10_000)) return null;
-  if (!isBoundedString(value.coverUrl, 100_000)) return null;
-  if (!isBoundedString(value.description, 2_000_000)) return null;
-  if (!isBoundedString(value.startDate, 32)) return null;
-  if (!isBoundedString(value.endDate, 32)) return null;
-  if (typeof value.rating !== 'number' || !Number.isFinite(value.rating) || value.rating < 0 || value.rating > 5) return null;
-  if (!Array.isArray(value.tagIds) || value.tagIds.length > 100) return null;
-  if (!value.tagIds.every((tagId) => isBoundedString(tagId, 256))) return null;
+  if (!isBoundedString(value.title, PUBLIC_DATA_LIMITS.maxTitleLength)) return null;
+  if (!isBoundedString(value.coverUrl, PUBLIC_DATA_LIMITS.maxAssetUrlLength)) return null;
+  if (!isBoundedString(value.description, PUBLIC_DATA_LIMITS.maxTextLength)) return null;
+  if (!isBoundedString(value.startDate, PUBLIC_DATA_LIMITS.maxDateLength)) return null;
+  if (!isBoundedString(value.endDate, PUBLIC_DATA_LIMITS.maxDateLength)) return null;
+  if (
+    typeof value.rating !== 'number' ||
+    !Number.isFinite(value.rating) ||
+    value.rating < PUBLIC_DATA_LIMITS.minRating ||
+    value.rating > PUBLIC_DATA_LIMITS.maxRating
+  ) return null;
+  if (!Array.isArray(value.tagIds) || value.tagIds.length > PUBLIC_DATA_LIMITS.maxTagIdsPerCard) return null;
+  if (!value.tagIds.every((tagId) => isBoundedString(tagId, PUBLIC_DATA_LIMITS.maxIdLength))) return null;
   if (typeof value.isRecommended !== 'boolean' || typeof value.isWatching !== 'boolean') return null;
 
   return {

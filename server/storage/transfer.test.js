@@ -20,10 +20,17 @@ const createMemoryDriver = (initial = {}) => {
   };
 };
 
+const createPublicData = (updatedAt) => ({
+  settings: { title: '收藏', iconUrl: '' },
+  tags: [],
+  cards: [],
+  updatedAt
+});
+
 describe('storage transfer', () => {
   it('copies public and private data to the target', async () => {
     const source = createMemoryDriver({
-      public_data: { updatedAt: 42, cards: [] },
+      public_data: createPublicData(42),
       private_data: { username: 'admin', passwordHash: 'hash' }
     });
     const target = createMemoryDriver({
@@ -33,18 +40,26 @@ describe('storage transfer', () => {
     const result = await transferStorageData(source, target);
 
     expect(result.copied).toEqual(TRANSFER_DATA_KEYS);
-    expect(target.store.get('public_data')).toEqual({ updatedAt: 42, cards: [] });
+    expect(target.store.get('public_data')).toMatchObject(createPublicData(42));
     expect(target.store.get('private_data')).toEqual({ username: 'admin', passwordHash: 'hash' });
   });
 
   it('skips missing data keys without writing them', async () => {
-    const source = createMemoryDriver({ public_data: { updatedAt: 7, cards: [] } });
+    const source = createMemoryDriver({ public_data: createPublicData(7) });
     const target = createMemoryDriver();
 
     const result = await transferStorageData(source, target);
 
     expect(result.copied).toEqual(['public_data']);
     expect(target.store.has('private_data')).toBe(false);
+  });
+
+  it('rejects invalid public data before overwriting the target', async () => {
+    const source = createMemoryDriver({ public_data: { updatedAt: 7, cards: [] } });
+    const target = createMemoryDriver({ public_data: createPublicData(1) });
+
+    await expect(transferStorageData(source, target)).rejects.toThrow('Source public_data is invalid');
+    expect(target.store.get('public_data')).toEqual(createPublicData(1));
   });
 
   it('copies only media missing from the target in batches', async () => {
@@ -125,7 +140,7 @@ describe('storage transfer driver integration', () => {
     const source = createSqliteTransferDriver(db);
     const target = createRedisTransferDriver(redis, env);
 
-    await source.writeJson('public_data', { updatedAt: 9, cards: [] });
+    await source.writeJson('public_data', createPublicData(9));
     await source.writeJson('private_data', { username: 'admin', passwordHash: 'hash' });
     await source.writeJson('media:cover.webp', { contentType: 'image/webp', base64: 'aa' });
 
@@ -134,7 +149,7 @@ describe('storage transfer driver integration', () => {
 
     expect(dataResult.copied).toEqual(TRANSFER_DATA_KEYS);
     expect(mediaResult.copied).toBe(1);
-    expect(JSON.parse(redis.values.get('test:public_data'))).toEqual({ updatedAt: 9, cards: [] });
+    expect(JSON.parse(redis.values.get('test:public_data'))).toMatchObject(createPublicData(9));
     expect(JSON.parse(redis.values.get('test:media:cover.webp'))).toEqual({ contentType: 'image/webp', base64: 'aa' });
   });
 
@@ -144,7 +159,7 @@ describe('storage transfer driver integration', () => {
     const source = createRedisTransferDriver(redis, env);
     const target = createSqliteTransferDriver(db);
 
-    await source.writeJson('public_data', { updatedAt: 12, cards: [{ id: 'c1' }] });
+    await source.writeJson('public_data', createPublicData(12));
     await source.writeJson('media:cover.webp', { contentType: 'image/webp', base64: 'bb' });
 
     const dataResult = await transferStorageData(source, target);
@@ -152,7 +167,7 @@ describe('storage transfer driver integration', () => {
 
     expect(dataResult.copied).toEqual(['public_data']);
     expect(mediaResult.copied).toBe(1);
-    expect(await target.readJson('public_data')).toEqual({ updatedAt: 12, cards: [{ id: 'c1' }] });
+    expect(await target.readJson('public_data')).toMatchObject(createPublicData(12));
     expect(await target.readJson('media:cover.webp')).toEqual({ contentType: 'image/webp', base64: 'bb' });
   });
 

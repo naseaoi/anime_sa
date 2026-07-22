@@ -1,9 +1,40 @@
-const MAX_TAGS = 200;
-const MAX_CARDS = 2000;
-const MAX_TAG_IDS_PER_CARD = 200;
-const MAX_TEXT_LENGTH = 20000;
-const MAX_ASSET_URL_LENGTH = 4096;
-const MAX_LOCAL_ASSET_LENGTH = 1024 * 1024;
+export const PUBLIC_DATA_LIMITS = Object.freeze({
+  maxTags: 200,
+  maxCards: 2000,
+  maxTagIdsPerCard: 200,
+  maxTitleLength: 200,
+  maxTextLength: 20000,
+  maxAssetUrlLength: 4096,
+  maxLocalAssetLength: 1024 * 1024,
+  maxDateLength: 40,
+  maxIdLength: 80,
+  maxSettingsTitleLength: 120,
+  maxTagNameLength: 80,
+  maxTagSlugLength: 100,
+  maxTagIconLength: 80,
+  maxFooterLength: 500,
+  minRating: 0,
+  maxRating: 5
+});
+
+const {
+  maxTags: MAX_TAGS,
+  maxCards: MAX_CARDS,
+  maxTagIdsPerCard: MAX_TAG_IDS_PER_CARD,
+  maxTitleLength: MAX_TITLE_LENGTH,
+  maxTextLength: MAX_TEXT_LENGTH,
+  maxAssetUrlLength: MAX_ASSET_URL_LENGTH,
+  maxLocalAssetLength: MAX_LOCAL_ASSET_LENGTH,
+  maxDateLength: MAX_DATE_LENGTH,
+  maxIdLength: MAX_ID_LENGTH,
+  maxSettingsTitleLength: MAX_SETTINGS_TITLE_LENGTH,
+  maxTagNameLength: MAX_TAG_NAME_LENGTH,
+  maxTagSlugLength: MAX_TAG_SLUG_LENGTH,
+  maxTagIconLength: MAX_TAG_ICON_LENGTH,
+  maxFooterLength: MAX_FOOTER_LENGTH,
+  minRating: MIN_RATING,
+  maxRating: MAX_RATING
+} = PUBLIC_DATA_LIMITS;
 
 const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
@@ -41,16 +72,16 @@ const isSafeAssetUrl = (value, maxLength) => {
 
 const normalizeSettings = (value) => {
   if (!isRecord(value)) return null;
-  const title = readString(value.title, 120);
+  const title = readString(value.title, MAX_SETTINGS_TITLE_LENGTH);
   const iconUrl = readString(value.iconUrl, MAX_ASSET_URL_LENGTH);
   if (title === null || iconUrl === null || !isSafeAssetUrl(iconUrl, MAX_ASSET_URL_LENGTH)) return null;
 
   const themeColor = readOptionalString(value.themeColor, 7);
   if (themeColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(themeColor)) return null;
 
-  const footerText = readOptionalString(value.footerText, 500);
-  const footerLeft = readOptionalString(value.footerLeft, 500);
-  const footerRight = readOptionalString(value.footerRight, 500);
+  const footerText = readOptionalString(value.footerText, MAX_FOOTER_LENGTH);
+  const footerLeft = readOptionalString(value.footerLeft, MAX_FOOTER_LENGTH);
+  const footerRight = readOptionalString(value.footerRight, MAX_FOOTER_LENGTH);
   if (value.footerText !== undefined && footerText === null) return null;
   if (value.footerLeft !== undefined && footerLeft === null) return null;
   if (value.footerRight !== undefined && footerRight === null) return null;
@@ -64,10 +95,10 @@ const normalizeTags = (value) => {
   const tags = [];
   for (const item of value) {
     if (!isRecord(item)) return null;
-    const id = readString(item.id, 80, false);
-    const name = readString(item.name, 80, false);
-    const slug = readOptionalString(item.slug, 100);
-    const icon = readOptionalString(item.icon, 80);
+    const id = readString(item.id, MAX_ID_LENGTH, false);
+    const name = readString(item.name, MAX_TAG_NAME_LENGTH, false);
+    const slug = readOptionalString(item.slug, MAX_TAG_SLUG_LENGTH);
+    const icon = readOptionalString(item.icon, MAX_TAG_ICON_LENGTH);
     if (id === null || name === null || slug === null || icon === null || ids.has(id)) return null;
     ids.add(id);
     tags.push({ id, name, slug, icon });
@@ -93,13 +124,13 @@ const normalizeCards = (value, tagIds) => {
   const cards = [];
   for (const item of value) {
     if (!isRecord(item)) return null;
-    const id = readString(item.id, 80, false);
-    const title = readString(item.title, 200, false);
+    const id = readString(item.id, MAX_ID_LENGTH, false);
+    const title = readString(item.title, MAX_TITLE_LENGTH, false);
     const coverUrl = readString(item.coverUrl ?? '', MAX_ASSET_URL_LENGTH);
     const coverLocalData = readOptionalString(item.coverLocalData, MAX_LOCAL_ASSET_LENGTH);
     const description = readString(item.description, MAX_TEXT_LENGTH);
-    const startDate = readString(item.startDate, 40);
-    const endDate = readString(item.endDate, 40);
+    const startDate = readString(item.startDate, MAX_DATE_LENGTH);
+    const endDate = readString(item.endDate, MAX_DATE_LENGTH);
     const createdAt = readTimestamp(item.createdAt);
     const updatedAt = readTimestamp(item.updatedAt);
     const rating = Number(item.rating);
@@ -110,13 +141,13 @@ const normalizeCards = (value, tagIds) => {
       startDate === null || endDate === null || createdAt === null || updatedAt === null ||
       coverVariants === null || ids.has(id) || !isSafeAssetUrl(coverUrl, MAX_ASSET_URL_LENGTH) ||
       (coverLocalData !== undefined && !isSafeAssetUrl(coverLocalData, MAX_LOCAL_ASSET_LENGTH)) ||
-      !Number.isFinite(rating) || rating < 0 || rating > 5 ||
+      !Number.isFinite(rating) || rating < MIN_RATING || rating > MAX_RATING ||
       !Array.isArray(item.tagIds) || item.tagIds.length > MAX_TAG_IDS_PER_CARD
     ) return null;
 
     const cardTagIds = [];
     for (const tagIdValue of item.tagIds) {
-      const tagId = readString(tagIdValue, 80, false);
+      const tagId = readString(tagIdValue, MAX_ID_LENGTH, false);
       if (tagId === null || !tagIds.has(tagId) || cardTagIds.includes(tagId)) return null;
       cardTagIds.push(tagId);
     }
