@@ -14,6 +14,8 @@ import { AdminSyncSection } from './admin/AdminSyncSection';
 import { AdminSettingsSection } from './admin/AdminSettingsSection';
 import { AdminShell } from './admin/layout/AdminShell';
 import { useSyncOperations } from './admin/hooks/useSyncOperations';
+import { persistCardCover } from '../services/coverAssetService';
+import { clearCardDrafts } from '../utils/cardDraft';
 
 interface AdminLayoutProps {
   initialData: PublicData;
@@ -31,6 +33,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
   const storageType = getStorage().type;
 
   const localDataRef = useRef(localData);
+  const dirtyCardIdsRef = useRef(new Set<string>());
   localDataRef.current = localData;
 
   useEffect(() => {
@@ -56,29 +59,48 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
     applyThemeColor(localData.settings.themeColor);
   }, [localData.settings]);
 
-  const handleDataChange = (newData: PublicData) => {
+  const handleDataChange = (newData: PublicData, changedCardId?: string) => {
+    if (changedCardId) dirtyCardIdsRef.current.add(changedCardId);
     setLocalData(newData);
     setHasChanges(true);
   };
 
   const persistData = useCallback(async (nextData: PublicData, successMessage?: string) => {
-    const storage = getStorage();
-    const expectedUpdatedAt = Number(nextData.updatedAt || 0);
-    const dataToSave = { ...nextData, updatedAt: Date.now() };
-    const result = await storage.savePublicData(dataToSave, { expectedUpdatedAt });
-    if (!result.success) {
-      const prefix = result.conflict ? '数据已更新' : '保存失败';
-      showToast(`${prefix}: ${result.error}`, 'error');
+    try {
+      const storage = getStorage();
+      const expectedUpdatedAt = Number(nextData.updatedAt || 0);
+      const migrated = await migrateEmbeddedCoverAssets(nextData.cards);
+      const preparedCards = [];
+      for (const card of migrated.cards) {
+        preparedCards.push(
+          dirtyCardIdsRef.current.has(card.id) ? await persistCardCover(card) : card
+        );
+      }
+
+      const dataToSave = { ...nextData, cards: preparedCards, updatedAt: Date.now() };
+      const result = await storage.savePublicData(dataToSave, { expectedUpdatedAt });
+      if (!result.success) {
+        const prefix = result.conflict ? '数据已更新' : '保存失败';
+        showToast(`${prefix}: ${result.error}`, 'error');
+        return false;
+      }
+
+      clearCardDrafts(window.localStorage, [...initialData.cards, ...dataToSave.cards], true, 'admin');
+      dirtyCardIdsRef.current.clear();
+      setLocalData(dataToSave);
+      await refreshData();
+      localStorage.setItem('tat_site_settings', JSON.stringify(dataToSave.settings));
+      setHasChanges(false);
+      showToast(
+        successMessage || (migrated.migrated > 0 ? `保存成功，并迁移 ${migrated.migrated} 张本地封面` : '已保存更改'),
+        'success'
+      );
+      return true;
+    } catch (error: any) {
+      showToast(`保存失败: ${error?.message || '未知错误'}`, 'error');
       return false;
     }
-
-    setLocalData(dataToSave);
-    await refreshData();
-    localStorage.setItem('tat_site_settings', JSON.stringify(dataToSave.settings));
-    setHasChanges(false);
-    showToast(successMessage || '已保存更改', 'success');
-    return true;
-  }, [refreshData, showToast]);
+  }, [initialData.cards, refreshData, showToast]);
 
   const syncOps = useSyncOperations({
     getData: useCallback(() => localDataRef.current, []),
@@ -97,13 +119,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const migrated = await migrateEmbeddedCoverAssets(localData.cards);
-      const success = await persistData(
-        { ...localData, cards: migrated.cards },
-        migrated.migrated > 0
-          ? `保存成功，并迁移 ${migrated.migrated} 张本地封面`
-          : undefined
-      );
+      const success = await persistData(localData);
       if (!success) {
         return;
       }
@@ -129,7 +145,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
       }}
     >
       <Routes>
-        <Route path="cards" element={<AdminCardsSection data={localData} onUpdate={(d) => handleDataChange(d)} />} />
+        <Route path="cards" element={<AdminCardsSection data={localData} onUpdate={handleDataChange} />} />
         <Route path="tags" element={<AdminTagsSection data={localData} onUpdate={(d) => handleDataChange(d)} />} />
         <Route
           path="sync"

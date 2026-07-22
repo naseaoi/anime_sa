@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CardData } from '../types';
 import {
   clearCardDraft,
+  clearCardDrafts,
   getCardDraftKey,
   loadCardDraft,
   saveCardDraft
@@ -100,5 +101,45 @@ describe('cardDraft', () => {
     clearCardDraft(storage, initialCard);
 
     expect(loadCardDraft(storage, initialCard)).toBeNull();
+  });
+
+  it('当前暂存数据等于草稿时隐藏提醒但保留恢复数据', () => {
+    const storage = new MemoryStorage();
+    const stagedCard = { ...initialCard, title: '页面内暂存' };
+    saveCardDraft(storage, initialCard, stagedCard, 1234);
+
+    expect(loadCardDraft(storage, stagedCard)).toBeNull();
+    expect(storage.getItem(getCardDraftKey(initialCard))).not.toBeNull();
+  });
+
+  it('顶栏持久化后批量清除卡片与新建草稿', () => {
+    const storage = new MemoryStorage();
+    saveCardDraft(storage, initialCard, { ...initialCard, title: '编辑草稿' });
+    saveCardDraft(storage, {}, { title: '新建草稿' });
+
+    clearCardDrafts(storage, [initialCard], true);
+
+    expect(storage.getItem(getCardDraftKey(initialCard))).toBeNull();
+    expect(storage.getItem(getCardDraftKey({}))).toBeNull();
+  });
+
+  it('后台模式撤回到页面内基线时仍保留草稿', () => {
+    const storage = new MemoryStorage();
+    const stagedCard = { ...initialCard, title: '页面内暂存' };
+
+    saveCardDraft(storage, stagedCard, stagedCard, 1234, true);
+
+    expect(storage.getItem(getCardDraftKey(initialCard))).not.toBeNull();
+  });
+
+  it('后台顶栏保存不会清除前台新建草稿', () => {
+    const storage = new MemoryStorage();
+    saveCardDraft(storage, {}, { title: '前台草稿' });
+    saveCardDraft(storage, {}, { title: '后台草稿' }, 1234, true, 'admin');
+
+    clearCardDrafts(storage, [], true, 'admin');
+
+    expect(storage.getItem(getCardDraftKey({}))).not.toBeNull();
+    expect(storage.getItem(getCardDraftKey({}, 'admin'))).toBeNull();
   });
 });

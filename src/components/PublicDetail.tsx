@@ -16,6 +16,7 @@ import { getCardCoverUrl } from '../utils/cardCover';
 import { getCoverAmbientColor } from '../utils/coverAmbientColor';
 import { getTagSlug } from '../utils/routeUtils';
 import { applyPageMetadata } from '../utils/seo';
+import { updateCardData } from '../domain/card';
 
 const CardEditModal = React.lazy(() => import('./CardEditModal').then((m) => ({ default: m.CardEditModal })));
 
@@ -133,13 +134,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
     if (!card) return false;
 
     try {
-      const mergedCard: CardData = {
-        ...card,
-        ...updatedCard,
-        id: card.id,
-        createdAt: card.createdAt,
-        updatedAt: Date.now()
-      };
+      const mergedCard = updateCardData(card, updatedCard, Date.now());
       const nextCard = await persistCardCover(mergedCard);
 
       const newCards = [...data.cards];

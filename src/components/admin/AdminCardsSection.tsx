@@ -1,24 +1,25 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Edit2, Image as ImageIcon, Plus, Search, ThumbsUp, Trash2, X } from 'lucide-react';
 import { CardData, PublicData } from '../../types';
-import { Button, ConfirmModal, Rating, useToast } from '../Common';
+import { Button, ConfirmModal, Rating } from '../Common';
 import { CardEditModal } from '../CardEditModal';
-import { persistCardCover } from '../../services/coverAssetService';
 import { getCardCoverUrl } from '../../utils/cardCover';
 import { AdminBadge, AdminIconButton, AdminPanel, AdminToolbar } from './ui';
+import { createCardData, updateCardData } from '../../domain/card';
 
 interface AdminCardsSectionProps {
   data: PublicData;
-  onUpdate: (d: PublicData) => void;
+  onUpdate: (d: PublicData, changedCardId?: string) => void;
 }
 
 export const AdminCardsSection: React.FC<AdminCardsSectionProps> = ({ data, onUpdate }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCard, setEditingCard] = useState<Partial<CardData>>({});
+  const [isCreating, setIsCreating] = useState(false);
   const [search, setSearch] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const { showToast } = useToast();
+  const creatingCardIdRef = useRef<string | null>(null);
   const itemsPerPage = 15;
 
   useEffect(() => {
@@ -45,45 +46,25 @@ export const AdminCardsSection: React.FC<AdminCardsSectionProps> = ({ data, onUp
   const formatDate = (ts?: number) => (ts ? new Date(ts).toLocaleDateString() : '-');
 
   const openCreateModal = () => {
+    creatingCardIdRef.current = Date.now().toString();
+    setIsCreating(true);
     setEditingCard({ tagIds: [], rating: 0, description: '', startDate: '', endDate: '', isRecommended: false, isWatching: false });
     setIsModalOpen(true);
   };
 
-  const handleSave = async (cardData: Partial<CardData>) => {
-    try {
-      const newCards = [...data.cards];
-      const now = Date.now();
-      if (cardData.id) {
-        const idx = newCards.findIndex((c) => c.id === cardData.id);
-        if (idx !== -1) {
-          const mergedCard = { ...newCards[idx], ...cardData, id: newCards[idx].id, updatedAt: now } as CardData;
-          newCards[idx] = await persistCardCover(mergedCard);
-        }
-      } else {
-        const draftCard = {
-          id: now.toString(),
-          title: cardData.title || '',
-          coverUrl: cardData.coverUrl || '',
-          coverLocalData: cardData.coverLocalData || '',
-          description: cardData.description || '',
-          startDate: cardData.startDate || '',
-          endDate: cardData.endDate || '',
-          rating: cardData.rating || 0,
-          tagIds: cardData.tagIds || [],
-          isRecommended: !!cardData.isRecommended,
-          isWatching: !!cardData.isWatching,
-          createdAt: now,
-          updatedAt: now
-        } as CardData;
-        newCards.push(await persistCardCover(draftCard));
-      }
-      onUpdate({ ...data, cards: newCards });
-      setIsModalOpen(false);
-      return true;
-    } catch (e: any) {
-      showToast(`封面处理失败: ${e?.message || '未知错误'}`, 'error');
-      return false;
+  const handleCardChange = (cardData: Partial<CardData>) => {
+    const cardId = cardData.id || creatingCardIdRef.current;
+    if (!cardId) return;
+
+    const now = Date.now();
+    const nextCards = [...data.cards];
+    const index = nextCards.findIndex((card) => card.id === cardId);
+    if (index >= 0) {
+      nextCards[index] = updateCardData(nextCards[index], cardData, now);
+    } else {
+      nextCards.push(createCardData(cardData, { id: cardId, now }));
     }
+    onUpdate({ ...data, cards: nextCards }, cardId);
   };
 
   return (
@@ -184,6 +165,8 @@ export const AdminCardsSection: React.FC<AdminCardsSectionProps> = ({ data, onUp
                     label="编辑"
                     tone="accent"
                     onClick={() => {
+                      creatingCardIdRef.current = null;
+                      setIsCreating(false);
                       setEditingCard(card);
                       setIsModalOpen(true);
                     }}
@@ -217,16 +200,18 @@ export const AdminCardsSection: React.FC<AdminCardsSectionProps> = ({ data, onUp
       <CardEditModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingCard.id ? '编辑记录' : '新建记录'}
+        title={isCreating ? '新建记录' : '编辑记录'}
         initialCard={editingCard}
         tags={data.tags}
-        onSave={handleSave}
+        onChange={handleCardChange}
+        retainDraftUntilSaved
+        draftScope="admin"
       />
 
       <ConfirmModal
         isOpen={!!deleteId}
         onClose={() => setDeleteId(null)}
-        onConfirm={() => onUpdate({ ...data, cards: data.cards.filter((c) => c.id !== deleteId) })}
+        onConfirm={() => onUpdate({ ...data, cards: data.cards.filter((c) => c.id !== deleteId) }, deleteId || undefined)}
         title="删除确认"
         message="确定要永久移除此记录吗？"
         confirmText="删除"

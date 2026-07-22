@@ -3,6 +3,7 @@ import { CardData, PublicData } from '../types';
 import { getStorage } from '../services/storageFactory';
 import { persistCardCover } from '../services/coverAssetService';
 import { useToast } from '../components/Common';
+import { createCardData } from '../domain/card';
 
 export const QUICK_CREATE_INITIAL_CARD: Partial<CardData> = {
   tagIds: [],
@@ -22,21 +23,11 @@ export const useCardCreate = (data: PublicData, refreshData?: () => Promise<void
   const handleCreateSave = async (cardData: Partial<CardData>) => {
     try {
       const now = Date.now();
-      const draftCard: CardData = {
+      const draftCard = createCardData(cardData, {
         id: now.toString(),
-        title: cardData.title || 'Untitled',
-        coverUrl: cardData.coverUrl || '',
-        coverLocalData: cardData.coverLocalData || '',
-        description: cardData.description || '',
-        startDate: cardData.startDate || '',
-        endDate: cardData.endDate || '',
-        rating: cardData.rating || 0,
-        tagIds: cardData.tagIds || [],
-        isRecommended: !!cardData.isRecommended,
-        isWatching: !!cardData.isWatching,
-        createdAt: now,
-        updatedAt: now
-      };
+        now,
+        defaultTitle: 'Untitled'
+      });
 
       const newCard = await persistCardCover(draftCard);
       const result = await getStorage().savePublicData(

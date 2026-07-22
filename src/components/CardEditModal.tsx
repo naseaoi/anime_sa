@@ -8,6 +8,7 @@ import { DateField } from './card/DateField';
 import { getCardCoverUrl } from '../utils/cardCover';
 import {
   CardDraft,
+  CardDraftScope,
   clearCardDraft,
   loadCardDraft,
   saveCardDraft
@@ -21,11 +22,22 @@ interface CardEditModalProps {
   title: string;
   initialCard: Partial<CardData>;
   tags: Tag[];
-  onSave: (card: Partial<CardData>) => Promise<boolean>;
+  onSave?: (card: Partial<CardData>) => Promise<boolean>;
+  onChange?: (card: Partial<CardData>) => void;
+  retainDraftUntilSaved?: boolean;
+  draftScope?: CardDraftScope;
 }
 
 export const CardEditModal: React.FC<CardEditModalProps> = ({
-  isOpen, onClose, title, initialCard, tags, onSave
+  isOpen,
+  onClose,
+  title,
+  initialCard,
+  tags,
+  onSave,
+  onChange,
+  retainDraftUntilSaved = false,
+  draftScope = 'default'
 }) => {
   const [card, setCard] = useState<Partial<CardData>>(initialCard);
   const [saving, setSaving] = useState(false);
@@ -39,17 +51,18 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
     if (isOpen) {
       cardRef.current = initialCard;
       setCard(initialCard);
-      setPendingDraft(loadCardDraft(window.localStorage, initialCard));
+      setPendingDraft(loadCardDraft(window.localStorage, initialCard, draftScope));
       setIsCoverPreviewOpen(false);
     }
-  }, [isOpen, initialCard]);
+  }, [draftScope, isOpen, initialCard]);
 
   const updateCard = (updater: React.SetStateAction<Partial<CardData>>) => {
     const nextCard = typeof updater === 'function' ? updater(cardRef.current) : updater;
     cardRef.current = nextCard;
     setPendingDraft(null);
     setCard(nextCard);
-    saveCardDraft(window.localStorage, initialCard, nextCard);
+    saveCardDraft(window.localStorage, initialCard, nextCard, Date.now(), retainDraftUntilSaved, draftScope);
+    onChange?.(nextCard);
   };
 
   const handleRestoreDraft = () => {
@@ -58,19 +71,21 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
     cardRef.current = restoredCard;
     setCard(restoredCard);
     setPendingDraft(null);
+    onChange?.(restoredCard);
   };
 
   const handleDiscardDraft = () => {
-    clearCardDraft(window.localStorage, initialCard);
+    clearCardDraft(window.localStorage, initialCard, draftScope);
     setPendingDraft(null);
   };
 
   const handleSaveClick = async () => {
+    if (!onSave) return;
     setSaving(true);
     try {
       const saved = await onSave(card);
       if (saved) {
-        clearCardDraft(window.localStorage, initialCard);
+        clearCardDraft(window.localStorage, initialCard, draftScope);
         setPendingDraft(null);
       }
     } finally {
@@ -165,7 +180,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
             <Input
               label="封面链接 (URL)"
               value={card.coverUrl || ''}
-              onChange={e => updateCard({...card, coverUrl: e.target.value})}
+              onChange={e => updateCard({...card, coverUrl: e.target.value, coverVariants: undefined})}
               className="h-11"
             />
             <div className="space-y-3">
@@ -249,7 +264,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
           </div>
         </div>
 
-        {/* 右侧：观后感 + 保存按钮 */}
+        {/* 右侧：观后感与提交操作 */}
         <div className="flex-1 flex flex-col gap-4 glass-panel rounded-2xl p-4 md:p-5">
           <div className="flex-1 flex flex-col h-full">
             <TextArea
@@ -261,9 +276,11 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
               wrapperClassName="flex-1 flex flex-col h-full"
             />
           </div>
-          <Button onClick={handleSaveClick} className="w-full h-14 rounded-2xl text-base shrink-0" disabled={saving}>
-            {saving ? <Loader2 className="animate-spin" /> : '保存内容'}
-          </Button>
+          {onSave && (
+            <Button onClick={handleSaveClick} className="w-full h-14 rounded-2xl text-base shrink-0" disabled={saving}>
+              {saving ? <Loader2 className="animate-spin" /> : '保存内容'}
+            </Button>
+          )}
         </div>
       </div>
 

@@ -3,6 +3,8 @@ import type { CardData } from '../types';
 const CARD_DRAFT_VERSION = 1;
 const CARD_DRAFT_PREFIX = 'tat_card_draft:';
 
+export type CardDraftScope = 'default' | 'admin';
+
 export interface CardDraftData {
   title: string;
   coverUrl: string;
@@ -60,8 +62,8 @@ const parseDraftCard = (value: unknown): CardDraftData | null => {
   };
 };
 
-export const getCardDraftKey = (card: Partial<CardData>) => (
-  `${CARD_DRAFT_PREFIX}${card.id ? `edit:${encodeURIComponent(card.id)}` : 'new'}`
+export const getCardDraftKey = (card: Partial<CardData>, scope: CardDraftScope = 'default') => (
+  `${CARD_DRAFT_PREFIX}${scope === 'admin' ? 'admin:' : ''}${card.id ? `edit:${encodeURIComponent(card.id)}` : 'new'}`
 );
 
 export const getCardDraftData = (card: Partial<CardData>): CardDraftData => ({
@@ -80,8 +82,12 @@ export const hasCardDraftChanges = (card: Partial<CardData>, initialCard: Partia
   JSON.stringify(getCardDraftData(card)) !== JSON.stringify(getCardDraftData(initialCard))
 );
 
-export const loadCardDraft = (storage: DraftStorage, initialCard: Partial<CardData>): CardDraft | null => {
-  const storageKey = getCardDraftKey(initialCard);
+export const loadCardDraft = (
+  storage: DraftStorage,
+  initialCard: Partial<CardData>,
+  scope: CardDraftScope = 'default'
+): CardDraft | null => {
+  const storageKey = getCardDraftKey(initialCard, scope);
 
   try {
     const rawDraft = storage.getItem(storageKey);
@@ -93,7 +99,8 @@ export const loadCardDraft = (storage: DraftStorage, initialCard: Partial<CardDa
     if (typeof value.savedAt !== 'number' || !Number.isFinite(value.savedAt) || value.savedAt <= 0) throw new Error('Invalid card draft');
 
     const card = parseDraftCard(value.card);
-    if (!card || !hasCardDraftChanges(card, initialCard)) throw new Error('Invalid card draft');
+    if (!card) throw new Error('Invalid card draft');
+    if (!hasCardDraftChanges(card, initialCard)) return null;
 
     return { savedAt: value.savedAt, card };
   } catch {
@@ -110,12 +117,14 @@ export const saveCardDraft = (
   storage: DraftStorage,
   initialCard: Partial<CardData>,
   card: Partial<CardData>,
-  savedAt = Date.now()
+  savedAt = Date.now(),
+  retainWhenUnchanged = false,
+  scope: CardDraftScope = 'default'
 ) => {
-  const storageKey = getCardDraftKey(initialCard);
+  const storageKey = getCardDraftKey(initialCard, scope);
 
   try {
-    if (!hasCardDraftChanges(card, initialCard)) {
+    if (!retainWhenUnchanged && !hasCardDraftChanges(card, initialCard)) {
       storage.removeItem(storageKey);
       return false;
     }
@@ -133,10 +142,32 @@ export const saveCardDraft = (
   }
 };
 
-export const clearCardDraft = (storage: DraftStorage, card: Partial<CardData>) => {
+export const clearCardDraft = (
+  storage: DraftStorage,
+  card: Partial<CardData>,
+  scope: CardDraftScope = 'default'
+) => {
   try {
-    storage.removeItem(getCardDraftKey(card));
+    storage.removeItem(getCardDraftKey(card, scope));
   } catch {
     return;
+  }
+};
+
+export const clearCardDrafts = (
+  storage: DraftStorage,
+  cards: Array<Partial<CardData>>,
+  includeNew = false,
+  scope: CardDraftScope = 'default'
+) => {
+  const keys = new Set(cards.map((card) => getCardDraftKey(card, scope)));
+  if (includeNew) keys.add(getCardDraftKey({}, scope));
+
+  for (const key of keys) {
+    try {
+      storage.removeItem(key);
+    } catch {
+      return;
+    }
   }
 };

@@ -16,11 +16,11 @@
 
 ### 同一界面存在两种保存语义
 
-后台 `/tat/*` 是两阶段保存：卡片、标签和设置页面的操作只更新 `AdminLayout.localData` 并将 `hasChanges` 设为 `true`；只有顶部“保存”才调用 `savePublicData` 持久化整份数据。
+后台 `/tat/*` 是两阶段保存：卡片、标签和设置页面的操作只更新 `AdminLayout.localData` 并将 `hasChanges` 设为 `true`；只有顶部“保存”才调用 `savePublicData` 持久化整份数据。后台卡片弹窗没有独立的保存按钮，字段变化会立即写入页面内存，关闭弹窗只代表结束编辑。
 
 前台管理员入口不是这个语义：详情页编辑和“快速记录”会直接调用存储 API，成功后刷新全局数据。
 
-新增编辑入口前必须先明确它属于哪一种语义。不要仅凭函数名 `onSave` 判断已经持久化。目前卡片草稿在编辑弹窗返回成功时清除，因此后台弹窗保存后、顶部保存前仍存在标签页关闭导致暂存数据丢失的窗口；全面优化时应优先统一“暂存成功”和“持久化成功”的返回契约。
+新增编辑入口前必须先明确它属于哪一种语义。不要仅凭函数名 `onSave` 判断已经持久化。后台卡片的本地恢复草稿会一直保留到顶栏持久化成功；前台详情编辑和“快速记录”仍通过提交按钮直接持久化。
 
 ### 开发、Node 和 Vercel 不是同一个服务入口
 
@@ -109,7 +109,8 @@ Media GC 只把以下路径中的 `name` 视为本站引用：
 - `tat_site_settings`：`public/bootstrap.js` 在 React 启动前读取，`App.tsx` 在数据加载后更新，用于标题、图标和主题首屏稳定。
 - `tat_theme`：主题模式。
 - `tat_sort_config`、`tat_visible_count` 和滚动位置：仅当前标签页的列表恢复状态。
-- `tat_card_draft:new`、`tat_card_draft:edit:<encoded-id>`：卡片未保存草稿。
+- `tat_card_draft:new`、`tat_card_draft:edit:<encoded-id>`：前台卡片未保存草稿。
+- `tat_card_draft:admin:new`、`tat_card_draft:admin:edit:<encoded-id>`：等待后台顶栏保存的卡片草稿。
 
 不要只改 React 内的缓存格式而漏掉 `public/bootstrap.js`。所有浏览器存储都应按不可信输入读取。卡片草稿刻意不保存 `coverLocalData`，防止 Base64 图片占满 `localStorage`。
 
@@ -123,6 +124,7 @@ Media GC 只把以下路径中的 `name` 视为本站引用：
 
 - `src/types.ts`
 - `src/domain/publicData.ts` 默认值
+- `src/domain/card.ts` 卡片创建与合并规则
 - 所有新建/合并对象的构造点
 - `server/publicDataValidation.js`
 - 编辑草稿白名单（字段需要恢复时）
@@ -148,7 +150,7 @@ Media GC 只把以下路径中的 `name` 视为本站引用：
 
 以下内容是已知技术债，不应被新功能继续复制：
 
-1. 统一后台暂存保存与前台立即保存的结果类型，明确 `staged`、`persisted`、`conflict`，让草稿只在真正持久化后清除。
+1. 继续统一后台暂存与前台立即保存的结果类型，明确 `staged`、`persisted`、`conflict`，避免新入口误用 `onSave` 命名。
 2. 抽出 SQLite/Redis API 的共享请求契约，减少认证、校验、审计和错误码在两套 handler 之间漂移。
 3. 让公共数据 schema 成为前后端共享的单一来源，降低新增字段被服务端丢弃的风险。
 4. 明确卡片是单分类还是多标签，再统一数据模型、编辑器与路由。
