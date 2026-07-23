@@ -1,20 +1,18 @@
 
-import React, { useEffect, useMemo, useState, Suspense } from 'react';
+import React, { useEffect, useRef, useState, Suspense } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, ThumbsUp, Calendar, AlertCircle, Edit2, PlayCircle, Maximize2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { PublicData, CardData } from '../types';
-import { Button, ImagePreview, Rating, useTheme, useToast } from './Common';
+import { Button, ImagePreview, Rating, useToast } from './Common';
 import { getStorage } from '../services/storageFactory';
 import { persistCardCover } from '../services/coverAssetService';
-import { PublicTopNav, type SortKey, type SortOrder } from './public/PublicTopNav';
+import { usePublicNavigation } from './public/PublicNavigationContext';
 import { useCardCreate, QUICK_CREATE_INITIAL_CARD } from '../hooks/useCardCreate';
-import { buildCardStats } from '../utils/cardStats';
 import { getCardCoverUrl } from '../utils/cardCover';
 import { getCoverAmbientColor } from '../utils/coverAmbientColor';
-import { getTagSlug } from '../utils/routeUtils';
 import { applyPageMetadata } from '../utils/seo';
 import { updateCardData } from '../domain/card';
 import { failedResult, persistedResult } from '../domain/persistence';
@@ -38,53 +36,15 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
   // 卡片封面宽高比
   const [coverAspect, setCoverAspect] = useState<number | null>(null);
   const { showToast } = useToast();
-  const { theme, toggleTheme } = useTheme();
   const { isCreateModalOpen, setIsCreateModalOpen, handleCreatePersist } = useCardCreate(data, refreshData);
+  const { createRequestToken } = usePublicNavigation();
+  const handledCreateRequestRef = useRef(createRequestToken);
 
-  const cardStats = useMemo(() => buildCardStats(data.cards), [data.cards]);
-
-  const [sortConfig, setSortConfig] = useState<{ key: SortKey; order: SortOrder }>(() => {
-    try {
-      const saved = sessionStorage.getItem('tat_sort_config');
-      return saved ? JSON.parse(saved) : { key: 'createdAt', order: 'desc' };
-    } catch {
-      return { key: 'createdAt', order: 'desc' };
-    }
-  });
-
-  const activeTag = useMemo(() => {
-    if (!section) return 'all';
-    if (section === 'recommended' || section === 'watching') return section;
-    const tag = data.tags.find((item) => getTagSlug(item) === section);
-    return tag?.id || 'all';
-  }, [section, data.tags]);
-
-  const handleNavTagChange = (tagId: string) => {
-    if (tagId === 'recommended' || tagId === 'watching') {
-      navigate(`/${tagId}`);
-      return;
-    }
-    const tag = data.tags.find((item) => item.id === tagId);
-    navigate(tagId !== 'all' && tag ? `/${getTagSlug(tag)}` : '/');
-  };
-
-  const handleNavSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (!value) return;
-    navigate(`/?q=${encodeURIComponent(value)}`, {
-      state: { searchReturnTo: `${location.pathname}${location.search}` }
-    });
-  };
-
-  const handleNavSortChange = (key: SortKey) => {
-    const next: { key: SortKey; order: SortOrder } = {
-      key,
-      order: sortConfig.key === key ? (sortConfig.order === 'desc' ? 'asc' : 'desc') : 'desc'
-    };
-    setSortConfig(next);
-    sessionStorage.setItem('tat_sort_config', JSON.stringify(next));
-    navigate('/');
-  };
+  useEffect(() => {
+    if (createRequestToken === handledCreateRequestRef.current) return;
+    handledCreateRequestRef.current = createRequestToken;
+    setIsCreateModalOpen(true);
+  }, [createRequestToken, setIsCreateModalOpen]);
 
   const handleCardCoverLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
@@ -184,27 +144,6 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
         />
         <div className="absolute inset-0 detail-backdrop-veil" />
       </div>
-
-      <PublicTopNav
-        iconUrl={data.settings.iconUrl}
-        title={data.settings.title}
-        tags={data.tags}
-        activeTag={activeTag}
-        totalCards={data.cards.length}
-        cardStats={cardStats}
-        onTagChange={handleNavTagChange}
-        searchTerm=""
-        onSearchChange={handleNavSearchChange}
-        onClearSearch={() => {}}
-        sortKey={sortConfig.key}
-        sortOrder={sortConfig.order}
-        onSortChange={handleNavSortChange}
-        isAdmin={isAdmin}
-        onCreateClick={() => setIsCreateModalOpen(true)}
-        theme={theme}
-        toggleTheme={toggleTheme}
-        overlay
-      />
 
       <aside
         className="hidden lg:block fixed top-16 bottom-0 z-30 group/detail-back"

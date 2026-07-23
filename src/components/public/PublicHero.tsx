@@ -75,6 +75,7 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
         <div aria-hidden className="absolute inset-0 hero-stage" />
         {heroCards.map((card, idx) => {
           const coverSource = getCardCoverSourceSet(card);
+          const coverUrl = getCardCoverUrl(card, 'thumb');
           const showCover = neighborIndexes.has(idx);
           const active = idx === heroIndex;
           return (
@@ -87,10 +88,10 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
               tabIndex={active ? 0 : -1}
               aria-hidden={!active}
             >
-              {showCover && (
+              {showCover && coverUrl && (
                 <div aria-hidden className="absolute inset-0 hidden lg:block overflow-hidden">
                   <img
-                    src={getCardCoverUrl(card, 'thumb')}
+                    src={coverUrl}
                     alt=""
                     className="w-full h-full object-cover hero-backdrop-img select-none"
                     loading={active ? 'eager' : 'lazy'}
@@ -164,7 +165,7 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
                       className={`w-36 xl:w-40 aspect-video shrink-0 rounded-lg overflow-hidden border transition-all duration-300 ${idx === heroIndex ? 'border-[color:var(--accent)] ring-2 ring-[color:var(--accent-soft)] opacity-100' : 'border-[color:var(--line)] opacity-50 hover:opacity-90'}`}
                       aria-label={`切换到 ${card.title}`}
                     >
-                      <img src={getCardCoverUrl(card, 'thumb')} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" draggable={false} />
+                      <ImagePreview src={getCardCoverUrl(card, 'thumb')} alt="" className="w-full h-full" loading="lazy" decoding="async" />
                     </button>
                   ))}
                 </div>

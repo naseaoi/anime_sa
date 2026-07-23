@@ -36,6 +36,10 @@ API 业务修改不能只验证其中一个入口。SQLite 主要走 `server/cor
 
 安全响应头的唯一来源是 `server/core/securityHeaders.js`。修改后执行 `npm run sync:vercel-headers` 更新 `vercel.json`；`npm run lint` 会通过 `check:config` 检查配置是否失步。Node.js 开发环境不发送 HSTS，生产环境和 Vercel 会发送。
 
+公共顶栏由 `PublicNavigationProvider` 挂在公开路由的 `Suspense` 外层，首页和详情页不得各自重新渲染 `PublicTopNav`。登录和退出通过 `tat:auth-changed` 通知全局状态，同时在 `pageshow` 与窗口聚焦时复核 Session，以覆盖浏览器后退缓存恢复。
+
+轮播主图和缩略图必须使用 `ImagePreview` 或在渲染原生 `<img>` 前确认 URL 非空。推荐卡片允许没有封面，直接把空字符串传给原生 `<img>` 会显示浏览器损坏图片图标。
+
 ## 数据写入与乐观锁
 
 客户端保存公共数据时通过 `X-Expected-Updated-At` 发送读取时的版本，服务端冲突返回 409。正确顺序是：

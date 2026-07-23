@@ -7,6 +7,11 @@ import { SavePublicDataOptions, StorageAdapter } from './storageAdapter';
 import { normalizePublicDataPayload } from '../../shared/publicDataSchema.js';
 
 const STORAGE_API_URL = '/api/storage';
+export const AUTH_CHANGED_EVENT = 'tat:auth-changed';
+
+export const notifyAuthChanged = () => {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+};
 
 const sessionAuth = {
   login: async (username: string, password: string, remember = false) => {
@@ -17,15 +22,18 @@ const sessionAuth = {
         body: JSON.stringify({ username, password, remember })
       });
       const data = await response.json();
-      return response.ok && data.success
-        ? { success: true as const }
-        : { success: false as const, error: data.error || 'Login failed' };
+      if (response.ok && data.success) {
+        notifyAuthChanged();
+        return { success: true as const };
+      }
+      return { success: false as const, error: data.error || 'Login failed' };
     } catch (error: any) {
       return { success: false as const, error: error.message };
     }
   },
   logout: async () => {
     try { await requestWithSession(`${STORAGE_API_URL}/logout`, { method: 'POST' }); } catch {}
+    notifyAuthChanged();
   },
   check: async () => {
     try {

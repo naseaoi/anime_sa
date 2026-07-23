@@ -3,16 +3,15 @@ import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, Suspense 
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ThumbsUp, PlayCircle, Grid, ArrowUp } from 'lucide-react';
 import { PublicData, CardData } from '../types';
-import { useTheme } from './Common';
+import { usePublicNavigation } from './public/PublicNavigationContext';
 import { PublicCardGrid } from './public/PublicCardGrid';
-import { PublicTopNav, type SortKey, type SortOrder } from './public/PublicTopNav';
+import type { SortKey, SortOrder } from './public/PublicTopNav';
 import { PublicStructuredHome } from './public/PublicStructuredHome';
 import { CardGridSkeleton } from './public/PublicSkeletons';
 import { useBackToTop } from '../hooks/useBackToTop';
 import { useCardCreate, QUICK_CREATE_INITIAL_CARD } from '../hooks/useCardCreate';
 import { useHeroRotation } from '../hooks/useHeroRotation';
 import { useStructuredHomeSections } from '../hooks/useStructuredHomeSections';
-import { buildCardStats } from '../utils/cardStats';
 import { getCardCoverUrl } from '../utils/cardCover';
 import { getCoverAmbientColor } from '../utils/coverAmbientColor';
 import { getTagSlug, sectionFromCard } from '../utils/routeUtils';
@@ -35,25 +34,14 @@ const getGridKey = (tagId: string, term: string, sort: GridSortConfig) =>
 interface PublicHomeProps {
   data: PublicData;
   refreshData: () => Promise<void>;
-  isAdmin: boolean;
 }
 
-export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdmin }) => {
+export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData }) => {
   const { section } = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { theme, toggleTheme } = useTheme();
-
-  // 状态初始化：优先从 SessionStorage 读取，返回时保持一致
-  const [sortConfig, setSortConfig] = useState<{ key: SortKey, order: SortOrder }>(() => {
-    try {
-      const saved = sessionStorage.getItem('tat_sort_config');
-      return saved ? JSON.parse(saved) : { key: 'createdAt', order: 'desc' };
-    } catch {
-      return { key: 'createdAt', order: 'desc' };
-    }
-  });
+  const { searchTerm, sortConfig, onTagChange, createRequestToken } = usePublicNavigation();
 
   const [visibleCount, setVisibleCount] = useState(() => {
     try {
@@ -64,18 +52,23 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
     }
   });
 
-  const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '');
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isGridTransitioning, setIsGridTransitioning] = useState(false);
   const [heroAmbient, setHeroAmbient] = useState<string | null>(null);
 
   const { isCreateModalOpen, setIsCreateModalOpen, handleCreatePersist } = useCardCreate(data, refreshData);
+  const handledCreateRequestRef = useRef(createRequestToken);
+
+  useEffect(() => {
+    if (createRequestToken === handledCreateRequestRef.current) return;
+    handledCreateRequestRef.current = createRequestToken;
+    setIsCreateModalOpen(true);
+  }, [createRequestToken, setIsCreateModalOpen]);
 
   const showBackToTop = useBackToTop();
 
-  // 持久化 visibleCount / sortConfig
+  // 持久化 visibleCount
   useEffect(() => { sessionStorage.setItem('tat_visible_count', visibleCount.toString()); }, [visibleCount]);
-  useEffect(() => { sessionStorage.setItem('tat_sort_config', JSON.stringify(sortConfig)); }, [sortConfig]);
 
   // 列表滚动位置
   const scrollStorageKey = `tat_home_scroll:${location.pathname}${location.search}`;
@@ -261,63 +254,8 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   // --- 事件处理 ---
 
   const handleTagChange = (tagId: string) => {
-    const path =
-      tagId === 'all'
-        ? '/'
-        : tagId === 'recommended'
-          ? '/recommended'
-          : tagId === 'watching'
-            ? '/watching'
-            : (() => {
-                const tag = data.tags.find((item) => item.id === tagId);
-                return tag ? `/${getTagSlug(tag)}` : '/';
-              })();
-    if (tagId !== activeTag) {
-      startGridTransition(getGridKey(tagId, searchTerm, sortConfig), tagId);
-    }
-    navigate(path + location.search);
-    resetListView();
-  };
-
-  const handleSortChange = (key: SortKey) => {
-    setSortConfig({
-      key,
-      order: sortConfig.key === key ? (sortConfig.order === 'desc' ? 'asc' : 'desc') : 'desc'
-    });
-    resetListView();
-  };
-
-  // 从详情页发起的搜索：清空搜索词时回到原详情页
-  const searchReturnTo = (location.state as { searchReturnTo?: string } | null)?.searchReturnTo;
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    if (!val && searchReturnTo) {
-      navigate(-1);
-      return;
-    }
-    setSearchTerm(val);
-    setSearchParams(prev => {
-      const newParams = new URLSearchParams(prev);
-      if (val) newParams.set('q', val);
-      else newParams.delete('q');
-      return newParams;
-    }, { replace: true, state: location.state });
-
-    setVisibleCount(INITIAL_LOAD_COUNT);
-  };
-
-  const clearSearch = () => {
-    if (searchReturnTo) {
-      navigate(-1);
-      return;
-    }
-    setSearchTerm('');
-    setSearchParams(prev => {
-      const newParams = new URLSearchParams(prev);
-      newParams.delete('q');
-      return newParams;
-    });
+    if (tagId !== activeTag) startGridTransition(getGridKey(tagId, searchTerm, sortConfig), tagId);
+    onTagChange(tagId);
     resetListView();
   };
 
@@ -351,8 +289,6 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
 
     return list;
   }, [data.cards, activeTag, sortConfig, searchTerm]);
-
-  const cardStats = useMemo(() => buildCardStats(data.cards), [data.cards]);
 
   // 首次滚动位置恢复
   useLayoutEffect(() => {
@@ -458,27 +394,6 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
       className="min-h-screen flex flex-col selection:bg-amber-500/80 selection:text-white dark:selection:bg-amber-200 dark:selection:text-black transition-colors duration-300 hero-ambient"
       style={homeStyle}
     >
-      <PublicTopNav
-        iconUrl={data.settings.iconUrl}
-        title={data.settings.title}
-        tags={data.tags}
-        activeTag={activeTag}
-        totalCards={data.cards.length}
-        cardStats={cardStats}
-        onTagChange={handleTagChange}
-        searchTerm={searchTerm}
-        onSearchChange={handleSearchChange}
-        onClearSearch={clearSearch}
-        sortKey={sortConfig.key}
-        sortOrder={sortConfig.order}
-        onSortChange={handleSortChange}
-        isAdmin={isAdmin}
-        onCreateClick={() => setIsCreateModalOpen(true)}
-        theme={theme}
-        toggleTheme={toggleTheme}
-        overlay={showHero}
-      />
-
       <main className="flex-1 overflow-x-hidden flex flex-col">
         {filteredCards.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center py-28 text-[color:color-mix(in_srgb,var(--text-secondary)_60%,transparent)]">

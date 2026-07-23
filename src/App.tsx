@@ -1,19 +1,18 @@
 
-import React, { useEffect, useState, useCallback, Suspense } from 'react';
+import React, { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { DEFAULT_PUBLIC_DATA } from './domain/publicData';
-import { getStorageAsync, checkServerSession } from './services/storageFactory';
+import { AUTH_CHANGED_EVENT, getStorageAsync, checkServerSession } from './services/storageFactory';
 import { PublicData } from './types';
 import { ToastProvider, ThemeProvider } from './components/Common';
 import { applyThemeColor } from './utils/themeColor';
 import { applyPageMetadata } from './utils/seo';
 import { PublicHome } from './components/PublicHome';
 import { PublicHomeSkeleton } from './components/public/PublicSkeletons';
+import { PublicNavigationProvider } from './components/public/PublicNavigationContext';
 
 const PublicDetail = React.lazy(() => import('./components/PublicDetail').then((m) => ({ default: m.PublicDetail })));
 const AdminLayout = React.lazy(() => import('./components/Admin').then((m) => ({ default: m.AdminLayout })));
-const LOADING_UNDERLAY_MS = 420;
-
 const skeletonForPath = (pathname: string): React.ReactElement | null => {
   if (pathname.startsWith('/tat')) return null;
 
@@ -39,7 +38,7 @@ const App: React.FC = () => {
 
 const MainRouter: React.FC = () => {
   const [loading, setLoading] = useState(true);
-  const [showLoadingUnderlay, setShowLoadingUnderlay] = useState(false);
+  const hasLoadedDataRef = useRef(false);
   
   // 本地站点设置
   const [data, setData] = useState<PublicData>(() => {
@@ -53,8 +52,7 @@ const MainRouter: React.FC = () => {
   });
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
-    setShowLoadingUnderlay(false);
+    if (!hasLoadedDataRef.current) setLoading(true);
     try {
       const storage = await getStorageAsync();
       const result = await storage.getPublicData();
@@ -73,7 +71,7 @@ const MainRouter: React.FC = () => {
     } catch (e) {
       console.error('App fetchData error:', e);
     } finally {
-      setShowLoadingUnderlay(true);
+      hasLoadedDataRef.current = true;
       setLoading(false);
     }
   }, []);
@@ -82,43 +80,41 @@ const MainRouter: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
-  useEffect(() => {
-    if (!showLoadingUnderlay) return;
-    const timer = window.setTimeout(() => setShowLoadingUnderlay(false), LOADING_UNDERLAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [showLoadingUnderlay]);
-
   // 全局检测管理员权限
   const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
-    checkServerSession().then(setIsAdmin);
+    const refreshAuth = () => { checkServerSession().then(setIsAdmin); };
+    refreshAuth();
+    window.addEventListener(AUTH_CHANGED_EVENT, refreshAuth);
+    window.addEventListener('pageshow', refreshAuth);
+    window.addEventListener('focus', refreshAuth);
+    return () => {
+      window.removeEventListener(AUTH_CHANGED_EVENT, refreshAuth);
+      window.removeEventListener('pageshow', refreshAuth);
+      window.removeEventListener('focus', refreshAuth);
+    };
   }, []);
 
   const getRouteFallback = () => skeletonForPath(window.location.pathname);
 
   if (loading) return getRouteFallback();
 
-  const loadingUnderlay = showLoadingUnderlay ? getRouteFallback() : null;
-
   return (
     <div className="relative min-h-screen isolate">
-      {loadingUnderlay && (
-        <div className="fixed inset-0 z-0 pointer-events-none" aria-hidden="true">
-          {loadingUnderlay}
-        </div>
-      )}
-      <div className={`relative z-10 ${loadingUnderlay ? 'card-fade-in' : ''}`}>
+      <div className="relative z-10">
         <BrowserRouter>
+          <PublicNavigationProvider data={data} isAdmin={isAdmin}>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
               <Route path="/tat/*" element={<AdminLayout initialData={data} refreshData={fetchData} />} />
-              <Route path="/" element={<PublicHome data={data} refreshData={fetchData} isAdmin={isAdmin} />} />
-              <Route path="/:section" element={<PublicHome data={data} refreshData={fetchData} isAdmin={isAdmin} />} />
+              <Route path="/" element={<PublicHome data={data} refreshData={fetchData} />} />
+              <Route path="/:section" element={<PublicHome data={data} refreshData={fetchData} />} />
               <Route path="/:section/:id" element={<PublicDetail data={data} refreshData={fetchData} isAdmin={isAdmin} />} />
               <Route path="/card/:id" element={<PublicDetail data={data} refreshData={fetchData} isAdmin={isAdmin} />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
+          </PublicNavigationProvider>
         </BrowserRouter>
       </div>
     </div>

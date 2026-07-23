@@ -1,0 +1,140 @@
+import React, { createContext, useContext, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import type { PublicData } from '../../types';
+import { useTheme } from '../Common';
+import { buildCardStats } from '../../utils/cardStats';
+import { getTagSlug } from '../../utils/routeUtils';
+import { PublicTopNav, type SortKey, type SortOrder } from './PublicTopNav';
+
+interface PublicNavigationContextValue {
+  searchTerm: string;
+  sortConfig: { key: SortKey; order: SortOrder };
+  onTagChange: (tagId: string) => void;
+  onSearchChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onClearSearch: () => void;
+  onSortChange: (key: SortKey) => void;
+  createRequestToken: number;
+}
+
+const PublicNavigationContext = createContext<PublicNavigationContextValue | null>(null);
+
+const readSortConfig = (): { key: SortKey; order: SortOrder } => {
+  try {
+    const saved = sessionStorage.getItem('tat_sort_config');
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return { key: 'createdAt', order: 'desc' };
+};
+
+export const PublicNavigationProvider: React.FC<{
+  data: PublicData;
+  isAdmin: boolean;
+  children: React.ReactNode;
+}> = ({ data, isAdmin, children }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { theme, toggleTheme } = useTheme();
+  const [sortConfig, setSortConfig] = useState(readSortConfig);
+  const [createRequestToken, setCreateRequestToken] = useState(0);
+  const cardStats = useMemo(() => buildCardStats(data.cards), [data.cards]);
+  const searchTerm = searchParams.get('q') || '';
+  const isAdminRoute = location.pathname.startsWith('/tat');
+  const isDetail = !isAdminRoute && location.pathname.split('/').filter(Boolean).length >= 2;
+
+  const activeTag = useMemo(() => {
+    const section = location.pathname.split('/').filter(Boolean)[0];
+    if (!section) return 'all';
+    if (section === 'recommended' || section === 'watching') return section;
+    return data.tags.find((tag) => getTagSlug(tag) === section)?.id || 'all';
+  }, [data.tags, location.pathname]);
+
+  const onTagChange = (tagId: string) => {
+    const tag = data.tags.find((item) => item.id === tagId);
+    const path = tagId === 'all' ? '/' : tagId === 'recommended' ? '/recommended' : tagId === 'watching' ? '/watching' : tag ? `/${getTagSlug(tag)}` : '/';
+    sessionStorage.removeItem(`tat_home_scroll:${path}${location.search}`);
+    navigate(`${path}${location.search}`);
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  };
+
+  const onSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    const searchReturnTo = (location.state as { searchReturnTo?: string } | null)?.searchReturnTo;
+    if (!value && searchReturnTo) {
+      navigate(-1);
+      return;
+    }
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('q', value);
+    else next.delete('q');
+    const target = isDetail ? '/' : location.pathname;
+    navigate(`${target}${next.toString() ? `?${next.toString()}` : ''}`, {
+      replace: true,
+      state: isDetail ? { searchReturnTo: `${location.pathname}${location.search}` } : location.state
+    });
+  };
+
+  const onClearSearch = () => {
+    const searchReturnTo = (location.state as { searchReturnTo?: string } | null)?.searchReturnTo;
+    if (searchReturnTo) {
+      navigate(-1);
+      return;
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('q');
+    setSearchParams(next);
+  };
+
+  const onSortChange = (key: SortKey) => {
+    const next = {
+      key,
+      order: sortConfig.key === key && sortConfig.order === 'desc' ? 'asc' : 'desc'
+    } as const;
+    setSortConfig(next);
+    sessionStorage.setItem('tat_sort_config', JSON.stringify(next));
+  };
+
+  const contextValue = {
+    searchTerm,
+    sortConfig,
+    onTagChange,
+    onSearchChange,
+    onClearSearch,
+    onSortChange,
+    createRequestToken
+  };
+
+  return (
+    <PublicNavigationContext.Provider value={contextValue}>
+      {!isAdminRoute && (
+        <PublicTopNav
+          iconUrl={data.settings.iconUrl}
+          title={data.settings.title}
+          tags={data.tags}
+          activeTag={activeTag}
+          totalCards={data.cards.length}
+          cardStats={cardStats}
+          onTagChange={onTagChange}
+          searchTerm={searchTerm}
+          onSearchChange={onSearchChange}
+          onClearSearch={onClearSearch}
+          sortKey={sortConfig.key}
+          sortOrder={sortConfig.order}
+          onSortChange={onSortChange}
+          isAdmin={isAdmin}
+          onCreateClick={() => setCreateRequestToken((value) => value + 1)}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          overlay={isDetail || location.pathname === '/'}
+        />
+      )}
+      {children}
+    </PublicNavigationContext.Provider>
+  );
+};
+
+export const usePublicNavigation = () => {
+  const context = useContext(PublicNavigationContext);
+  if (!context) throw new Error('usePublicNavigation must be used inside PublicNavigationProvider');
+  return context;
+};

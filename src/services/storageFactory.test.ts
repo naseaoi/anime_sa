@@ -12,6 +12,8 @@ afterEach(() => {
 
 describe('storageFactory', () => {
   it('posts login credentials to the unified API', async () => {
+    const dispatchEvent = vi.fn();
+    vi.stubGlobal('window', { dispatchEvent });
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
@@ -21,6 +23,7 @@ describe('storageFactory', () => {
     const { storageAdapter } = await loadStorageFactory();
     expect(await storageAdapter.login?.('admin', 'pw', true)).toEqual({ success: true });
     expect(fetchMock).toHaveBeenCalledWith('/api/storage/login', expect.objectContaining({ method: 'POST', credentials: 'include' }));
+    expect(dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'tat:auth-changed' }));
   });
 
   it('reports public data conflicts', async () => {
