@@ -113,7 +113,7 @@ Redis 使用 Lua 原子完成版本比较和写入。SQLite 在单进程内使�
 
 标签 slug 支持 Unicode，并保留 `recommended`、`watching`、`tat`、`card`。保留词会追加 `-tag`；历史退化值 `tag` 会按名称重算；名称仍无法生成 slug 时使用 `tag-{id}`。
 
-当前服务端只保证标签 ID 唯一，不保证 slug 唯一；新增或修改标签时应避免产生相同 slug。改变 slug 规则会使已有书签和详情返回路径失效。
+服务端归一化后保证标签 ID 和路由 slug 唯一；历史重复 slug 会按标签 ID 追加确定性后缀。管理界面新增或修改标签时会直接拒绝重复 slug。改变 slug 规则会使已有书签和详情返回路径失效。
 
 无标签且非推荐/在看的卡片目前由 `sectionFromCard` 回退到 `recommended` 路径。这是兼容行为，不是准确的业务分类；重做路由时必须先确定无分类卡片的正式 URL。
 

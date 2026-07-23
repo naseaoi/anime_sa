@@ -1,3 +1,5 @@
+import { getTagSlug, slugifyName } from '../shared/tagSlug.js';
+
 /**
  * @typedef {object} PublicTag
  * @property {string} id
@@ -156,6 +158,7 @@ const normalizeSettings = (value) => {
 const normalizeTags = (value) => {
   if (!Array.isArray(value) || value.length > MAX_TAGS) return null;
   const ids = new Set();
+  const slugs = new Set();
   const tags = [];
   for (const item of value) {
     if (!isRecord(item)) return null;
@@ -164,8 +167,22 @@ const normalizeTags = (value) => {
     const slug = readOptionalString(item.slug, MAX_TAG_SLUG_LENGTH);
     const icon = readOptionalString(item.icon, MAX_TAG_ICON_LENGTH);
     if (id === null || name === null || slug === null || icon === null || ids.has(id)) return null;
+    const tag = { id, name, slug, icon };
+    let uniqueSlug = getTagSlug(tag);
+    if (slugs.has(uniqueSlug)) {
+      const suffix = slugifyName(id) || 'tag';
+      let index = 0;
+      do {
+        const extra = index === 0 ? suffix : `${suffix}-${index}`;
+        const prefix = uniqueSlug.slice(0, Math.max(1, MAX_TAG_SLUG_LENGTH - extra.length - 1));
+        uniqueSlug = `${prefix}-${extra}`;
+        index += 1;
+      } while (slugs.has(uniqueSlug));
+      tag.slug = uniqueSlug;
+    }
+    slugs.add(uniqueSlug);
     ids.add(id);
-    tags.push({ id, name, slug, icon });
+    tags.push(tag);
   }
   return { tags, ids };
 };

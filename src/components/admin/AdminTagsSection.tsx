@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Check, Edit2, Plus, Trash2, X } from 'lucide-react';
 import { PublicData } from '../../types';
 import { Button, Input, Modal, useToast } from '../Common';
-import { normalizeTagSlug } from '../../utils/routeUtils';
+import { getTagSlug, normalizeTagSlug } from '../../utils/routeUtils';
 import { TAG_ICON_OPTIONS, getTagIcon } from '../../utils/tagIcons';
 import { AdminBadge, AdminIconButton, AdminPanel } from './ui';
 
@@ -44,12 +44,17 @@ export const AdminTagsSection: React.FC<AdminTagsSectionProps> = ({ data, onUpda
     if (!name) return;
 
     const newId = Date.now().toString();
+    const slug = normalizeTagSlug(newTagSlug.trim(), name);
+    if (data.tags.some((tag) => getTagSlug(tag) === getTagSlug({ id: newId, name, slug }))) {
+      showToast('标签路径已存在，请换一个标识', 'error');
+      return;
+    }
     const newTags = [
       ...data.tags,
       {
         id: newId,
         name,
-        slug: normalizeTagSlug(newTagSlug.trim(), name),
+         slug,
         icon: newTagIcon || undefined
       }
     ];
@@ -65,9 +70,14 @@ export const AdminTagsSection: React.FC<AdminTagsSectionProps> = ({ data, onUpda
     const name = editName.trim();
     if (!name) return;
 
+    const slug = normalizeTagSlug(editSlug.trim(), name);
+    if (data.tags.some((tag) => tag.id !== id && getTagSlug(tag) === getTagSlug({ id, name, slug }))) {
+      showToast('标签路径已存在，请换一个标识', 'error');
+      return;
+    }
     const newTags = data.tags.map((tag) => (
       tag.id === id
-        ? { ...tag, name, slug: normalizeTagSlug(editSlug.trim(), name), icon: editIcon || undefined }
+        ? { ...tag, name, slug, icon: editIcon || undefined }
         : tag
     ));
 

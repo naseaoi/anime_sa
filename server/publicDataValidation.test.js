@@ -52,4 +52,11 @@ describe('public data validation', () => {
     missingTagData.cards[0].tagIds = ['missing'];
     expect(normalizePublicDataPayload(missingTagData)).toBeNull();
   });
+
+  it('disambiguates duplicate tag slugs deterministically', () => {
+    const data = createData();
+    data.tags.push({ id: 'anime-2', name: '另一个', slug: 'anime' });
+    const result = normalizePublicDataPayload(data);
+    expect(result?.tags.map((tag) => tag.slug)).toEqual(['anime', 'anime-anime-2']);
+  });
 });
