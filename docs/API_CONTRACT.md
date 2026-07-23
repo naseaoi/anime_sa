@@ -36,7 +36,7 @@
 
 - Session：`/login`、`/logout`、`/session`
 - 公共数据：`?key=public_data`、`/data-metrics`
-- 私有配置：`?key=private_data`、`/admin-profile`、`/admin-credentials`
+- 私有配置：`/admin-profile`、`/admin-credentials`
 - 媒体：`/media`、`/remote-image`、`/media-gc`
 - 维护：`/audit-logs`、`/transfer`
 - 探针：`?key=driver`、`?key=ping`（进程探针）、`?key=ready`（存储就绪探针）

@@ -7,13 +7,6 @@ export type Tag = NormalizedPublicData['tags'][number];
 export type CardData = NormalizedPublicData['cards'][number];
 export type SiteSettings = NormalizedPublicData['settings'];
 
-export interface PrivateData {
-  username: string;
-  password?: string;
-  passwordHash?: string;
-  passwordUpdatedAt?: number;
-}
-
 export interface AdminProfile {
   username: string;
 }

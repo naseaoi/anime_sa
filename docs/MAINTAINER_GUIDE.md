@@ -58,7 +58,7 @@
 
 - `readJsonObject` 把空 body 当作 `{}`；JSON 原始值和数组返回 400。
 - `public_data` 是公开的业务数据读取；`driver`、`ping`、`ready`、Session 检查、容量指标和媒体 GET 属于各自的独立端点，不要把它们混称为通用 KV 公开读取。`ping` 不连接存储，`ready` 才检查活动存储。
-- `public_data`、`private_data` 的写入，`private_data` 的读取，媒体上传/删除，远程图片代理，审计日志和存储传输都必须鉴权。登录、退出和 Session 检查是 Session 生命周期例外。
+- `public_data` 的写入，媒体上传/删除，远程图片代理，审计日志和存储传输都必须鉴权。凭据只能通过管理员凭据接口和服务端存储传输处理，不能通过通用 KV HTTP 入口读取或写入。登录、退出和 Session 检查是 Session 生命周期例外。
 - 方法不匹配使用 `methodNotAllowed`；其他错误使用 `errorResponse`，保持 JSON、`success: false`、稳定的 `code` 和展示用 `error` 字段。客户端按 `code` 分支，不按错误文本分支。
 - 所有写请求继续经过同源校验；新增端点不能绕过该校验、请求体限制或审计入口。
 

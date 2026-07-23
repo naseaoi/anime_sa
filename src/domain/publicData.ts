@@ -1,4 +1,4 @@
-import { PrivateData, PublicData } from '../types';
+import { PublicData } from '../types';
 
 export const DEFAULT_PUBLIC_DATA: PublicData = {
   version: 0,
@@ -16,11 +16,6 @@ export const DEFAULT_PUBLIC_DATA: PublicData = {
     { id: '2', name: '游戏', icon: 'gamepad' }
   ],
   cards: []
-};
-
-export const DEFAULT_PRIVATE_DATA: PrivateData = {
-  username: '',
-  password: ''
 };
 
 export const applyDerivedPublicDataVersion = <T>(data: T, fallbackUpdatedAt = 0): T => {

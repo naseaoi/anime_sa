@@ -19,7 +19,6 @@ import { enforceSameOrigin } from './requestOrigin.js';
 import {
   hashPassword,
   normalizeMediaName,
-  normalizePrivateDataPayload,
   timingSafeEqualText,
   verifyPasswordHash
 } from '../sharedSecurity.js';
@@ -85,15 +84,6 @@ const writeRemoteImage = async (request, response, url, requireAuth) => {
   response.setHeader('Content-Type', contentType);
   response.setHeader('Content-Length', bytes.length);
   response.end(bytes);
-};
-
-const buildPrivateDataResponse = (value) => {
-  if (!value || typeof value !== 'object') return null;
-  return {
-    username: String(value.username || ''),
-    passwordHash: typeof value.passwordHash === 'string' ? value.passwordHash : undefined,
-    passwordUpdatedAt: value.passwordUpdatedAt
-  };
 };
 
 const checkRateLimit = async (response, rateLimit, scope, clientIp, limit, windowSeconds) => {
@@ -297,15 +287,14 @@ export const createStorageApiHandler = ({
     }
 
     if (!key) return errorResponse(response, 400, 'Missing key parameter');
-    if (!['public_data', 'private_data'].includes(key)) return errorResponse(response, 404, 'Unknown key');
+    if (key !== 'public_data') return errorResponse(response, 404, 'Unknown key');
     if (!['GET', 'POST'].includes(request.method)) return methodNotAllowed(response, ['GET', 'POST']);
-    if (request.method === 'POST' || key === 'private_data') {
+    if (request.method === 'POST') {
       if (!(await auth.require(request, response, context))) return;
     }
 
     if (request.method === 'GET') {
       const value = await data.read(context, key);
-      if (key === 'private_data') return jsonResponse(response, 200, buildPrivateDataResponse(value));
       if (!value) return jsonResponse(response, 200, null);
       const normalized = normalizePublicDataPayload(value);
       return normalized ? jsonResponse(response, 200, normalized) : errorResponse(response, 500, 'Stored public_data is invalid');
@@ -313,14 +302,6 @@ export const createStorageApiHandler = ({
 
     const parsedBody = await readJsonObject(request);
     if (!parsedBody.ok) return errorResponse(response, 400, parsedBody.error);
-    if (key === 'private_data') {
-      const normalized = normalizePrivateDataPayload(parsedBody.data);
-      if (!normalized) return errorResponse(response, 400, 'Invalid private_data payload');
-      await data.write(context, key, normalized);
-      await audit.append({ action: 'write_private_data', status: 'success', details: `ip=${clientIp}` }, context);
-      return jsonResponse(response, 200, { success: true });
-    }
-
     const prepared = preparePublicDataWrite(parsedBody.data, request.headers);
     if (!prepared.ok) return errorResponse(response, prepared.status, prepared.error);
     const result = await data.savePublic(context, prepared.data, prepared.expectedUpdatedAt);

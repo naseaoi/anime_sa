@@ -54,4 +54,12 @@ describe('SQLite API HTTP contract', () => {
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({ success: false, code: 'BAD_REQUEST', error: 'Missing key parameter' });
   });
+
+  it('does not expose private credentials through the generic key API', async () => {
+    const response = createResponse();
+    await handleStorageApi(createRequest('/api/storage?key=private_data', 'GET'), response, { env: {} });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({ success: false, code: 'NOT_FOUND', error: 'Unknown key' });
+  });
 });

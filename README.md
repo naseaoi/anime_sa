@@ -170,7 +170,6 @@ api/storage.ts → Redis storage API → server/storage
 | `/api/storage/logout` | 管理员登出 |
 | `/api/storage/session` | Session 检查 |
 | `/api/storage?key=public_data` | 公共数据读写 |
-| `/api/storage?key=private_data` | 私有数据读写 |
 | `/api/storage?key=ping` | 进程存活检查，不连接存储 |
 | `/api/storage?key=ready` | 活动存储就绪检查 |
 | `/api/storage/data-metrics` | 公共数据容量指标（需登录） |

@@ -2,6 +2,7 @@ import crypto from 'crypto';
 
 const SCRYPT_KEYLEN = 64;
 const PASSWORD_HASH_PREFIX = 'scrypt';
+const SCRYPT_PARAMS = Object.freeze({ N: 16384, r: 8, p: 1, saltHexLength: 32, digestHexLength: 128 });
 
 const scryptAsync = (password, salt, keylen, opts) =>
   new Promise((resolve, reject) => {
@@ -30,20 +31,30 @@ export const hashPassword = async (password) => {
 
 export const verifyPasswordHash = async (password, encodedHash) => {
   try {
-    const [prefix, nRaw, rRaw, pRaw, salt, expectedHex] = String(encodedHash || '').split('$');
-    if (prefix !== PASSWORD_HASH_PREFIX || !salt || !expectedHex) return false;
+    const parsed = parsePasswordHash(encodedHash);
+    if (!parsed) return false;
 
-    const N = Number(nRaw);
-    const r = Number(rRaw);
-    const p = Number(pRaw);
-    if (!Number.isFinite(N) || !Number.isFinite(r) || !Number.isFinite(p)) return false;
-
-    const actual = await scryptAsync(String(password), salt, SCRYPT_KEYLEN, { N, r, p });
-    return timingSafeEqualText(actual.toString('hex'), expectedHex);
+    const actual = await scryptAsync(String(password), parsed.salt, SCRYPT_KEYLEN, {
+      N: parsed.N,
+      r: parsed.r,
+      p: parsed.p
+    });
+    return timingSafeEqualText(actual.toString('hex'), parsed.expectedHex);
   } catch {
     return false;
   }
 };
+
+const parsePasswordHash = (encodedHash) => {
+  const [prefix, nRaw, rRaw, pRaw, salt, expectedHex, extra] = String(encodedHash || '').split('$');
+  if (extra !== undefined || prefix !== PASSWORD_HASH_PREFIX) return null;
+  if (Number(nRaw) !== SCRYPT_PARAMS.N || Number(rRaw) !== SCRYPT_PARAMS.r || Number(pRaw) !== SCRYPT_PARAMS.p) return null;
+  if (!new RegExp(`^[a-f0-9]{${SCRYPT_PARAMS.saltHexLength}}$`, 'i').test(salt || '')) return null;
+  if (!new RegExp(`^[a-f0-9]{${SCRYPT_PARAMS.digestHexLength}}$`, 'i').test(expectedHex || '')) return null;
+  return { N: SCRYPT_PARAMS.N, r: SCRYPT_PARAMS.r, p: SCRYPT_PARAMS.p, salt, expectedHex };
+};
+
+export const isValidPasswordHash = (value) => parsePasswordHash(value) !== null;
 
 export const normalizeMediaName = (name) => {
   const raw = String(name || '').trim();
@@ -66,8 +77,7 @@ export const normalizePrivateDataPayload = (payload) => {
   if (!isValidUsername(username)) return null;
 
   const passwordHash = typeof payload.passwordHash === 'string' ? payload.passwordHash.trim() : '';
-  if (!passwordHash) return null;
-  if (passwordHash.length > PASSWORD_HASH_MAX_LEN) return null;
+  if (!passwordHash || passwordHash.length > PASSWORD_HASH_MAX_LEN || !isValidPasswordHash(passwordHash)) return null;
 
   if (payload.password !== undefined && payload.password !== null && payload.password !== '') {
     return null;

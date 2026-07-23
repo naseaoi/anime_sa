@@ -1,5 +1,5 @@
-import type { PrivateData, PublicData } from '../types';
-import { applyDerivedPublicDataVersion, DEFAULT_PRIVATE_DATA, DEFAULT_PUBLIC_DATA } from '../domain/publicData';
+import type { PublicData } from '../types';
+import { applyDerivedPublicDataVersion, DEFAULT_PUBLIC_DATA } from '../domain/publicData';
 import { conflictResult, failedResult, persistedResult } from '../domain/persistence';
 import { normalizePublicDataPayload } from '../../shared/publicDataSchema.js';
 import { errorMessage, readApiRequestError, requestJson, requestWithSession } from './apiClient';
@@ -31,23 +31,6 @@ export const savePublicData = async (data: PublicData, options: SavePublicDataOp
     return persistedResult();
   } catch (error) {
     return failedResult(errorMessage(error, '数据保存失败'));
-  }
-};
-
-export const getPrivateData = async (): Promise<PrivateData> => {
-  return await requestJson<PrivateData | null>(`${STORAGE_API_URL}?key=private_data`, {}, '私有数据读取失败') || DEFAULT_PRIVATE_DATA;
-};
-
-export const savePrivateData = async (data: PrivateData) => {
-  try {
-    await requestJson(`${STORAGE_API_URL}?key=private_data`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    }, '私有数据保存失败');
-    return persistedResult();
-  } catch (error) {
-    return failedResult(errorMessage(error, '私有数据保存失败'));
   }
 };
 

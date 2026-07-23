@@ -1,6 +1,6 @@
 import { dbGetJson, dbGetMedia, dbListMediaNames, dbSetJson, dbSetMedia } from '../core/kvStore.js';
 import { clearAllSessions } from '../core/sessionStore.js';
-import { normalizeMediaName } from '../sharedSecurity.js';
+import { hashPassword, isValidUsername, normalizeMediaName, normalizePrivateDataPayload } from '../sharedSecurity.js';
 import {
   clearRedisSessions,
   listRedisMediaNames,
@@ -12,6 +12,18 @@ import {
 import { normalizePublicDataPayload } from '../publicDataValidation.js';
 
 export const TRANSFER_DATA_KEYS = ['public_data', 'private_data'];
+
+const normalizeTransferPrivateData = async (value) => {
+  const normalized = normalizePrivateDataPayload(value);
+  if (normalized) return normalized;
+
+  const username = String(value?.username || '').trim();
+  const password = typeof value?.password === 'string' ? value.password : '';
+  if (!isValidUsername(username) || !password || password.length > 256) {
+    throw new Error('Source private_data is invalid');
+  }
+  return { username, passwordHash: await hashPassword(password), passwordUpdatedAt: Date.now() };
+};
 
 export const createSqliteTransferDriver = (db) => ({
   mode: 'sqlite',
@@ -41,6 +53,8 @@ export const transferStorageData = async (source, target) => {
     if (key === 'public_data') {
       value = normalizePublicDataPayload(value);
       if (!value) throw new Error('Source public_data is invalid');
+    } else if (key === 'private_data') {
+      value = await normalizeTransferPrivateData(value);
     }
     values.set(key, value);
   }

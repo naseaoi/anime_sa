@@ -1,6 +1,6 @@
 import type { StorageAdapter } from './storageAdapter';
 import { login, logout, checkSession, getAdminProfile, updateAdminCredentials } from './authClient';
-import { getPrivateData, getPublicData, savePrivateData, savePublicData, testConnection } from './publicDataClient';
+import { getPublicData, savePublicData, testConnection } from './publicDataClient';
 import { fetchStorageDriver, getStorageDriver } from './storageRuntime';
 
 export const storageAdapter: StorageAdapter = {
@@ -12,8 +12,6 @@ export const storageAdapter: StorageAdapter = {
   updateAdminCredentials,
   getPublicData,
   savePublicData,
-  getPrivateData,
-  savePrivateData,
   testConnection
 };
 

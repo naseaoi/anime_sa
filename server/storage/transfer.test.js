@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import Database from 'better-sqlite3';
+import { hashPassword, verifyPasswordHash } from '../sharedSecurity.js';
 import {
   createRedisTransferDriver,
   createSqliteTransferDriver,
@@ -31,9 +32,10 @@ const createPublicData = (updatedAt) => ({
 
 describe('storage transfer', () => {
   it('copies public and private data to the target', async () => {
+    const passwordHash = await hashPassword('secret');
     const source = createMemoryDriver({
       public_data: createPublicData(42),
-      private_data: { username: 'admin', passwordHash: 'hash' }
+      private_data: { username: 'admin', passwordHash }
     });
     const target = createMemoryDriver({
       public_data: { updatedAt: 1, cards: [{ id: 'stale' }] }
@@ -45,7 +47,7 @@ describe('storage transfer', () => {
     expect(result.credentialsChanged).toBe(true);
     expect(target.sessionsCleared).toBe(1);
     expect(target.store.get('public_data')).toMatchObject(createPublicData(42));
-    expect(target.store.get('private_data')).toEqual({ username: 'admin', passwordHash: 'hash' });
+    expect(target.store.get('private_data')).toEqual({ username: 'admin', passwordHash });
   });
 
   it('skips missing data keys without writing them', async () => {
@@ -66,6 +68,28 @@ describe('storage transfer', () => {
 
     await expect(transferStorageData(source, target)).rejects.toThrow('Source public_data is invalid');
     expect(target.store.get('public_data')).toEqual(createPublicData(1));
+  });
+
+  it('rejects invalid private data before overwriting public data', async () => {
+    const source = createMemoryDriver({
+      public_data: createPublicData(7),
+      private_data: { username: 'admin', passwordHash: 'invalid' }
+    });
+    const target = createMemoryDriver({ public_data: createPublicData(1) });
+
+    await expect(transferStorageData(source, target)).rejects.toThrow('Source private_data is invalid');
+    expect(target.store.get('public_data')).toEqual(createPublicData(1));
+  });
+
+  it('upgrades legacy plaintext credentials during transfer', async () => {
+    const source = createMemoryDriver({ private_data: { username: 'admin', password: 'legacy-secret' } });
+    const target = createMemoryDriver();
+
+    await transferStorageData(source, target);
+
+    const credentials = target.store.get('private_data');
+    expect(credentials.password).toBeUndefined();
+    await expect(verifyPasswordHash('legacy-secret', credentials.passwordHash)).resolves.toBe(true);
   });
 
   it('copies only media missing from the target in batches', async () => {
@@ -148,13 +172,14 @@ describe('storage transfer driver integration', () => {
   const env = { REDIS_PREFIX: 'test' };
 
   it('moves data and media from sqlite to redis', async () => {
+    const passwordHash = await hashPassword('secret');
     const db = createSqliteDb();
     const redis = new FakeRedis();
     const source = createSqliteTransferDriver(db);
     const target = createRedisTransferDriver(redis, env);
 
     await source.writeJson('public_data', createPublicData(9));
-    await source.writeJson('private_data', { username: 'admin', passwordHash: 'hash' });
+    await source.writeJson('private_data', { username: 'admin', passwordHash });
     await source.writeJson('media:cover.webp', { contentType: 'image/webp', base64: 'aa' });
 
     const dataResult = await transferStorageData(source, target);
