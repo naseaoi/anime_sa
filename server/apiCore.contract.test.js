@@ -36,7 +36,7 @@ describe('SQLite API HTTP contract', () => {
 
     expect(response.statusCode).toBe(405);
     expect(response.getHeader('allow')).toBe('GET');
-    expect(response.json()).toEqual({ success: false, error: 'Method not allowed' });
+    expect(response.json()).toEqual({ success: false, code: 'METHOD_NOT_ALLOWED', error: 'Method not allowed' });
   });
 
   it('rejects a non-object login body before credential lookup', async () => {
@@ -44,7 +44,7 @@ describe('SQLite API HTTP contract', () => {
     await handleStorageApi(createRequest('/api/storage/login', 'POST', 'null'), response, { env: {} });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ success: false, error: 'JSON body must be an object' });
+    expect(response.json()).toEqual({ success: false, code: 'BAD_REQUEST', error: 'JSON body must be an object' });
   });
 
   it('returns the shared missing-key error', async () => {
@@ -52,6 +52,6 @@ describe('SQLite API HTTP contract', () => {
     await handleStorageApi(createRequest('/api/storage', 'GET'), response, { env: {} });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ success: false, error: 'Missing key parameter' });
+    expect(response.json()).toEqual({ success: false, code: 'BAD_REQUEST', error: 'Missing key parameter' });
   });
 });

@@ -59,7 +59,7 @@ describe('HTTP utilities', () => {
 
     expect(response.statusCode).toBe(405);
     expect(headers.get('Allow')).toBe('GET, POST');
-    expect(JSON.parse(response.body)).toEqual({ success: false, error: 'Method not allowed' });
+    expect(JSON.parse(response.body)).toEqual({ success: false, code: 'METHOD_NOT_ALLOWED', error: 'Method not allowed' });
   });
 
   it('keeps extra error details while enforcing the failure shape', () => {
@@ -72,6 +72,7 @@ describe('HTTP utilities', () => {
 
     expect(JSON.parse(response.body)).toEqual({
       success: false,
+      code: 'RATE_LIMITED',
       error: 'Too many requests',
       retryAfterSec: 10
     });

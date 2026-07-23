@@ -277,6 +277,9 @@ data/local.db          SQLite 数据文件（运行时自动创建）
 docs/RELEASE.md        发布流程
 docs/MAINTAINER_GUIDE.md 项目独有约束、易错点与改动检查表
 docs/TECH_DEBT_BACKLOG.md 技术债、重构优先级与验收清单
+docs/DATA_MODEL_POLICY.md 公共数据模型、容量指标与迁移触发线
+docs/API_CONTRACT.md API 错误码、端点分组与扩展约束
+docs/NODE_VERSION_POLICY.md Node.js 最低支持版本与升级检查项
 ```
 
 ## 技术栈

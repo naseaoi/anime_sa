@@ -117,7 +117,8 @@ export const createStorageApiHandler = ({
   data,
   media,
   audit,
-  availableDrivers = [driver]
+  availableDrivers = [driver],
+  health
 }) => async (request, response) => {
   if (!enforceSameOrigin(request, response)) return;
 
@@ -133,6 +134,16 @@ export const createStorageApiHandler = ({
     if (key === 'ping') {
       if (request.method !== 'GET') return methodNotAllowed(response, ['GET']);
       return jsonResponse(response, 200, { ok: true, driver, runtime });
+    }
+    if (key === 'ready') {
+      if (request.method !== 'GET') return methodNotAllowed(response, ['GET']);
+      if (!health) return jsonResponse(response, 200, { ok: true, driver, runtime });
+      try {
+        await health();
+        return jsonResponse(response, 200, { ok: true, driver, runtime });
+      } catch {
+        return errorResponse(response, 503, 'Storage is not ready');
+      }
     }
 
     const context = await getContext();
@@ -216,6 +227,13 @@ export const createStorageApiHandler = ({
       if (!(await auth.require(request, response, context))) return;
       if (request.method === 'GET') return jsonResponse(response, 200, { driver, available: availableDrivers });
       return errorResponse(response, 501, 'Storage transfer requires the Node runtime');
+    }
+
+    if (url.pathname.endsWith('/data-metrics')) {
+      if (request.method !== 'GET') return methodNotAllowed(response, ['GET']);
+      if (!(await auth.require(request, response, context))) return;
+      if (!data.metrics) return errorResponse(response, 501, 'Data metrics are not available');
+      return jsonResponse(response, 200, await data.metrics(context));
     }
 
     if (url.pathname.endsWith('/admin-profile')) {

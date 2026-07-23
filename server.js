@@ -4,35 +4,22 @@ import path from 'path';
 import zlib from 'zlib';
 import {
   errorResponse,
-  handleStorageApi,
-  getClientIp
+  handleStorageApi
 } from './server/core/apiCore.js';
-import { resolveStorageDriver } from './server/core/storageDriver.js';
 import { handleRedisStorageApi } from './server/storage/redisApi.js';
 import { handleStorageTransferApi } from './server/storage/transferApi.js';
-import { resolveSqliteDataDir } from './server/core/kvStore.js';
 import { setSecurityHeaders } from './server/core/securityHeaders.js';
+import { getClientIp } from './server/core/httpUtils.js';
+import { createInMemoryRateLimiter } from './server/core/rateLimit.js';
+import { loadRuntimeConfig } from './server/core/runtimeConfig.js';
+import { createRequestId, instrumentResponse } from './server/core/logger.js';
 
-// ===== 环境变量加载 =====
-const envPath = path.join(process.cwd(), '.env');
-if (fs.existsSync(envPath)) {
-  const envConfig = fs.readFileSync(envPath, 'utf-8');
-  envConfig.split('\n').forEach((line) => {
-    const [key, ...values] = line.split('=');
-    if (key && values.length > 0) {
-      const val = values.join('=').trim().replace(/^['"](.*)['"]$/, '$1');
-      if (!process.env[key.trim()]) {
-        process.env[key.trim()] = val;
-      }
-    }
-  });
-}
-
-const PORT = Number(process.env.PORT || 3000);
+const runtimeConfig = loadRuntimeConfig(process.env);
+const PORT = runtimeConfig.port;
 const DIST_DIR = path.join(process.cwd(), 'dist');
-const DATA_DIR = resolveSqliteDataDir(process.env);
-const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-const STORAGE_DRIVER = resolveStorageDriver(process.env);
+const DATA_DIR = runtimeConfig.dataDir;
+const IS_PRODUCTION = runtimeConfig.isProduction;
+const STORAGE_DRIVER = runtimeConfig.storageDriver;
 
 // 速率限制阈值
 const API_RATE_LIMIT_WINDOW_MS = 60 * 1000;
@@ -129,43 +116,23 @@ const streamWithOptionalCompression = (req, res, filePath, contentType, stat) =>
 
 // ===== 速率限制（按 IP+scope 计数，窗口过期自动清理） =====
 
-const rateLimitStore = new Map();
-
-const cleanupRateLimitStore = (now) => {
-  for (const [key, value] of rateLimitStore.entries()) {
-    if (value.resetAt <= now) rateLimitStore.delete(key);
-  }
-};
-
-// 周期清理：原本只在每次 checkRateLimit 进来时懒清，冷门 scope 会永久留着。每 5 分钟跑一次足够。
-setInterval(() => {
-  cleanupRateLimitStore(Date.now());
-}, 5 * 60 * 1000).unref();
+const rateLimiter = createInMemoryRateLimiter();
 
 const checkRateLimit = (req, res, scope, max, windowMs) => {
-  const now = Date.now();
-  cleanupRateLimitStore(now);
-
-  const key = `${scope}:${getClientIp(req)}`;
-  const record = rateLimitStore.get(key);
-
-  if (!record || record.resetAt <= now) {
-    rateLimitStore.set(key, { count: 1, resetAt: now + windowMs });
-    return true;
-  }
-  if (record.count >= max) {
-    const retryAfterSec = Math.max(1, Math.ceil((record.resetAt - now) / 1000));
+  const result = rateLimiter.check(scope, getClientIp(req), max, windowMs);
+  if (!result.allowed) {
+    const retryAfterSec = result.retryAfterSec;
     res.setHeader('Retry-After', String(retryAfterSec));
     errorResponse(res, 429, 'Too many requests', { retryAfterSec });
     return false;
   }
-  record.count += 1;
   return true;
 };
 
 // ===== HTTP 服务器 =====
 
 const server = http.createServer(async (req, res) => {
+  instrumentResponse(req, res, createRequestId(req), Date.now(), STORAGE_DRIVER);
   setSecurityHeaders(res, IS_PRODUCTION);
   const url = new URL(req.url || '/', `http://${req.headers.host || 'local'}`);
 

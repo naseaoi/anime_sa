@@ -1,5 +1,5 @@
 import { normalizeMediaName } from '../sharedSecurity.js';
-import { dbDelete } from './kvStore.js';
+import { dbDeleteMedia, dbListMediaNames } from './kvStore.js';
 
 export const parseMediaReferences = (publicData) => {
   const names = new Set();
@@ -27,12 +27,9 @@ export const parseMediaReferences = (publicData) => {
 };
 
 export const collectSqliteMediaNames = (database) => {
-  const rows = database.prepare("SELECT key FROM kv_store WHERE key LIKE 'media:%'").all();
   const names = [];
-  for (const row of rows) {
-    const key = String(row.key || '');
-    if (!key.startsWith('media:')) continue;
-    const name = normalizeMediaName(key.slice('media:'.length));
+  for (const rawName of dbListMediaNames(database)) {
+    const name = normalizeMediaName(rawName);
     if (name) names.push(name);
   }
   return names;
@@ -42,7 +39,7 @@ export const cleanupSqliteUnusedMedia = (database, referencedNames, limit = 100)
   const allNames = collectSqliteMediaNames(database);
   const removable = allNames.filter((name) => !referencedNames.has(name));
   const candidates = removable.slice(0, Math.max(1, limit));
-  for (const name of candidates) dbDelete(database, `media:${name}`);
+  for (const name of candidates) dbDeleteMedia(database, name);
   const removed = candidates.length;
   const pending = Math.max(0, removable.length - removed);
   return { checked: allNames.length, removed, pending, hasMore: pending > 0 };

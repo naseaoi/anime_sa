@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useId, useState, useEffect, useRef } from 'react';
 import { Check, ChevronDown, Eye, EyeOff } from 'lucide-react';
 
 // --- 表单 Primitives ---
@@ -29,11 +29,14 @@ export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { lab
   label, error, className = '', type, ...props
 }) => {
   const [showPassword, setShowPassword] = useState(false);
+  const generatedId = useId();
+  const inputId = props.id || generatedId;
   const isPassword = type === 'password';
 
   const input = (
     <input
       type={isPassword && showPassword ? 'text' : type}
+      id={inputId}
       className={`w-full px-3 py-2 bg-[color:var(--surface-muted)] border ${error ? 'border-red-300 focus:border-red-500 dark:border-red-800' : 'border-[color:var(--line)] focus:border-[color:var(--accent)]'} rounded-lg text-[color:var(--text-primary)] placeholder:text-[color:var(--text-secondary)]/60 focus:outline-none focus:ring-4 focus:ring-[color:var(--accent-soft)] dark:[color-scheme:dark] transition-all ${isPassword ? 'pr-10' : ''} ${className}`}
       {...props}
     />
@@ -41,7 +44,7 @@ export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { lab
 
   return (
     <div className="flex flex-col gap-1.5 w-full">
-      {label && <label className="text-xs font-bold text-subtle dark:text-zinc-400 uppercase tracking-wider">{label}</label>}
+      {label && <label htmlFor={inputId} className="text-xs font-bold text-subtle dark:text-zinc-400 uppercase tracking-wider">{label}</label>}
       {isPassword ? (
         <div className="relative w-full">
           {input}

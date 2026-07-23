@@ -47,7 +47,7 @@ describe('storage transfer API contract', () => {
 
     expect(response.statusCode).toBe(405);
     expect(response.getHeader('allow')).toBe('GET, POST');
-    expect(response.json()).toEqual({ success: false, error: 'Method not allowed' });
+    expect(response.json()).toEqual({ success: false, code: 'METHOD_NOT_ALLOWED', error: 'Method not allowed' });
   });
 
   it('rejects non-object request bodies', async () => {
@@ -55,6 +55,6 @@ describe('storage transfer API contract', () => {
     await handleStorageTransferApi(createRequest('POST', 'null'), response, { env: {}, driver: 'sqlite' });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ success: false, error: 'JSON body must be an object' });
+    expect(response.json()).toEqual({ success: false, code: 'BAD_REQUEST', error: 'JSON body must be an object' });
   });
 });

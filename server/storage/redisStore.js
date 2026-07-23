@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { createClient } from 'redis';
+import { createClient, RESP_TYPES } from 'redis';
 import { AUDIT_LIMITS, normalizeAuditEntry } from '../core/auditContract.js';
 
 let redisClient = null;
@@ -8,6 +8,13 @@ let redisConnectPromise = null;
 
 const getPrefix = (env) => String(env.REDIS_PREFIX || 'anime-sa').replace(/[^a-zA-Z0-9:_-]/g, '') || 'anime-sa';
 const buildKey = (env, key) => `${getPrefix(env)}:${key}`;
+const mediaKey = (env, name) => buildKey(env, `media:${name}`);
+const mediaMetaKey = (env, name) => buildKey(env, `media-meta:${name}`);
+
+const binaryClient = (redis) => {
+  if (typeof redis.withTypeMapping !== 'function') return redis;
+  return redis.withTypeMapping({ [RESP_TYPES.BLOB_STRING]: Buffer });
+};
 
 export const getRedisClient = async (env) => {
   const url = String(env.REDIS_URL || '').trim();
@@ -122,17 +129,30 @@ export const readRedisAudit = async (redis, env, limit) => {
 };
 
 export const saveRedisMedia = async (redis, env, name, contentType, bytes) => {
-  await writeRedisJson(redis, env, `media:${name}`, {
-    contentType,
-    base64: bytes.toString('base64'),
-    updatedAt: Date.now()
-  });
+  await binaryClient(redis).set(mediaKey(env, name), Buffer.from(bytes));
+  await writeRedisJson(redis, env, `media-meta:${name}`, { contentType, updatedAt: Date.now() });
 };
 
 export const readRedisMedia = async (redis, env, name) => {
-  const value = await readRedisJson(redis, env, `media:${name}`);
-  if (!value?.base64) return null;
-  return { contentType: String(value.contentType || 'application/octet-stream'), bytes: Buffer.from(value.base64, 'base64') };
+  const raw = await binaryClient(redis).get(mediaKey(env, name));
+  if (!raw) return null;
+  const bytes = Buffer.isBuffer(raw) ? raw : Buffer.from(String(raw));
+  const meta = await readRedisJson(redis, env, `media-meta:${name}`);
+  if (meta) return { contentType: String(meta.contentType || 'application/octet-stream'), bytes };
+
+  try {
+    const legacy = JSON.parse(bytes.toString('utf8'));
+    if (!legacy?.base64) return null;
+    const migratedBytes = Buffer.from(legacy.base64, 'base64');
+    await saveRedisMedia(redis, env, name, String(legacy.contentType || 'application/octet-stream'), migratedBytes);
+    return { contentType: String(legacy.contentType || 'application/octet-stream'), bytes: migratedBytes };
+  } catch {
+    return null;
+  }
+};
+
+export const deleteRedisMedia = async (redis, env, name) => {
+  await redis.del([mediaKey(env, name), mediaMetaKey(env, name)]);
 };
 
 export const listRedisMediaNames = async (redis, env) => {

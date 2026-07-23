@@ -4,8 +4,9 @@ import { buildCookie, clearCookie } from '../core/sessionCookie.js';
 import { buildAdminCredentialsForSave, buildAdminCredentialsResponse } from '../core/credentialPolicy.js';
 import { normalizeAuditEntry } from '../core/auditContract.js';
 import { parseMediaReferences } from '../core/mediaGc.js';
+import { buildPublicDataMetrics } from '../core/dataMetrics.js';
 import { hashPassword } from '../sharedSecurity.js';
-import { appendRedisAudit, clearRedisSessions, consumeRateLimit, createRedisSession, deleteRedisKey, destroyRedisSession, getRedisClient, listRedisMediaNames, readRedisAudit, readRedisJson, readRedisMedia, saveRedisMedia, saveRedisPublicData, verifyRedisSession, writeRedisJson } from './redisStore.js';
+import { appendRedisAudit, clearRedisSessions, consumeRateLimit, createRedisSession, deleteRedisMedia, destroyRedisSession, getRedisClient, listRedisMediaNames, readRedisAudit, readRedisJson, readRedisMedia, saveRedisMedia, saveRedisPublicData, verifyRedisSession, writeRedisJson } from './redisStore.js';
 import { getSessionToken, requireRedisAuth } from './redisSession.js';
 
 const loadCredentials = async (redis, env) => {
@@ -25,6 +26,7 @@ const createRedisHandler = (env, isProduction, runtime) => createStorageApiHandl
   env,
   isProduction,
   getContext: () => getRedisClient(env),
+  health: async () => { await (await getRedisClient(env)).ping(); },
   rateLimit: async (scope, clientIp, limit, windowSeconds) => consumeRateLimit(await getRedisClient(env), env, scope, clientIp, limit, windowSeconds),
   auth: {
     require: (request, response, redis) => requireRedisAuth(request, response, redis, env),
@@ -44,18 +46,19 @@ const createRedisHandler = (env, isProduction, runtime) => createStorageApiHandl
   data: {
     read: (redis, key) => readRedisJson(redis, env, key),
     write: (redis, key, value) => writeRedisJson(redis, env, key, value),
-    savePublic: (redis, value, expectedUpdatedAt) => saveRedisPublicData(redis, env, value, expectedUpdatedAt)
+    savePublic: (redis, value, expectedUpdatedAt) => saveRedisPublicData(redis, env, value, expectedUpdatedAt),
+    metrics: async (redis) => buildPublicDataMetrics(await readRedisJson(redis, env, 'public_data'))
   },
   media: {
     read: (redis, name) => readRedisMedia(redis, env, name),
     write: (redis, name, contentType, bytes) => saveRedisMedia(redis, env, name, contentType, bytes),
-    delete: (redis, name) => deleteRedisKey(redis, env, `media:${name}`),
+    delete: (redis, name) => deleteRedisMedia(redis, env, name),
     gc: async (redis, publicData, limit) => {
       const references = parseMediaReferences(publicData);
       const allNames = await listRedisMediaNames(redis, env);
       const removable = allNames.filter((name) => !references.has(name));
       const candidates = removable.slice(0, limit);
-      for (const name of candidates) await deleteRedisKey(redis, env, `media:${name}`);
+      for (const name of candidates) await deleteRedisMedia(redis, env, name);
       return {
         checked: allNames.length,
         removed: candidates.length,

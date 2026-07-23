@@ -1,7 +1,6 @@
-import { dbGetJson, dbSetJson } from '../core/kvStore.js';
-import { collectSqliteMediaNames } from '../core/mediaGc.js';
+import { dbGetJson, dbGetMedia, dbListMediaNames, dbSetJson, dbSetMedia } from '../core/kvStore.js';
 import { normalizeMediaName } from '../sharedSecurity.js';
-import { listRedisMediaNames, readRedisJson, writeRedisJson } from './redisStore.js';
+import { listRedisMediaNames, readRedisJson, readRedisMedia, saveRedisMedia, writeRedisJson } from './redisStore.js';
 import { normalizePublicDataPayload } from '../publicDataValidation.js';
 
 export const TRANSFER_DATA_KEYS = ['public_data', 'private_data'];
@@ -10,14 +9,18 @@ export const createSqliteTransferDriver = (db) => ({
   mode: 'sqlite',
   readJson: async (key) => dbGetJson(db, key),
   writeJson: async (key, value) => { dbSetJson(db, key, value); },
-  listMediaNames: async () => collectSqliteMediaNames(db)
+  listMediaNames: async () => dbListMediaNames(db),
+  readMedia: async (name) => dbGetMedia(db, name),
+  writeMedia: async (name, media) => dbSetMedia(db, name, media.contentType, media.bytes)
 });
 
 export const createRedisTransferDriver = (redis, env) => ({
   mode: 'redis',
   readJson: (key) => readRedisJson(redis, env, key),
   writeJson: (key, value) => writeRedisJson(redis, env, key, value),
-  listMediaNames: () => listRedisMediaNames(redis, env)
+  listMediaNames: () => listRedisMediaNames(redis, env),
+  readMedia: (name) => readRedisMedia(redis, env, name),
+  writeMedia: (name, media) => saveRedisMedia(redis, env, name, media.contentType, media.bytes)
 });
 
 export const transferStorageData = async (source, target) => {
@@ -51,9 +54,15 @@ export const transferStorageMediaBatch = async (source, target, limit = 50) => {
 
   let copied = 0;
   for (const name of batch) {
-    const value = await source.readJson(`media:${name}`);
+    const value = source.readMedia
+      ? await source.readMedia(name)
+      : await source.readJson(`media:${name}`);
     if (value === null || value === undefined) continue;
-    await target.writeJson(`media:${name}`, value);
+    if (target.writeMedia && value.bytes) {
+      await target.writeMedia(name, value);
+    } else {
+      await target.writeJson(`media:${name}`, value);
+    }
     copied += 1;
   }
 

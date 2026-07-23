@@ -85,12 +85,12 @@ describe('Redis storage API runtime', () => {
     await handleRedisStorageApi(createRequest('/api/storage?key=driver', 'POST'), methodResponse, { env: {} });
     expect(methodResponse.statusCode).toBe(405);
     expect(methodResponse.getHeader('allow')).toBe('GET');
-    expect(methodResponse.json()).toEqual({ success: false, error: 'Method not allowed' });
+    expect(methodResponse.json()).toEqual({ success: false, code: 'METHOD_NOT_ALLOWED', error: 'Method not allowed' });
 
     const bodyResponse = createResponse();
     await handleRedisStorageApi(createRequest('/api/storage/login', 'POST', 'null'), bodyResponse, { env: {} });
     expect(bodyResponse.statusCode).toBe(400);
-    expect(bodyResponse.json()).toEqual({ success: false, error: 'JSON body must be an object' });
+    expect(bodyResponse.json()).toEqual({ success: false, code: 'BAD_REQUEST', error: 'JSON body must be an object' });
   });
 
   it('returns the shared missing-key error', async () => {
@@ -98,6 +98,6 @@ describe('Redis storage API runtime', () => {
     await handleRedisStorageApi(createRequest('/api/storage'), response, { env: {} });
 
     expect(response.statusCode).toBe(400);
-    expect(response.json()).toEqual({ success: false, error: 'Missing key parameter' });
+    expect(response.json()).toEqual({ success: false, code: 'BAD_REQUEST', error: 'Missing key parameter' });
   });
 });

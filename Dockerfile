@@ -34,6 +34,6 @@ RUN mkdir -p data \
     && chown -R node:node /app \
     && chmod +x /usr/local/bin/docker-entrypoint.sh
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD node -e "fetch('http://127.0.0.1:3000/api/storage?key=ping').then((response)=>{if(!response.ok)process.exit(1)}).catch(()=>process.exit(1))"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD node -e "fetch('http://127.0.0.1:3000/api/storage?key=ready').then((response)=>{if(!response.ok)process.exit(1)}).catch(()=>process.exit(1))"
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "server.js"]

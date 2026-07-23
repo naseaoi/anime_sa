@@ -1,9 +1,10 @@
 import { createStorageApiHandler } from './storageApiHandler.js';
 import { getPublicDataUpdatedAt } from '../publicDataValidation.js';
+import { buildPublicDataMetrics } from './dataMetrics.js';
 import { appendAuditLog } from './auditStore.js';
 import { normalizeAuditWritePayload } from './auditContract.js';
 import { BODY_LIMIT_BYTES, MEDIA_BODY_LIMIT_BYTES, SESSION_COOKIE } from './constants.js';
-import { dbDelete, dbGetJson, dbSetJson, ensureDb } from './kvStore.js';
+import { dbDelete, dbDeleteMedia, dbGetJson, dbGetMedia, dbSetJson, dbSetMedia, ensureDb } from './kvStore.js';
 import {
   errorResponse,
   getClientIp,
@@ -42,6 +43,7 @@ const createSqliteHandler = (env, isProduction) => createStorageApiHandler({
   env,
   isProduction,
   getContext: async () => ensureDb(),
+  health: async () => { ensureDb(); },
   auth: {
     require: (request, response, database) => requireAuth(request, response, database),
     getToken: (request) => parseCookies(request.headers.cookie || '')[SESSION_COOKIE],
@@ -61,29 +63,22 @@ const createSqliteHandler = (env, isProduction) => createStorageApiHandler({
     read: (database, key) => dbGetJson(database, key),
     write: (database, key, value) => dbSetJson(database, key, value),
     savePublic: (database, value, expectedUpdatedAt) => {
-      if (expectedUpdatedAt !== undefined) {
-        const current = dbGetJson(database, 'public_data');
-        const currentUpdatedAt = getPublicDataUpdatedAt(current);
-        if (currentUpdatedAt !== expectedUpdatedAt) {
-          return { success: false, currentUpdatedAt };
+      const save = database.transaction(() => {
+        if (expectedUpdatedAt !== undefined) {
+          const currentUpdatedAt = getPublicDataUpdatedAt(dbGetJson(database, 'public_data'));
+          if (currentUpdatedAt !== expectedUpdatedAt) return { success: false, currentUpdatedAt };
         }
-      }
-      dbSetJson(database, 'public_data', value);
-      return { success: true };
-    }
+        dbSetJson(database, 'public_data', value);
+        return { success: true };
+      });
+      return save();
+    },
+    metrics: (database) => buildPublicDataMetrics(dbGetJson(database, 'public_data'))
   },
   media: {
-    read: (database, name) => {
-      const media = dbGetJson(database, `media:${name}`);
-      if (!media?.base64) return null;
-      return { contentType: String(media.contentType || 'application/octet-stream'), bytes: Buffer.from(media.base64, 'base64') };
-    },
-    write: (database, name, contentType, bytes) => dbSetJson(database, `media:${name}`, {
-      contentType,
-      base64: bytes.toString('base64'),
-      updatedAt: Date.now()
-    }),
-    delete: (database, name) => dbDelete(database, `media:${name}`),
+    read: (database, name) => dbGetMedia(database, name),
+    write: (database, name, contentType, bytes) => dbSetMedia(database, name, contentType, bytes),
+    delete: (database, name) => dbDeleteMedia(database, name),
     gc: (database, publicData, limit) => cleanupSqliteUnusedMedia(database, parseMediaReferences(publicData), limit)
   },
   audit: {

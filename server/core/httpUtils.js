@@ -1,5 +1,21 @@
 import { BODY_LIMIT_BYTES } from './constants.js';
 
+const ERROR_CODES = Object.freeze({
+  400: 'BAD_REQUEST',
+  401: 'UNAUTHORIZED',
+  403: 'FORBIDDEN',
+  404: 'NOT_FOUND',
+  405: 'METHOD_NOT_ALLOWED',
+  409: 'CONFLICT',
+  413: 'PAYLOAD_TOO_LARGE',
+  415: 'UNSUPPORTED_MEDIA_TYPE',
+  429: 'RATE_LIMITED',
+  500: 'INTERNAL_ERROR',
+  501: 'NOT_IMPLEMENTED',
+  502: 'UPSTREAM_ERROR',
+  503: 'SERVICE_UNAVAILABLE'
+});
+
 export const jsonResponse = (response, status, payload) => {
   response.statusCode = status;
   response.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -9,7 +25,7 @@ export const jsonResponse = (response, status, payload) => {
 };
 
 export const errorResponse = (response, status, error, details = {}) => (
-  jsonResponse(response, status, { ...details, success: false, error })
+  jsonResponse(response, status, { ...details, success: false, code: ERROR_CODES[status] || 'REQUEST_FAILED', error })
 );
 
 export const methodNotAllowed = (response, allowedMethods) => {

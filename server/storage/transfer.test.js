@@ -150,7 +150,8 @@ describe('storage transfer driver integration', () => {
     expect(dataResult.copied).toEqual(TRANSFER_DATA_KEYS);
     expect(mediaResult.copied).toBe(1);
     expect(JSON.parse(redis.values.get('test:public_data'))).toMatchObject(createPublicData(9));
-    expect(JSON.parse(redis.values.get('test:media:cover.webp'))).toEqual({ contentType: 'image/webp', base64: 'aa' });
+    expect(Buffer.isBuffer(redis.values.get('test:media:cover.webp'))).toBe(true);
+    expect(JSON.parse(redis.values.get('test:media-meta:cover.webp'))).toMatchObject({ contentType: 'image/webp' });
   });
 
   it('moves data and media from redis back to sqlite', async () => {
@@ -168,7 +169,10 @@ describe('storage transfer driver integration', () => {
     expect(dataResult.copied).toEqual(['public_data']);
     expect(mediaResult.copied).toBe(1);
     expect(await target.readJson('public_data')).toMatchObject(createPublicData(12));
-    expect(await target.readJson('media:cover.webp')).toEqual({ contentType: 'image/webp', base64: 'bb' });
+    expect(await target.readMedia('cover.webp')).toEqual({
+      contentType: 'image/webp',
+      bytes: Buffer.from('bb', 'base64')
+    });
   });
 
   it('reruns without duplicating media already present in the target', async () => {
