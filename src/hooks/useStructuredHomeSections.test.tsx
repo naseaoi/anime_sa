@@ -42,4 +42,25 @@ describe('useStructuredHomeSections', () => {
     expect(results[0]?.tagSections.map((section) => section.tag.id)).toEqual(['anime', 'favorite']);
     expect(results[0]?.tagSections.every((section) => section.cards[0]?.id === card.id)).toBe(true);
   });
+
+  it('does not repeat Hero cards in the recommendation shelf', async () => {
+    const heroCard = { ...card, id: 'hero', isRecommended: true };
+    const recommendedCard = { ...card, id: 'recommended', isRecommended: true, tagIds: [] };
+    const results: Array<StructuredHomeSections | null> = [];
+    const Probe = () => {
+      results.push(useStructuredHomeSections({
+        isStructuredHome: true,
+        heroCards: [heroCard],
+        filteredCards: [heroCard, recommendedCard],
+        tags,
+        sectionCardLimit: 0
+      }));
+      return null;
+    };
+
+    await act(async () => { create(<Probe />); });
+
+    expect(results[0]?.recommendedCards.map((item) => item.id)).toEqual(['recommended']);
+    expect(results[0]?.tagSections.flatMap((section) => section.cards.map((item) => item.id))).not.toContain('hero');
+  });
 });

@@ -43,7 +43,7 @@ export const useStructuredHomeSections = (params: Params): StructuredHomeSection
     }
 
     // 精选推荐区沿用当前排序，不因轮播抽走卡片而打乱顺序
-    for (const card of filteredCards) {
+    for (const card of nonHeroCards) {
       if (card.isRecommended) {
         recommendedCards.push(card);
         usedCardIds.add(card.id);
