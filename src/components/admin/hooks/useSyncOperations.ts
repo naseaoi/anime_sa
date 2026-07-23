@@ -144,11 +144,8 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
   const runTransfer = useCallback(async (source: StorageMode, target: StorageMode) => {
     const { showToast: notify, reloadInfo: refresh } = depsRef.current;
     setTransferring(true);
-    setTransferProgress({ stage: 'data', copied: 0, pending: 0, total: 0 });
+    setTransferProgress({ stage: 'media', copied: 0, pending: 0, total: 0 });
     try {
-      const dataResult = await runStorageDataTransfer(source, target);
-      if (!dataResult.success) throw new Error(dataResult.error);
-
       let copiedTotal = 0;
       let skippedTotal = 0;
       while (true) {
@@ -160,6 +157,10 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
         if (!result.hasMore) break;
         if (result.copied === 0) throw new Error(`存在无法复制的封面资源（剩余 ${result.pending} 个）`);
       }
+
+      setTransferProgress({ stage: 'data', copied: copiedTotal, pending: 0, total: copiedTotal });
+      const dataResult = await runStorageDataTransfer(source, target);
+      if (!dataResult.success) throw new Error(dataResult.error);
 
       notify(`数据传输完成：封面 ${copiedTotal} 个${skippedTotal > 0 ? `，跳过 ${skippedTotal} 个` : ''}`, 'success');
       refresh();

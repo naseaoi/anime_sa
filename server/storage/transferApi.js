@@ -10,6 +10,7 @@ import {
 } from '../core/httpUtils.js';
 import { ensureDb } from '../core/kvStore.js';
 import { enforceSameOrigin } from '../core/requestOrigin.js';
+import { clearCookie } from '../core/sessionCookie.js';
 import { requireAuth } from '../core/sessionStore.js';
 import { listAvailableDrivers } from '../core/storageDriver.js';
 import { requireRedisAuth } from './redisSession.js';
@@ -85,7 +86,14 @@ export const handleStorageTransferApi = async (req, res, { env, driver }) => {
         status: 'success',
         details: `scope=data source=${source} target=${target} copied=${result.copied.join(',') || 'none'} ip=${getClientIp(req, env)}`
       });
-      return jsonResponse(res, 200, { success: true, copied: result.copied });
+      if (result.credentialsChanged && targetMode === driver) {
+        res.setHeader('Set-Cookie', clearCookie(env.NODE_ENV === 'production'));
+      }
+      return jsonResponse(res, 200, {
+        success: true,
+        copied: result.copied,
+        requireRelogin: result.credentialsChanged && targetMode === driver
+      });
     }
 
     const limit = readBoundedInteger(body.limit, 50, 1, 200);

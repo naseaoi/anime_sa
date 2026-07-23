@@ -187,7 +187,7 @@ api/storage.ts → Redis storage API → server/storage
 `/api/storage/transfer` 仅在 Node.js / Docker 运行时挂载：
 
 - `GET` 返回活动驱动与可用驱动列表。
-- `POST scope=data` 复制 `public_data` 与 `private_data`。
+- `POST scope=data` 复制 `public_data` 与 `private_data`，凭据变化会清除目标存储的 Session。
 - `POST scope=media` 按名称差集分批复制封面，响应携带 `pending`/`hasMore` 供前端循环。
 - Session、限流和审计日志属于运行环境本地状态，不参与传输。
 
@@ -197,8 +197,8 @@ api/storage.ts → Redis storage API → server/storage
 
 配置 `REDIS_URL` 后，后台「同步」页提供 SQLite 与 Redis 之间的双向传输：
 
-- 「备份到 X」把活动存储的公共数据、管理员凭据与封面复制到另一存储。
-- 「从 X 恢复」反向复制并覆盖活动存储，完成后页面自动刷新。
+- 「备份到 X」先复制封面，再把活动存储的公共数据和管理员凭据复制到另一存储。
+- 「从 X 恢复」先复制封面，再覆盖活动存储的数据和凭据；目标 Session 会失效，完成后页面自动刷新并要求重新登录。
 - 传输只新增或覆盖同名数据；目标中多出的封面可在恢复后执行「清理未引用封面」。
 
 ### SQLite

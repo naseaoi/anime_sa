@@ -12,8 +12,10 @@ const createMemoryDriver = (initial = {}) => {
   const store = new Map(Object.entries(initial));
   return {
     store,
+    sessionsCleared: 0,
     readJson: async (key) => (store.has(key) ? store.get(key) : null),
     writeJson: async (key, value) => { store.set(key, value); },
+    clearSessions: async function clearSessions() { this.sessionsCleared += 1; },
     listMediaNames: async () => [...store.keys()]
       .filter((key) => key.startsWith('media:'))
       .map((key) => key.slice('media:'.length))
@@ -39,7 +41,9 @@ describe('storage transfer', () => {
 
     const result = await transferStorageData(source, target);
 
-    expect(result.copied).toEqual(TRANSFER_DATA_KEYS);
+    expect(result.copied).toEqual(['private_data', 'public_data']);
+    expect(result.credentialsChanged).toBe(true);
+    expect(target.sessionsCleared).toBe(1);
     expect(target.store.get('public_data')).toMatchObject(createPublicData(42));
     expect(target.store.get('private_data')).toEqual({ username: 'admin', passwordHash: 'hash' });
   });
@@ -51,6 +55,8 @@ describe('storage transfer', () => {
     const result = await transferStorageData(source, target);
 
     expect(result.copied).toEqual(['public_data']);
+    expect(result.credentialsChanged).toBe(false);
+    expect(target.sessionsCleared).toBe(0);
     expect(target.store.has('private_data')).toBe(false);
   });
 
@@ -119,6 +125,13 @@ class FakeRedis {
   constructor() { this.values = new Map(); }
   async get(key) { return this.values.get(key) ?? null; }
   async set(key, value) { this.values.set(key, value); return 'OK'; }
+  async del(input) {
+    const keys = Array.isArray(input) ? input : [input];
+    let removed = 0;
+    for (const key of keys) removed += this.values.delete(key) ? 1 : 0;
+    return removed;
+  }
+  async sMembers() { return []; }
   async *scanIterator({ MATCH }) {
     const prefix = String(MATCH || '').replace(/\*$/, '');
     yield [...this.values.keys()].filter((key) => key.startsWith(prefix));
@@ -147,7 +160,7 @@ describe('storage transfer driver integration', () => {
     const dataResult = await transferStorageData(source, target);
     const mediaResult = await transferStorageMediaBatch(source, target, 10);
 
-    expect(dataResult.copied).toEqual(TRANSFER_DATA_KEYS);
+    expect(dataResult.copied).toEqual(['private_data', 'public_data']);
     expect(mediaResult.copied).toBe(1);
     expect(JSON.parse(redis.values.get('test:public_data'))).toMatchObject(createPublicData(9));
     expect(Buffer.isBuffer(redis.values.get('test:media:cover.webp'))).toBe(true);

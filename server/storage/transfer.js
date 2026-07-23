@@ -1,6 +1,14 @@
 import { dbGetJson, dbGetMedia, dbListMediaNames, dbSetJson, dbSetMedia } from '../core/kvStore.js';
+import { clearAllSessions } from '../core/sessionStore.js';
 import { normalizeMediaName } from '../sharedSecurity.js';
-import { listRedisMediaNames, readRedisJson, readRedisMedia, saveRedisMedia, writeRedisJson } from './redisStore.js';
+import {
+  clearRedisSessions,
+  listRedisMediaNames,
+  readRedisJson,
+  readRedisMedia,
+  saveRedisMedia,
+  writeRedisJson
+} from './redisStore.js';
 import { normalizePublicDataPayload } from '../publicDataValidation.js';
 
 export const TRANSFER_DATA_KEYS = ['public_data', 'private_data'];
@@ -9,6 +17,7 @@ export const createSqliteTransferDriver = (db) => ({
   mode: 'sqlite',
   readJson: async (key) => dbGetJson(db, key),
   writeJson: async (key, value) => { dbSetJson(db, key, value); },
+  clearSessions: async () => { clearAllSessions(db); },
   listMediaNames: async () => dbListMediaNames(db),
   readMedia: async (name) => dbGetMedia(db, name),
   writeMedia: async (name, media) => dbSetMedia(db, name, media.contentType, media.bytes)
@@ -18,13 +27,14 @@ export const createRedisTransferDriver = (redis, env) => ({
   mode: 'redis',
   readJson: (key) => readRedisJson(redis, env, key),
   writeJson: (key, value) => writeRedisJson(redis, env, key, value),
+  clearSessions: () => clearRedisSessions(redis, env),
   listMediaNames: () => listRedisMediaNames(redis, env),
   readMedia: (name) => readRedisMedia(redis, env, name),
   writeMedia: (name, media) => saveRedisMedia(redis, env, name, media.contentType, media.bytes)
 });
 
 export const transferStorageData = async (source, target) => {
-  const copied = [];
+  const values = new Map();
   for (const key of TRANSFER_DATA_KEYS) {
     let value = await source.readJson(key);
     if (value === null || value === undefined) continue;
@@ -32,10 +42,18 @@ export const transferStorageData = async (source, target) => {
       value = normalizePublicDataPayload(value);
       if (!value) throw new Error('Source public_data is invalid');
     }
-    await target.writeJson(key, value);
+    values.set(key, value);
+  }
+
+  const copied = [];
+  for (const key of ['private_data', 'public_data']) {
+    if (!values.has(key)) continue;
+    await target.writeJson(key, values.get(key));
     copied.push(key);
   }
-  return { copied };
+  const credentialsChanged = copied.includes('private_data');
+  if (credentialsChanged) await target.clearSessions?.();
+  return { copied, credentialsChanged };
 };
 
 export const transferStorageMediaBatch = async (source, target, limit = 50) => {

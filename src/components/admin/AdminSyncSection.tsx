@@ -126,7 +126,7 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syn
             {syncOps.transferProgress && syncOps.transferring && (
               <p className="mt-3 text-xs text-[color:var(--text-secondary)]">
                 {syncOps.transferProgress.stage === 'data'
-                  ? '正在传输站点数据…'
+                  ? '正在切换站点数据…'
                   : `正在传输封面：已复制 ${syncOps.transferProgress.copied} 个，待处理 ${syncOps.transferProgress.pending} 个`}
               </p>
             )}
