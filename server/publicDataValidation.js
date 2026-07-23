@@ -81,6 +81,7 @@ const {
   maxRating: MAX_RATING
 } = PUBLIC_DATA_LIMITS;
 
+/** @param {unknown} value @returns {value is Record<string, unknown>} */
 const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 const readString = (value, maxLength, allowEmpty = true) => {
@@ -102,6 +103,7 @@ const readTimestamp = (value, optional = false) => {
   return timestamp;
 };
 
+/** @param {unknown} value @param {number} maxLength */
 const isSafeAssetUrl = (value, maxLength) => {
   if (typeof value !== 'string' || value.length > maxLength) return false;
   if (!value) return true;
@@ -122,6 +124,7 @@ const normalizeSettings = (value) => {
   if (title === null || iconUrl === null || !isSafeAssetUrl(iconUrl, MAX_ASSET_URL_LENGTH)) return null;
 
   const themeColor = readOptionalString(value.themeColor, 7);
+  if (themeColor === null) return null;
   if (themeColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(themeColor)) return null;
 
   const footerText = readOptionalString(value.footerText, MAX_FOOTER_LENGTH);
@@ -131,7 +134,14 @@ const normalizeSettings = (value) => {
   if (value.footerLeft !== undefined && footerLeft === null) return null;
   if (value.footerRight !== undefined && footerRight === null) return null;
 
-  return { title, iconUrl, themeColor, footerText, footerLeft, footerRight };
+  return {
+    title,
+    iconUrl,
+    themeColor: themeColor ?? undefined,
+    footerText: footerText ?? undefined,
+    footerLeft: footerLeft ?? undefined,
+    footerRight: footerRight ?? undefined
+  };
 };
 
 const normalizeTags = (value) => {
@@ -203,7 +213,7 @@ const normalizeCards = (value, tagIds) => {
       title,
       coverUrl,
       coverVariants,
-      coverLocalData,
+      coverLocalData: coverLocalData ?? undefined,
       description,
       startDate,
       endDate,
@@ -211,8 +221,8 @@ const normalizeCards = (value, tagIds) => {
       tagIds: cardTagIds,
       isRecommended: item.isRecommended === true,
       isWatching: item.isWatching === true,
-      createdAt,
-      updatedAt
+      createdAt: /** @type {number} */ (createdAt),
+      updatedAt: /** @type {number} */ (updatedAt)
     });
   }
   return cards;
@@ -224,7 +234,7 @@ export const getPublicDataUpdatedAt = (value) => {
   const direct = readTimestamp(value.updatedAt, true);
   if (direct !== null && direct !== undefined) return direct;
   if (!Array.isArray(value.cards)) return 0;
-  return value.cards.reduce((max, card) => {
+  return /** @type {Array<Record<string, unknown>>} */ (value.cards).reduce((max, card) => {
     const timestamp = readTimestamp(card?.updatedAt, true);
     return timestamp === null || timestamp === undefined ? max : Math.max(max, timestamp);
   }, 0);

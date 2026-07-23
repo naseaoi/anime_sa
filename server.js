@@ -28,7 +28,7 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT || 3000);
 const DIST_DIR = path.join(process.cwd(), 'dist');
 const DATA_DIR = resolveSqliteDataDir(process.env);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
@@ -82,7 +82,7 @@ const getCachedStat = async (filePath) => {
     statCache.set(filePath, entry);
     return entry;
   } catch (err) {
-    if (err && err.code === 'ENOENT') {
+    if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
       const entry = { stat: null, isDirectory: false, missing: true, exp: now + STAT_CACHE_TTL_MS };
       statCache.set(filePath, entry);
       return entry;
@@ -167,7 +167,7 @@ const checkRateLimit = (req, res, scope, max, windowMs) => {
 
 const server = http.createServer(async (req, res) => {
   setSecurityHeaders(res, IS_PRODUCTION);
-  const url = new URL(req.url, `http://${req.headers.host}`);
+  const url = new URL(req.url || '/', `http://${req.headers.host || 'local'}`);
 
   if (url.pathname.startsWith('/api/storage') || url.pathname.startsWith('/api/sqlite')) {
     if (url.pathname === '/api/storage/transfer') {

@@ -276,6 +276,7 @@ vite.config.ts         Vite 配置 + 开发态 API 中间件
 data/local.db          SQLite 数据文件（运行时自动创建）
 docs/RELEASE.md        发布流程
 docs/MAINTAINER_GUIDE.md 项目独有约束、易错点与改动检查表
+docs/TECH_DEBT_BACKLOG.md 技术债、重构优先级与验收清单
 ```
 
 ## 技术栈
@@ -291,6 +292,7 @@ docs/MAINTAINER_GUIDE.md 项目独有约束、易错点与改动检查表
 
 - 版本 tag 与镜像发布流程见 [docs/RELEASE.md](docs/RELEASE.md)。
 - 接手项目或开始结构性改造前，先读 [docs/MAINTAINER_GUIDE.md](docs/MAINTAINER_GUIDE.md)。
+- 重构规划与技术债优先级见 [docs/TECH_DEBT_BACKLOG.md](docs/TECH_DEBT_BACKLOG.md)。
 
 ## License
 

@@ -66,15 +66,17 @@ export const handleStorageTransferApi = async (req, res, { env, driver }) => {
     const source = String(body?.source || '');
     const target = String(body?.target || '');
     const scope = String(body?.scope || '');
-    if (!available.includes(source) || !available.includes(target) || source === target) {
+    const sourceMode = /** @type {'sqlite' | 'redis'} */ (source);
+    const targetMode = /** @type {'sqlite' | 'redis'} */ (target);
+    if (!available.includes(sourceMode) || !available.includes(targetMode) || sourceMode === targetMode) {
       return errorResponse(res, 400, 'Invalid source/target driver');
     }
     if (!TRANSFER_SCOPES.has(scope)) {
       return errorResponse(res, 400, 'Invalid transfer scope');
     }
 
-    const sourceDriver = await openTransferDriver(env, source);
-    const targetDriver = await openTransferDriver(env, target);
+    const sourceDriver = await openTransferDriver(env, sourceMode);
+    const targetDriver = await openTransferDriver(env, targetMode);
 
     if (scope === 'data') {
       const result = await transferStorageData(sourceDriver, targetDriver);
@@ -95,7 +97,9 @@ export const handleStorageTransferApi = async (req, res, { env, driver }) => {
     });
     return jsonResponse(res, 200, { success: true, ...result });
   } catch (error) {
-    if (error?.code === 'PAYLOAD_TOO_LARGE') return errorResponse(res, 413, 'Payload too large');
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'PAYLOAD_TOO_LARGE') {
+      return errorResponse(res, 413, 'Payload too large');
+    }
     console.error('Storage transfer API error:', error);
     try {
       await appendActiveAudit(env, driver, {

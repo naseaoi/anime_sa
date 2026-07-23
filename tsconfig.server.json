@@ -5,12 +5,13 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowJs": true,
-    "checkJs": false,
+    "checkJs": true,
     "noEmit": true,
     "strict": true,
+    "noImplicitAny": false,
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "server/**/*.ts", "api/**/*.ts"],
-  "exclude": ["**/*.test.ts", "node_modules"]
+  "include": ["vite.config.ts", "server/**/*.ts", "server/**/*.js", "api/**/*.ts", "shared/**/*.js", "server.js"],
+  "exclude": ["**/*.test.*", "node_modules"]
 }

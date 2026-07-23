@@ -24,6 +24,7 @@ export const readBody = async (request, limit = BODY_LIMIT_BYTES) => {
       : Buffer.from(typeof request.body === 'string' ? request.body : JSON.stringify(request.body));
     if (body.length > limit) {
       const error = new Error('Payload too large');
+      // @ts-expect-error Application error code
       error.code = 'PAYLOAD_TOO_LARGE';
       throw error;
     }
@@ -37,6 +38,7 @@ export const readBody = async (request, limit = BODY_LIMIT_BYTES) => {
     received += buffer.length;
     if (received > limit) {
       const error = new Error('Payload too large');
+      // @ts-expect-error Application error code
       error.code = 'PAYLOAD_TOO_LARGE';
       throw error;
     }
