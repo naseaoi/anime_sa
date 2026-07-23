@@ -17,6 +17,7 @@ import { useSyncOperations } from './admin/hooks/useSyncOperations';
 import { persistCardCover } from '../services/coverAssetService';
 import { clearCardDrafts } from '../utils/cardDraft';
 import { failedResult, isPersisted, PersistenceResult, stagedResult } from '../domain/persistence';
+import { errorMessage } from '../services/apiClient';
 
 interface AdminLayoutProps {
   initialData: PublicData;
@@ -98,9 +99,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
         'success'
       );
       return result;
-    } catch (error: any) {
-      showToast(`保存失败: ${error?.message || '未知错误'}`, 'error');
-      return failedResult(error?.message || '未知错误');
+    } catch (error: unknown) {
+      const message = errorMessage(error, '未知错误');
+      showToast(`保存失败: ${message}`, 'error');
+      return failedResult(message);
     }
   }, [initialData.cards, refreshData, showToast]);
 

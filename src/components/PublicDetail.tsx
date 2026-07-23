@@ -16,6 +16,7 @@ import { getCoverAmbientColor } from '../utils/coverAmbientColor';
 import { applyPageMetadata } from '../utils/seo';
 import { updateCardData } from '../domain/card';
 import { failedResult, persistedResult } from '../domain/persistence';
+import { errorMessage } from '../services/apiClient';
 
 const CardEditModal = React.lazy(() => import('./CardEditModal').then((m) => ({ default: m.CardEditModal })));
 
@@ -117,9 +118,10 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
         showToast(`保存失败: ${result.error}`, 'error');
         return result;
       }
-    } catch (e: any) {
-      showToast(`封面处理失败: ${e?.message || '未知错误'}`, 'error');
-      return failedResult(e?.message || '未知错误');
+    } catch (error: unknown) {
+      const message = errorMessage(error, '未知错误');
+      showToast(`封面处理失败: ${message}`, 'error');
+      return failedResult(message);
     }
   };
 

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { PublicData, SiteSettings } from '../../types';
 import { getAdminProfile, logoutServerSession, updateAdminCredentials } from '../../services/storageFactory';
+import { errorMessage } from '../../services/apiClient';
 import { DEFAULT_THEME_COLOR, isValidThemeColor } from '../../utils/themeColor';
 import { Button, ConfirmModal, Input, useToast } from '../Common';
 import { AdminPanel } from './ui';
@@ -33,7 +34,7 @@ export const AdminSettingsSection: React.FC<AdminSettingsSectionProps> = ({ data
         setUsername(profile.username);
         setInitialUsername(profile.username);
       })
-      .catch((e: any) => showToast(e?.message || '读取管理员信息失败', 'error'));
+      .catch((error: unknown) => showToast(errorMessage(error, '读取管理员信息失败'), 'error'));
   }, [showToast]);
 
   const updateSettings = (nextSettings: SiteSettings) => {

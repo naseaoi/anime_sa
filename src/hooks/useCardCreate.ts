@@ -5,6 +5,7 @@ import { persistCardCover } from '../services/coverAssetService';
 import { useToast } from '../components/Common';
 import { createCardData } from '../domain/card';
 import { failedResult, persistedResult } from '../domain/persistence';
+import { errorMessage } from '../services/apiClient';
 
 export const QUICK_CREATE_INITIAL_CARD: Partial<CardData> = {
   tagIds: [],
@@ -45,9 +46,10 @@ export const useCardCreate = (data: PublicData, refreshData?: () => Promise<void
         showToast(result.error || '失败', 'error');
         return result;
       }
-    } catch (e: any) {
-      showToast(`封面处理失败: ${e?.message || '未知错误'}`, 'error');
-      return failedResult(e?.message || '未知错误');
+    } catch (error: unknown) {
+      const message = errorMessage(error, '未知错误');
+      showToast(`封面处理失败: ${message}`, 'error');
+      return failedResult(message);
     }
   };
 

@@ -253,6 +253,9 @@ Redis 运维要点：
 | `npm run audit:prod` | 生产依赖安全审计 |
 | `npm run audit:all` | 全部依赖安全审计 |
 | `npm test` | 运行测试（Vitest） |
+| `npm run test:coverage` | 运行测试并检查覆盖率门槛 |
+| `npm run test:e2e` | 运行浏览器冒烟测试 |
+| `npm run verify:sqlite-backup -- .\\backups\\local.db` | 校验 SQLite 备份完整性 |
 
 代码改动后依次执行 `npm run lint`、`npm test`、`npm run build` 验证。
 

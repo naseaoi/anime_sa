@@ -8,6 +8,7 @@ import {
 } from '../../../services/storageFactory';
 import { CoverProcessFailure, forceOptimizeUrlCardCovers, optimizeCardCoverVariants } from '../../../services/coverAssetService';
 import { isPersisted, PersistenceResult } from '../../../domain/persistence';
+import { errorMessage } from '../../../services/apiClient';
 
 export interface GcProgress {
   rounds: number;
@@ -86,8 +87,8 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
       }
       notify(`封面清理完成：删除 ${totalRemoved} 个未引用资源`, 'success');
       refresh();
-    } catch (error: any) {
-      notify(`封面清理失败: ${error.message}`, 'error');
+    } catch (error: unknown) {
+      notify(`封面清理失败: ${errorMessage(error, '未知错误')}`, 'error');
     } finally {
       setGcRunning(false);
     }
@@ -113,8 +114,8 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
       }
       const persisted = await persist({ ...readData(), cards: result.cards }, buildSuccess(result.optimized, result.failed));
       if (isPersisted(persisted)) refresh();
-    } catch (error: any) {
-      notify(`${errorLabel}: ${error?.message || '未知错误'}`, 'error');
+    } catch (error: unknown) {
+      notify(`${errorLabel}: ${errorMessage(error, '未知错误')}`, 'error');
     } finally {
       setOptimizingCovers(false);
     }
@@ -163,8 +164,8 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
       notify(`数据传输完成：封面 ${copiedTotal} 个${skippedTotal > 0 ? `，跳过 ${skippedTotal} 个` : ''}`, 'success');
       refresh();
       return true;
-    } catch (error: any) {
-      notify(`数据传输失败: ${error?.message || '未知错误'}`, 'error');
+    } catch (error: unknown) {
+      notify(`数据传输失败: ${errorMessage(error, '未知错误')}`, 'error');
       return false;
     } finally {
       setTransferring(false);

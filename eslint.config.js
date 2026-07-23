@@ -47,7 +47,7 @@ export default tseslint.config(
       'react-hooks': reactHooks
     },
     rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
       'jsx-a11y/alt-text': 'error',
       'jsx-a11y/aria-props': 'error',
@@ -65,6 +65,12 @@ export default tseslint.config(
       'no-restricted-imports': ['error', {
         patterns: ['**/components/**', '**/hooks/**', '**/services/**']
       }]
+    }
+  },
+  {
+    files: ['**/*.test.{ts,tsx}'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off'
     }
   },
   {
