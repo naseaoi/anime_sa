@@ -1,3 +1,48 @@
+/**
+ * @typedef {object} PublicTag
+ * @property {string} id
+ * @property {string} name
+ * @property {string} [slug]
+ * @property {string} [icon]
+ */
+
+/**
+ * @typedef {object} PublicCard
+ * @property {string} id
+ * @property {string} title
+ * @property {string} coverUrl
+ * @property {{thumb?: string, card?: string, original?: string}} [coverVariants]
+ * @property {string} [coverLocalData]
+ * @property {string} description
+ * @property {string} startDate
+ * @property {string} endDate
+ * @property {number} rating
+ * @property {string[]} tagIds
+ * @property {boolean} isRecommended
+ * @property {boolean} isWatching
+ * @property {number} createdAt
+ * @property {number} updatedAt
+ */
+
+/**
+ * @typedef {object} PublicSettings
+ * @property {string} title
+ * @property {string} iconUrl
+ * @property {string} [themeColor]
+ * @property {string} [footerText]
+ * @property {string} [footerLeft]
+ * @property {string} [footerRight]
+ */
+
+/**
+ * @typedef {object} PublicData
+ * @property {number} [version]
+ * @property {number} [updatedAt]
+ * @property {PublicSettings} settings
+ * @property {PublicTag[]} tags
+ * @property {PublicCard[]} cards
+ */
+
 export const PUBLIC_DATA_LIMITS = Object.freeze({
   maxTags: 200,
   maxCards: 2000,
@@ -173,6 +218,7 @@ const normalizeCards = (value, tagIds) => {
   return cards;
 };
 
+/** @param {unknown} value */
 export const getPublicDataUpdatedAt = (value) => {
   if (!isRecord(value)) return 0;
   const direct = readTimestamp(value.updatedAt, true);
@@ -184,6 +230,10 @@ export const getPublicDataUpdatedAt = (value) => {
   }, 0);
 };
 
+/**
+ * @param {unknown} value
+ * @returns {PublicData|null}
+ */
 export const normalizePublicDataPayload = (value) => {
   if (!isRecord(value)) return null;
   const settings = normalizeSettings(value.settings);

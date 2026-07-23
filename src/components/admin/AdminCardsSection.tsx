@@ -6,6 +6,7 @@ import { CardEditModal } from '../CardEditModal';
 import { getCardCoverUrl } from '../../utils/cardCover';
 import { AdminBadge, AdminIconButton, AdminPanel, AdminToolbar } from './ui';
 import { createCardData, updateCardData } from '../../domain/card';
+import { stagedResult } from '../../domain/persistence';
 
 interface AdminCardsSectionProps {
   data: PublicData;
@@ -54,7 +55,7 @@ export const AdminCardsSection: React.FC<AdminCardsSectionProps> = ({ data, onUp
 
   const handleCardChange = (cardData: Partial<CardData>) => {
     const cardId = cardData.id || creatingCardIdRef.current;
-    if (!cardId) return;
+    if (!cardId) return stagedResult();
 
     const now = Date.now();
     const nextCards = [...data.cards];
@@ -65,6 +66,7 @@ export const AdminCardsSection: React.FC<AdminCardsSectionProps> = ({ data, onUp
       nextCards.push(createCardData(cardData, { id: cardId, now }));
     }
     onUpdate({ ...data, cards: nextCards }, cardId);
+    return stagedResult();
   };
 
   return (
@@ -105,7 +107,7 @@ export const AdminCardsSection: React.FC<AdminCardsSectionProps> = ({ data, onUp
       <AdminPanel bodyClassName="p-0">
         <div className="hidden grid-cols-[minmax(0,1fr)_120px_108px_92px_112px_86px] gap-3 border-b border-[color:var(--line)] px-4 py-3 text-xs font-semibold uppercase text-[color:var(--text-secondary)] lg:grid">
           <div>卡片</div>
-          <div>分类</div>
+          <div>标签</div>
           <div>评分</div>
           <div>状态</div>
           <div>创建时间</div>
@@ -121,7 +123,8 @@ export const AdminCardsSection: React.FC<AdminCardsSectionProps> = ({ data, onUp
             </div>
           ) : paginatedCards.map((card) => {
             const coverUrl = getCardCoverUrl(card, 'thumb');
-            const primaryTagName = tagNameMap.get(card.tagIds[0]) || '未分类';
+            const tagNames = card.tagIds.map((tagId) => tagNameMap.get(tagId)).filter((name): name is string => !!name);
+            const tagLabel = tagNames.join(' · ') || '未分类';
             return (
               <div
                 key={card.id}
@@ -138,14 +141,14 @@ export const AdminCardsSection: React.FC<AdminCardsSectionProps> = ({ data, onUp
                   <div className="min-w-0">
                     <h4 className="truncate text-sm font-semibold text-[color:var(--text-primary)]">{card.title || '未命名卡片'}</h4>
                     <div className="mt-1 flex flex-wrap items-center gap-2 lg:hidden">
-                      <AdminBadge>{primaryTagName}</AdminBadge>
+                      <AdminBadge>{tagLabel}</AdminBadge>
                       <span className="text-xs text-[color:var(--text-secondary)]">{formatDate(card.createdAt)}</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="hidden min-w-0 lg:block">
-                  <AdminBadge className="max-w-full truncate">{primaryTagName}</AdminBadge>
+                  <AdminBadge className="max-w-full truncate">{tagLabel}</AdminBadge>
                 </div>
 
                 <div className="hidden items-center lg:flex">
@@ -203,7 +206,7 @@ export const AdminCardsSection: React.FC<AdminCardsSectionProps> = ({ data, onUp
         title={isCreating ? '新建记录' : '编辑记录'}
         initialCard={editingCard}
         tags={data.tags}
-        onChange={handleCardChange}
+        onStage={handleCardChange}
         retainDraftUntilSaved
         draftScope="admin"
       />

@@ -7,7 +7,7 @@ interface AdminShellProps {
   hasChanges: boolean;
   syncing: boolean;
   storageType: StorageMode;
-  onSave: () => void;
+  onPersist: () => void;
   onLogout: () => void;
   children: React.ReactNode;
 }
@@ -16,7 +16,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
   hasChanges,
   syncing,
   storageType,
-  onSave,
+  onPersist,
   onLogout,
   children
 }) => (
@@ -26,7 +26,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
       hasChanges={hasChanges}
       syncing={syncing}
       storageType={storageType}
-      onSave={onSave}
+      onPersist={onPersist}
       onLogout={onLogout}
     />
     <main className="flex-1 overflow-y-auto px-4 py-5 md:px-6 lg:px-8">

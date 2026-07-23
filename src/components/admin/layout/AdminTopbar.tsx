@@ -11,7 +11,7 @@ interface AdminTopbarProps {
   hasChanges: boolean;
   syncing: boolean;
   storageType: StorageMode;
-  onSave: () => void;
+  onPersist: () => void;
   onLogout: () => void;
 }
 
@@ -20,7 +20,7 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({
   hasChanges,
   syncing,
   storageType,
-  onSave,
+  onPersist,
   onLogout
 }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -58,7 +58,7 @@ export const AdminTopbar: React.FC<AdminTopbarProps> = ({
             <span>{storageLabel}</span>
           </Button>
           <Button
-            onClick={onSave}
+            onClick={onPersist}
             disabled={!hasChanges || syncing}
             variant="success"
             size="md"

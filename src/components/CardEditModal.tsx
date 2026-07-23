@@ -3,7 +3,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Loader2, PlayCircle, ThumbsUp, Upload, Trash2, Eye, Star, RotateCcw } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { CardData, Tag } from '../types';
-import { Modal, Input, Select, TextArea, Button, ImagePreview } from './Common';
+import { Modal, Input, MultiSelect, TextArea, Button, ImagePreview } from './Common';
+import type { PersistenceResult, StagedResult } from '../domain/persistence';
 import { DateField } from './card/DateField';
 import { getCardCoverUrl } from '../utils/cardCover';
 import {
@@ -22,8 +23,8 @@ interface CardEditModalProps {
   title: string;
   initialCard: Partial<CardData>;
   tags: Tag[];
-  onSave?: (card: Partial<CardData>) => Promise<boolean>;
-  onChange?: (card: Partial<CardData>) => void;
+  onPersist?: (card: Partial<CardData>) => Promise<PersistenceResult>;
+  onStage?: (card: Partial<CardData>) => StagedResult;
   retainDraftUntilSaved?: boolean;
   draftScope?: CardDraftScope;
 }
@@ -34,8 +35,8 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
   title,
   initialCard,
   tags,
-  onSave,
-  onChange,
+  onPersist,
+  onStage,
   retainDraftUntilSaved = false,
   draftScope = 'default'
 }) => {
@@ -62,7 +63,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
     setPendingDraft(null);
     setCard(nextCard);
     saveCardDraft(window.localStorage, initialCard, nextCard, Date.now(), retainDraftUntilSaved, draftScope);
-    onChange?.(nextCard);
+    onStage?.(nextCard);
   };
 
   const handleRestoreDraft = () => {
@@ -71,7 +72,7 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
     cardRef.current = restoredCard;
     setCard(restoredCard);
     setPendingDraft(null);
-    onChange?.(restoredCard);
+    onStage?.(restoredCard);
   };
 
   const handleDiscardDraft = () => {
@@ -79,12 +80,12 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
     setPendingDraft(null);
   };
 
-  const handleSaveClick = async () => {
-    if (!onSave) return;
+  const handlePersistClick = async () => {
+    if (!onPersist) return;
     setSaving(true);
     try {
-      const saved = await onSave(card);
-      if (saved) {
+      const result = await onPersist(card);
+      if (result.state === 'persisted') {
         clearCardDraft(window.localStorage, initialCard, draftScope);
         setPendingDraft(null);
       }
@@ -146,12 +147,12 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
 
           <div className="flex items-end gap-4">
             <div className="flex-1">
-               <Select
-                 label="分类"
+               <MultiSelect
+                 label="标签"
                  options={tags}
-                 value={card.tagIds?.[0] || ''}
-                 onChange={val => updateCard({...card, tagIds: val ? [val] : []})}
-                 placeholder="选择分类..."
+                 value={card.tagIds || []}
+                 onChange={tagIds => updateCard({...card, tagIds})}
+                 placeholder="选择标签..."
                />
             </div>
 
@@ -276,8 +277,8 @@ export const CardEditModal: React.FC<CardEditModalProps> = ({
               wrapperClassName="flex-1 flex flex-col h-full"
             />
           </div>
-          {onSave && (
-            <Button onClick={handleSaveClick} className="w-full h-14 rounded-2xl text-base shrink-0" disabled={saving}>
+          {onPersist && (
+            <Button onClick={handlePersistClick} className="w-full h-14 rounded-2xl text-base shrink-0" disabled={saving}>
               {saving ? <Loader2 className="animate-spin" /> : '保存内容'}
             </Button>
           )}

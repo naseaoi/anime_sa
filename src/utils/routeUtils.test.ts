@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { getTagSlug, normalizeTagSlug, slugifyName } from './routeUtils';
-import type { Tag } from '../types';
+import { getTagSlug, normalizeTagSlug, sectionFromCard, slugifyName } from './routeUtils';
+import type { CardData, Tag } from '../types';
 
 const makeTag = (overrides: Partial<Tag>): Tag => ({ id: 't1', name: '番剧', ...overrides } as Tag);
 
@@ -43,5 +43,17 @@ describe('getTagSlug', () => {
     const b = getTagSlug(makeTag({ id: 'b', name: '🎮' }));
     expect(a).toBe('tag-a');
     expect(b).toBe('tag-b');
+  });
+});
+
+describe('sectionFromCard', () => {
+  it('uses the first tag as the canonical section for a multi-tag card', () => {
+    const card = { tagIds: ['favorite', 'anime'] } as CardData;
+    const tags = [
+      makeTag({ id: 'anime', name: '番剧' }),
+      makeTag({ id: 'favorite', name: '收藏' })
+    ];
+
+    expect(sectionFromCard(card, tags)).toBe('收藏');
   });
 });

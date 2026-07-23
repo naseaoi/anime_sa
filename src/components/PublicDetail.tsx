@@ -17,6 +17,7 @@ import { getCoverAmbientColor } from '../utils/coverAmbientColor';
 import { getTagSlug } from '../utils/routeUtils';
 import { applyPageMetadata } from '../utils/seo';
 import { updateCardData } from '../domain/card';
+import { failedResult, persistedResult } from '../domain/persistence';
 
 const CardEditModal = React.lazy(() => import('./CardEditModal').then((m) => ({ default: m.CardEditModal })));
 
@@ -38,7 +39,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
   const [coverAspect, setCoverAspect] = useState<number | null>(null);
   const { showToast } = useToast();
   const { theme, toggleTheme } = useTheme();
-  const { isCreateModalOpen, setIsCreateModalOpen, handleCreateSave } = useCardCreate(data, refreshData);
+  const { isCreateModalOpen, setIsCreateModalOpen, handleCreatePersist } = useCardCreate(data, refreshData);
 
   const cardStats = useMemo(() => buildCardStats(data.cards), [data.cards]);
 
@@ -130,8 +131,8 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
     }
   };
 
-  const handleSave = async (updatedCard: Partial<CardData>) => {
-    if (!card) return false;
+  const handlePersist = async (updatedCard: Partial<CardData>) => {
+    if (!card) return failedResult('卡片不存在');
 
     try {
       const mergedCard = updateCardData(card, updatedCard, Date.now());
@@ -147,18 +148,18 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
       const storage = getStorage();
       const result = await storage.savePublicData(newData, { expectedUpdatedAt: Number(data.updatedAt || 0) });
 
-      if (result.success) {
+      if (result.state === 'persisted') {
         if (refreshData) await refreshData();
         showToast('更新成功', 'success');
         setIsEditing(false);
-        return true;
+        return persistedResult();
       } else {
         showToast(`保存失败: ${result.error}`, 'error');
-        return false;
+        return result;
       }
     } catch (e: any) {
       showToast(`封面处理失败: ${e?.message || '未知错误'}`, 'error');
-      return false;
+      return failedResult(e?.message || '未知错误');
     }
   };
 
@@ -360,7 +361,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
           title="编辑记录"
           initialCard={card}
           tags={data.tags}
-          onSave={handleSave}
+          onPersist={handlePersist}
         />
         <CardEditModal
           isOpen={isCreateModalOpen}
@@ -368,7 +369,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
           title="快速记录"
           initialCard={QUICK_CREATE_INITIAL_CARD}
           tags={data.tags}
-          onSave={handleCreateSave}
+          onPersist={handleCreatePersist}
         />
       </Suspense>
     </div>

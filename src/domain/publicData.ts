@@ -2,6 +2,7 @@ import { PrivateData, PublicData } from '../types';
 
 export const DEFAULT_PUBLIC_DATA: PublicData = {
   version: 0,
+  updatedAt: 0,
   settings: {
     title: '我的收藏',
     iconUrl: 'https://lucide.dev/favicon.ico',

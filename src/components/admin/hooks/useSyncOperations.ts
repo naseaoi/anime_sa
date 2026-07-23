@@ -7,6 +7,7 @@ import {
   runStorageMediaTransferBatch
 } from '../../../services/storageFactory';
 import { CoverProcessFailure, forceOptimizeUrlCardCovers, optimizeCardCoverVariants } from '../../../services/coverAssetService';
+import { isPersisted, PersistenceResult } from '../../../domain/persistence';
 
 export interface GcProgress {
   rounds: number;
@@ -30,7 +31,7 @@ export interface TransferProgress {
 }
 
 type ToastFn = (message: string, type?: 'success' | 'error' | 'info') => void;
-type PersistFn = (nextData: PublicData, successMessage: string) => Promise<boolean>;
+type PersistFn = (nextData: PublicData, successMessage: string) => Promise<PersistenceResult>;
 
 interface SyncOperationsDeps {
   getData: () => PublicData;
@@ -110,8 +111,8 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
         notify(emptyMessage, 'info');
         return;
       }
-      await persist({ ...readData(), cards: result.cards }, buildSuccess(result.optimized, result.failed));
-      refresh();
+      const persisted = await persist({ ...readData(), cards: result.cards }, buildSuccess(result.optimized, result.failed));
+      if (isPersisted(persisted)) refresh();
     } catch (error: any) {
       notify(`${errorLabel}: ${error?.message || '未知错误'}`, 'error');
     } finally {

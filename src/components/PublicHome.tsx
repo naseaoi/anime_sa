@@ -69,7 +69,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
   const [isGridTransitioning, setIsGridTransitioning] = useState(false);
   const [heroAmbient, setHeroAmbient] = useState<string | null>(null);
 
-  const { isCreateModalOpen, setIsCreateModalOpen, handleCreateSave } = useCardCreate(data, refreshData);
+  const { isCreateModalOpen, setIsCreateModalOpen, handleCreatePersist } = useCardCreate(data, refreshData);
 
   const showBackToTop = useBackToTop();
 
@@ -565,7 +565,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData, isAdm
           title="快速记录"
           initialCard={QUICK_CREATE_INITIAL_CARD}
           tags={data.tags}
-          onSave={handleCreateSave}
+          onPersist={handleCreatePersist}
         />
       </Suspense>
     </div>

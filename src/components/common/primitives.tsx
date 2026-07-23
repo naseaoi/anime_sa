@@ -164,33 +164,30 @@ export const MultiSelect: React.FC<{
     }
   };
 
+  const selectedOptions = value
+    .map((id) => options.find((option) => option.id === id))
+    .filter((option): option is { id: string; name: string } => !!option);
+  const selectedLabel = selectedOptions.length <= 2
+    ? selectedOptions.map((option) => option.name).join('、')
+    : `${selectedOptions.slice(0, 2).map((option) => option.name).join('、')} +${selectedOptions.length - 2}`;
+
   return (
     <div className="flex flex-col gap-1.5 w-full relative" ref={containerRef}>
       {label && <label className="text-xs font-bold text-subtle dark:text-zinc-400 uppercase tracking-wider whitespace-nowrap">{label}</label>}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-border dark:border-zinc-800 rounded-lg text-ink dark:text-zinc-100 cursor-pointer flex items-center justify-between hover:border-stone-400 dark:hover:border-zinc-600 transition-colors ${isOpen ? 'ring-4 ring-stone-100 dark:ring-zinc-800 border-ink dark:border-zinc-400' : ''}`}
+        aria-expanded={isOpen}
+        className={`flex h-11 w-full items-center justify-between gap-3 rounded-lg border bg-[color:var(--surface-muted)] px-3 text-[color:var(--text-primary)] transition-all hover:border-[color:var(--accent)] focus:outline-none focus:ring-4 focus:ring-[color:var(--accent-soft)] ${isOpen ? 'border-[color:var(--accent)] ring-4 ring-[color:var(--accent-soft)]' : 'border-[color:var(--line)]'}`}
       >
-        <span className="flex flex-wrap gap-1">
-          {value.length === 0 ? (
-            <span className="text-stone-400 dark:text-zinc-600 text-sm">{placeholder}</span>
-          ) : (
-            value.map(id => {
-              const opt = options.find(o => o.id === id);
-              return opt ? (
-                <span key={id} className="text-[10px] bg-stone-100 dark:bg-zinc-800 text-ink dark:text-zinc-200 px-1.5 py-0.5 rounded border border-stone-200 dark:border-zinc-700">
-                  {opt.name}
-                </span>
-              ) : null;
-            })
-          )}
+        <span className={`min-w-0 truncate text-sm ${selectedOptions.length > 0 ? '' : 'text-[color:var(--text-secondary)]/70'}`}>
+          {selectedOptions.length > 0 ? selectedLabel : placeholder}
         </span>
-        <ChevronDown size={16} className={`text-stone-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={16} className={`shrink-0 text-[color:var(--text-secondary)] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute top-full mt-1 left-0 right-0 bg-white dark:bg-zinc-900 border border-border dark:border-zinc-800 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto p-1">
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-[color:var(--line)] bg-[color:var(--surface)] p-1 shadow-xl">
           {options.length === 0 ? (
             <div className="p-2 text-xs text-stone-400 text-center">暂无选项</div>
           ) : (
@@ -201,7 +198,7 @@ export const MultiSelect: React.FC<{
                   type="button"
                   key={option.id}
                   onClick={() => toggleOption(option.id)}
-                  className={`w-full px-3 py-2 text-left text-sm rounded cursor-pointer flex items-center justify-between transition-colors ${isSelected ? 'bg-ink/5 dark:bg-white/10 text-ink dark:text-white font-medium' : 'text-subtle dark:text-zinc-400 hover:bg-stone-50 dark:hover:bg-zinc-800'}`}
+                  className={`flex w-full cursor-pointer items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors ${isSelected ? 'bg-[color:var(--accent-soft)] font-medium text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)] hover:bg-[color:var(--accent-soft)]/60 hover:text-[color:var(--text-primary)]'}`}
                 >
                   <span>{option.name}</span>
                   {isSelected && <Check size={14} className="text-ink dark:text-white" />}

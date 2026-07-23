@@ -16,6 +16,7 @@ import { AdminShell } from './admin/layout/AdminShell';
 import { useSyncOperations } from './admin/hooks/useSyncOperations';
 import { persistCardCover } from '../services/coverAssetService';
 import { clearCardDrafts } from '../utils/cardDraft';
+import { failedResult, isPersisted, PersistenceResult, stagedResult } from '../domain/persistence';
 
 interface AdminLayoutProps {
   initialData: PublicData;
@@ -63,9 +64,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
     if (changedCardId) dirtyCardIdsRef.current.add(changedCardId);
     setLocalData(newData);
     setHasChanges(true);
+    return stagedResult();
   };
 
-  const persistData = useCallback(async (nextData: PublicData, successMessage?: string) => {
+  const persistData = useCallback(async (nextData: PublicData, successMessage?: string): Promise<PersistenceResult> => {
     try {
       const storage = getStorage();
       const expectedUpdatedAt = Number(nextData.updatedAt || 0);
@@ -79,10 +81,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
 
       const dataToSave = { ...nextData, cards: preparedCards, updatedAt: Date.now() };
       const result = await storage.savePublicData(dataToSave, { expectedUpdatedAt });
-      if (!result.success) {
-        const prefix = result.conflict ? '数据已更新' : '保存失败';
+      if (!isPersisted(result)) {
+        const prefix = result.state === 'conflict' ? '数据已更新' : '保存失败';
         showToast(`${prefix}: ${result.error}`, 'error');
-        return false;
+        return result;
       }
 
       clearCardDrafts(window.localStorage, [...initialData.cards, ...dataToSave.cards], true, 'admin');
@@ -95,10 +97,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
         successMessage || (migrated.migrated > 0 ? `保存成功，并迁移 ${migrated.migrated} 张本地封面` : '已保存更改'),
         'success'
       );
-      return true;
+      return result;
     } catch (error: any) {
       showToast(`保存失败: ${error?.message || '未知错误'}`, 'error');
-      return false;
+      return failedResult(error?.message || '未知错误');
     }
   }, [initialData.cards, refreshData, showToast]);
 
@@ -116,11 +118,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
     reloadInfo: useCallback(() => setSyncInfoToken((n) => n + 1), [])
   });
 
-  const handleSync = async () => {
+  const handlePersist = async () => {
     setSyncing(true);
     try {
-      const success = await persistData(localData);
-      if (!success) {
+      const result = await persistData(localData);
+      if (!isPersisted(result)) {
         return;
       }
     } finally {
@@ -138,7 +140,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
       hasChanges={hasChanges}
       syncing={syncing}
       storageType={storageType}
-      onSave={handleSync}
+      onPersist={handlePersist}
       onLogout={async () => {
         await logoutServerSession();
         window.location.href = '/';

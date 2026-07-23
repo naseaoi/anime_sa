@@ -38,7 +38,7 @@ describe('storageFactory', () => {
       cards: []
     }, { expectedUpdatedAt: 10 });
 
-    expect(result).toEqual({ success: false, conflict: true, error: '数据已更新' });
+    expect(result).toEqual({ state: 'conflict', error: '数据已更新' });
     expect(fetchMock.mock.calls[0][1]?.headers).toEqual(expect.objectContaining({ 'X-Expected-Updated-At': '10' }));
   });
 

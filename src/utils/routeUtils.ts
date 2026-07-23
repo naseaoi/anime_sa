@@ -22,6 +22,7 @@ export const getTagSlug = (tag: Tag) => {
 };
 
 export const sectionFromCard = (card: CardData, tags: Tag[]) => {
+  // 第一个标签是无上下文卡片链接的主路由
   const firstTagId = card.tagIds[0];
   if (firstTagId) {
     const tag = tags.find((item) => item.id === firstTagId);

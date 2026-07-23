@@ -27,7 +27,7 @@ const PublicCardGridInner: React.FC<PublicCardGridProps> = ({
   const resolveHref = (card: CardData) => (getCardHref ? getCardHref(card) : `/card/${card.id}`);
   const resolveState = (card: CardData) => (getCardState ? getCardState(card) : undefined);
 
-  // 分类标签 id→name 映射，渲染期 O(1) 查找
+  // 标签 id→name 映射，渲染期 O(1) 查找
   const tagNameById = useMemo(() => {
     const map = new Map<string, string>();
     (tags || []).forEach((t) => map.set(t.id, t.name));

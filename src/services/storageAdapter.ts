@@ -1,22 +1,17 @@
 
 import { AdminCredentialsUpdate, AdminProfile, PublicData, PrivateData } from '../types';
 import { StorageMode } from '../domain/storage';
+import { PersistenceResult } from '../domain/persistence';
 
 export interface SavePublicDataOptions {
   expectedUpdatedAt?: number;
 }
 
-export interface StorageWriteResult {
-  success: boolean;
-  error?: string;
-  conflict?: boolean;
-}
-
 export interface StorageAdapter {
   getPublicData(): Promise<PublicData>;
-  savePublicData(data: PublicData, options?: SavePublicDataOptions): Promise<StorageWriteResult>;
+  savePublicData(data: PublicData, options?: SavePublicDataOptions): Promise<PersistenceResult>;
   getPrivateData(): Promise<PrivateData>;
-  savePrivateData(data: PrivateData): Promise<StorageWriteResult>;
+  savePrivateData(data: PrivateData): Promise<PersistenceResult>;
   testConnection(): Promise<{ success: boolean; message: string }>;
   login?(username: string, password: string, remember?: boolean): Promise<{ success: boolean; error?: string }>;
   getAdminProfile?(): Promise<AdminProfile>;

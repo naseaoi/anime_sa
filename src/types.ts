@@ -1,48 +1,11 @@
+import type { normalizePublicDataPayload } from '../shared/publicDataSchema.js';
 
-export interface Tag {
-  id: string;
-  name: string;
-  slug?: string;
-  icon?: string;
-}
+type NormalizedPublicData = NonNullable<ReturnType<typeof normalizePublicDataPayload>>;
 
-export interface CardData {
-  id: string;
-  title: string;
-  coverUrl: string;
-  coverVariants?: {
-    thumb?: string;
-    card?: string;
-    original?: string;
-  };
-  coverLocalData?: string;
-  description: string;
-  startDate: string;
-  endDate: string;
-  rating: number; // 0-5
-  tagIds: string[];
-  isRecommended: boolean; // 是否推荐
-  isWatching?: boolean; // 是否正在观看
-  createdAt: number; // 创建时间戳
-  updatedAt: number; // 更新时间戳
-}
-
-export interface SiteSettings {
-  title: string;
-  iconUrl: string;
-  themeColor?: string;
-  footerText?: string;
-  footerLeft?: string;
-  footerRight?: string;
-}
-
-export interface PublicData {
-  version?: number; // Data version/timestamp
-  updatedAt?: number; // Last sync/save timestamp
-  settings: SiteSettings;
-  tags: Tag[];
-  cards: CardData[];
-}
+export type PublicData = NormalizedPublicData;
+export type Tag = NormalizedPublicData['tags'][number];
+export type CardData = NormalizedPublicData['cards'][number];
+export type SiteSettings = NormalizedPublicData['settings'];
 
 export interface PrivateData {
   username: string;

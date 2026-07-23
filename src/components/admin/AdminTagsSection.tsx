@@ -58,7 +58,7 @@ export const AdminTagsSection: React.FC<AdminTagsSectionProps> = ({ data, onUpda
     setNewTagName('');
     setNewTagSlug('');
     setNewTagIcon('');
-    showToast('分类添加成功', 'success');
+    showToast('标签添加成功', 'success');
   };
 
   const handleUpdate = (id: string) => {
@@ -73,18 +73,18 @@ export const AdminTagsSection: React.FC<AdminTagsSectionProps> = ({ data, onUpda
 
     onUpdate({ ...data, tags: newTags });
     setEditingId(null);
-    showToast('分类更新成功', 'success');
+    showToast('标签更新成功', 'success');
   };
 
   const handleDelete = (id: string) => {
     const isUsed = data.cards.some((card) => card.tagIds.includes(id));
     if (isUsed) {
-      showToast('无法删除：该分类下还有关联的记录', 'error');
+      showToast('无法删除：该标签下还有关联的记录', 'error');
       return;
     }
 
     onUpdate({ ...data, tags: data.tags.filter((tag) => tag.id !== id) });
-    showToast('分类已移除', 'success');
+    showToast('标签已移除', 'success');
   };
 
   const startEdit = (tag: (typeof data.tags)[number]) => {
@@ -96,7 +96,7 @@ export const AdminTagsSection: React.FC<AdminTagsSectionProps> = ({ data, onUpda
 
   return (
     <div className="space-y-4">
-      <AdminPanel title="新增分类">
+      <AdminPanel title="新增标签">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
           <div className="flex flex-col gap-1.5">
             <span className="text-xs font-bold uppercase tracking-wider text-subtle dark:text-zinc-400">图标</span>
@@ -104,14 +104,14 @@ export const AdminTagsSection: React.FC<AdminTagsSectionProps> = ({ data, onUpda
               type="button"
               onClick={() => setIconPickerTarget('new')}
               className="inline-flex h-10 w-10 items-center justify-center rounded-[6px] border border-[color:var(--line)] bg-[color:var(--surface)] text-[color:var(--text-secondary)] transition-colors hover:border-[color:var(--accent)] hover:text-[color:var(--text-primary)]"
-              title="选择分类图标"
-              aria-label="选择分类图标"
+              title="选择标签图标"
+              aria-label="选择标签图标"
             >
               {getTagIcon(newTagIcon, 'w-4 h-4') || <span className="text-xs font-semibold">字</span>}
             </button>
           </div>
           <Input
-            label="分类名称"
+            label="标签名称"
             placeholder="例如：番剧"
             value={newTagName}
             onChange={(e) => setNewTagName(e.target.value)}
@@ -130,9 +130,9 @@ export const AdminTagsSection: React.FC<AdminTagsSectionProps> = ({ data, onUpda
         </div>
       </AdminPanel>
 
-      <AdminPanel title="分类列表" bodyClassName="p-0">
+      <AdminPanel title="标签列表" bodyClassName="p-0">
         <div className="hidden grid-cols-[minmax(0,1fr)_minmax(0,1fr)_96px_86px] gap-3 border-b border-[color:var(--line)] px-4 py-3 text-xs font-semibold uppercase text-[color:var(--text-secondary)] md:grid">
-          <div>分类</div>
+          <div>标签</div>
           <div>路径</div>
           <div>关联</div>
           <div className="text-right">操作</div>
@@ -140,7 +140,7 @@ export const AdminTagsSection: React.FC<AdminTagsSectionProps> = ({ data, onUpda
 
         <div className="divide-y divide-[color:var(--line)]">
           {data.tags.length === 0 ? (
-            <div className="px-4 py-10 text-center text-sm text-[color:var(--text-secondary)]">暂无分类</div>
+            <div className="px-4 py-10 text-center text-sm text-[color:var(--text-secondary)]">暂无标签</div>
           ) : data.tags.map((tag) => {
             const usage = usageMap.get(tag.id) || 0;
             const slug = normalizeTagSlug(tag.slug, tag.name);
@@ -155,8 +155,8 @@ export const AdminTagsSection: React.FC<AdminTagsSectionProps> = ({ data, onUpda
                         type="button"
                         onClick={() => setIconPickerTarget('edit')}
                         className="inline-flex h-10 w-10 items-center justify-center rounded-[6px] border border-[color:var(--line)] bg-[color:var(--surface)] text-[color:var(--text-secondary)] transition-colors hover:border-[color:var(--accent)] hover:text-[color:var(--text-primary)]"
-                        title="选择分类图标"
-                        aria-label="选择分类图标"
+                        title="选择标签图标"
+                        aria-label="选择标签图标"
                       >
                         {getTagIcon(editIcon, 'w-4 h-4') || <span className="text-xs font-semibold">字</span>}
                       </button>
@@ -168,7 +168,7 @@ export const AdminTagsSection: React.FC<AdminTagsSectionProps> = ({ data, onUpda
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') handleUpdate(tag.id);
                         }}
-                        placeholder="分类名称"
+                        placeholder="标签名称"
                       />
                     </div>
                     <input
@@ -219,7 +219,7 @@ export const AdminTagsSection: React.FC<AdminTagsSectionProps> = ({ data, onUpda
       <Modal
         isOpen={iconPickerTarget !== null}
         onClose={() => setIconPickerTarget(null)}
-        title="选择分类图标"
+        title="选择标签图标"
         className="max-w-3xl w-full"
       >
         <div className="space-y-4">

@@ -1,6 +1,7 @@
 import { AdminCredentialsUpdate, AdminProfile, AuditLogEntry, PrivateData, PublicData } from '../types';
 import { applyDerivedPublicDataVersion, DEFAULT_PRIVATE_DATA, DEFAULT_PUBLIC_DATA } from '../domain/publicData';
 import { isStorageMode, StorageMode } from '../domain/storage';
+import { conflictResult, failedResult, persistedResult } from '../domain/persistence';
 import { readApiError, requestWithSession } from './apiClient';
 import { SavePublicDataOptions, StorageAdapter } from './storageAdapter';
 import { normalizePublicDataPayload } from '../../shared/publicDataSchema.js';
@@ -84,15 +85,12 @@ export const storageAdapter: StorageAdapter = {
         body: JSON.stringify(data)
       });
       if (!response.ok) {
-        return {
-          success: false,
-          conflict: response.status === 409,
-          error: await readApiError(response, `数据保存失败 (${response.status})`)
-        };
+        const error = await readApiError(response, `数据保存失败 (${response.status})`);
+        return response.status === 409 ? conflictResult(error) : failedResult(error);
       }
-      return { success: true };
+      return persistedResult();
     } catch (error: any) {
-      return { success: false, error: error.message };
+      return failedResult(error.message);
     }
   },
   getPrivateData: async () => {
@@ -108,9 +106,9 @@ export const storageAdapter: StorageAdapter = {
         body: JSON.stringify(data)
       });
       if (!response.ok) throw new Error(await response.text());
-      return { success: true };
+      return persistedResult();
     } catch (error: any) {
-      return { success: false, error: error.message };
+      return failedResult(error.message);
     }
   },
   testConnection: async () => {

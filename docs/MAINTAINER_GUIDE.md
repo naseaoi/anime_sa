@@ -20,7 +20,7 @@
 
 前台管理员入口不是这个语义：详情页编辑和“快速记录”会直接调用存储 API，成功后刷新全局数据。
 
-新增编辑入口前必须先明确它属于哪一种语义。不要仅凭函数名 `onSave` 判断已经持久化。后台卡片的本地恢复草稿会一直保留到顶栏持久化成功；前台详情编辑和“快速记录”仍通过提交按钮直接持久化。
+新增编辑入口前必须先明确它属于哪一种语义。后台卡片的本地恢复草稿会一直保留到顶栏持久化成功；前台详情编辑和“快速记录”通过 `onPersist` 直接持久化。
 
 ### 开发、Node 和 Vercel 不是同一个服务入口
 
@@ -49,6 +49,12 @@ API 业务修改不能只验证其中一个入口。SQLite 主要走 `server/cor
 旧数据可能没有顶层 `updatedAt`。`applyDerivedPublicDataVersion` 会从卡片的最大 `updatedAt` 推导兼容值，删除这段逻辑会使旧数据第一次保存更容易误报冲突。
 
 `normalizePublicDataPayload` 是公共数据的运行时边界，通过 `shared/publicDataSchema.js` 同时用于客户端读取、SQLite、Redis 和跨存储传输。新增 `CardData`、`Tag` 或 `SiteSettings` 字段时，如果只改前端类型，读取时会报格式错误，保存会丢弃字段或返回 400。
+
+`src/types.ts` 的 `PublicData`、`CardData`、`Tag` 和 `SiteSettings` 从 `normalizePublicDataPayload` 的返回值推导。类型定义位于 `server/publicDataValidation.js` 的 JSDoc，并与运行时归一化代码同文件维护；不要重新增加独立 `.d.ts`。
+
+卡片采用多标签模型。`tagIds` 的顺序必须保留，第一个标签用于没有列表上下文时的主路由；过滤、详情和标签分区必须匹配全部标签。编辑器使用 `MultiSelect`，不得再把值压缩成单元素数组。
+
+存储写入返回 `PersistenceResult`：`persisted` 表示服务端已经写入，`conflict` 表示乐观锁冲突，`failed` 表示其他失败。卡片弹窗使用 `onStage` 表示后台页面内暂存，使用 `onPersist` 表示公开页面立即写入；不要用布尔值或 `onSave` 混合这两种状态。
 
 当前重要上限：最多 200 个标签、2000 张卡片；标题 200 字符、简介 20000 字符、普通资源 URL 4096 字符、内嵌封面 1 MiB、单次媒体上传 10 MiB。
 
@@ -88,9 +94,9 @@ Media GC 只把以下路径中的 `name` 视为本站引用：
 
 `coverAssetService` 中部分内部函数保留了 `targetStorage` 参数，但媒体上传端点始终是活动驱动的 `/api/storage/media`。真正的 SQLite/Redis 双向复制由服务端 `/api/storage/transfer` 完成，不要把该参数误当成客户端可直接指定写入驱动的能力。
 
-## 标签与路由的模型不完全对齐
+## 多标签与路由
 
-数据模型允许 `card.tagIds` 包含多个标签，但当前卡片编辑器只读取和写入 `tagIds[0]`，详情路径选择也优先第一个标签。直接开启多标签 UI 前，需要同时检查首页分区、详情链接、筛选、后台列表和服务端校验，不能只替换下拉框。
+结构化首页会把普通卡片加入每个匹配的标签分区；推荐、观看中、顶部卡片仍按现有优先级从标签分区排除。卡片从无筛选上下文进入详情时使用 `tagIds[0]` 生成主路径，因此调整标签顺序可能改变其默认详情 URL，但不会改变按标签筛选结果。
 
 标签 slug 支持 Unicode，并保留以下名称：`recommended`、`watching`、`tat`、`card`。保留词会追加 `-tag`；历史退化 slug `tag` 会按名称重新生成；名称仍无法生成 slug 时使用 `tag-{id}`。改变规则会使已有书签和详情返回路径失效。
 
@@ -126,12 +132,11 @@ Media GC 只把以下路径中的 `name` 视为本站引用：
 
 ### 新增公共数据字段
 
-- `src/types.ts`
+- `server/publicDataValidation.js` 的归一化逻辑与 JSDoc 返回类型
 - `src/domain/publicData.ts` 默认值
 - `src/domain/card.ts` 卡片创建与合并规则
 - 所有新建/合并对象的构造点
-- `server/publicDataValidation.js` Schema 实现与限制常量
-- `shared/publicDataSchema.d.ts` 共享入口的 TypeScript 声明
+- `server/publicDataValidation.js` 的限制常量
 - 编辑草稿白名单（字段需要恢复时）
 - SQLite 与 Redis 读写测试、旧数据兼容测试
 
@@ -151,12 +156,4 @@ Media GC 只把以下路径中的 `name` 视为本站引用：
 - `server/core/mediaGc.js`
 - 跨存储传输与旧 `/api/sqlite/media` URL
 
-## 全面优化时优先解决的结构风险
-
-以下内容是已知技术债，不应被新功能继续复制：
-
-1. 继续统一后台暂存与前台立即保存的结果类型，明确 `staged`、`persisted`、`conflict`，避免新入口误用 `onSave` 命名。
-2. 将 `PublicData` 的 TypeScript 类型进一步由运行时 Schema 派生，消除 `shared/publicDataSchema.d.ts` 的手工声明同步点。
-3. 明确卡片是单分类还是多标签，再统一数据模型、编辑器与路由。
-
-重构这些区域时，先为现有行为补回归测试，再改变契约；本文中标记为兼容入口的内容，应在有迁移方案和弃用周期后删除。
+重构共享契约时，先为现有行为补回归测试，再改变契约；本文中标记为兼容入口的内容，应在有迁移方案和弃用周期后删除。

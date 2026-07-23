@@ -4,6 +4,7 @@ import { getStorage } from '../services/storageFactory';
 import { persistCardCover } from '../services/coverAssetService';
 import { useToast } from '../components/Common';
 import { createCardData } from '../domain/card';
+import { failedResult, persistedResult } from '../domain/persistence';
 
 export const QUICK_CREATE_INITIAL_CARD: Partial<CardData> = {
   tagIds: [],
@@ -20,7 +21,7 @@ export const useCardCreate = (data: PublicData, refreshData?: () => Promise<void
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const { showToast } = useToast();
 
-  const handleCreateSave = async (cardData: Partial<CardData>) => {
+  const handleCreatePersist = async (cardData: Partial<CardData>) => {
     try {
       const now = Date.now();
       const draftCard = createCardData(cardData, {
@@ -35,20 +36,20 @@ export const useCardCreate = (data: PublicData, refreshData?: () => Promise<void
         { expectedUpdatedAt: Number(data.updatedAt || 0) }
       );
 
-      if (result.success) {
+      if (result.state === 'persisted') {
         if (refreshData) await refreshData();
         setIsCreateModalOpen(false);
         showToast('创建成功', 'success');
-        return true;
+        return persistedResult();
       } else {
         showToast(result.error || '失败', 'error');
-        return false;
+        return result;
       }
     } catch (e: any) {
       showToast(`封面处理失败: ${e?.message || '未知错误'}`, 'error');
-      return false;
+      return failedResult(e?.message || '未知错误');
     }
   };
 
-  return { isCreateModalOpen, setIsCreateModalOpen, handleCreateSave };
+  return { isCreateModalOpen, setIsCreateModalOpen, handleCreatePersist };
 };

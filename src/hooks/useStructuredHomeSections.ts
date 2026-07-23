@@ -71,13 +71,9 @@ export const useStructuredHomeSections = (params: Params): StructuredHomeSection
 
     for (const card of nonHeroCards) {
       if (usedCardIds.has(card.id)) continue;
-      const matchedTag = tags.find((tag) => card.tagIds.includes(tag.id));
-      if (matchedTag) {
-        const bucket = cardsByTag.get(matchedTag.id);
-        if (bucket) {
-          bucket.push(card);
-          usedCardIds.add(card.id);
-        }
+      for (const tagId of card.tagIds) {
+        const bucket = cardsByTag.get(tagId);
+        if (bucket) bucket.push(card);
       }
     }
 

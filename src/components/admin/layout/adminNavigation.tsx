@@ -15,7 +15,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   },
   {
     to: '/tat/tags',
-    label: '分类管理',
+    label: '标签管理',
     icon: <Tags size={18} />
   },
   {
