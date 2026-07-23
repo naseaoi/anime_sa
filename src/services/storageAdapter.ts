@@ -16,5 +16,5 @@ export interface StorageAdapter {
   login?(username: string, password: string, remember?: boolean): Promise<{ success: boolean; error?: string }>;
   getAdminProfile?(): Promise<AdminProfile>;
   updateAdminCredentials?(payload: AdminCredentialsUpdate): Promise<{ success: boolean; error?: string; requireRelogin?: boolean }>;
-  type: StorageMode;
+  readonly type: StorageMode;
 }

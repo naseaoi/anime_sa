@@ -10,6 +10,7 @@ import { applyPageMetadata } from './utils/seo';
 import { PublicHome } from './components/PublicHome';
 import { PublicHomeSkeleton } from './components/public/PublicSkeletons';
 import { PublicNavigationProvider } from './components/public/PublicNavigationContext';
+import { errorMessage } from './services/apiClient';
 
 const PublicDetail = React.lazy(() => import('./components/PublicDetail').then((m) => ({ default: m.PublicDetail })));
 const AdminLayout = React.lazy(() => import('./components/Admin').then((m) => ({ default: m.AdminLayout })));
@@ -26,6 +27,18 @@ const RouteFallback: React.FC = () => {
   return skeletonForPath(pathname);
 };
 
+const DataLoadError: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => (
+  <main className="flex min-h-screen items-center justify-center bg-[color:var(--bg-soft)] p-6">
+    <section className="w-full max-w-md rounded-[8px] border border-[color:var(--line)] bg-[color:var(--surface)] p-6 text-center shadow-sm">
+      <h1 className="text-lg font-semibold text-[color:var(--text-primary)]">数据加载失败</h1>
+      <p className="mt-2 text-sm text-[color:var(--text-secondary)]">{message}</p>
+      <button type="button" onClick={onRetry} className="mt-5 rounded-[6px] bg-[color:var(--text-primary)] px-4 py-2 text-sm font-medium text-[color:var(--surface)]">
+        重试
+      </button>
+    </section>
+  </main>
+);
+
 const App: React.FC = () => {
   return (
     <ThemeProvider>
@@ -38,7 +51,9 @@ const App: React.FC = () => {
 
 const MainRouter: React.FC = () => {
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const hasLoadedDataRef = useRef(false);
+  const loadErrorRef = useRef<string | null>(null);
   
   // 本地站点设置
   const [data, setData] = useState<PublicData>(() => {
@@ -52,11 +67,14 @@ const MainRouter: React.FC = () => {
   });
 
   const fetchData = useCallback(async () => {
-    if (!hasLoadedDataRef.current) setLoading(true);
+    if (!hasLoadedDataRef.current || loadErrorRef.current) setLoading(true);
+    loadErrorRef.current = null;
+    setLoadError(null);
     try {
       const storage = await getStorageAsync();
       const result = await storage.getPublicData();
       setData(result);
+      hasLoadedDataRef.current = true;
 
       // 缓存最新设置到本地
       localStorage.setItem('tat_site_settings', JSON.stringify(result.settings));
@@ -68,10 +86,14 @@ const MainRouter: React.FC = () => {
         const favicon = document.getElementById('favicon') as HTMLLinkElement;
         if (favicon) favicon.href = result.settings.iconUrl;
       }
-    } catch (e) {
-      console.error('App fetchData error:', e);
+    } catch (error) {
+      const message = errorMessage(error, '无法读取站点数据');
+      console.error('App fetchData error:', error);
+      if (!hasLoadedDataRef.current) {
+        loadErrorRef.current = message;
+        setLoadError(message);
+      }
     } finally {
-      hasLoadedDataRef.current = true;
       setLoading(false);
     }
   }, []);
@@ -98,6 +120,7 @@ const MainRouter: React.FC = () => {
   const getRouteFallback = () => skeletonForPath(window.location.pathname);
 
   if (loading) return getRouteFallback();
+  if (loadError) return <DataLoadError message={loadError} onRetry={() => void fetchData()} />;
 
   return (
     <div className="relative min-h-screen isolate">

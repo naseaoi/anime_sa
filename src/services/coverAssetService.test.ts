@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { countSqliteMediaReferences, forceOptimizeUrlCardCovers, migrateCardCoversToStorage, migrateEmbeddedCoverAssets, optimizeCardCoverVariants, persistCardCover } from './coverAssetService';
+import { forceOptimizeUrlCardCovers, migrateEmbeddedCoverAssets, optimizeCardCoverVariants, persistCardCover } from './coverAssetService';
 import { CardData } from '../types';
 import { getStorage } from './storageFactory';
 
@@ -387,75 +387,6 @@ describe('coverAssetService', () => {
     expect(result.cards[2].coverLocalData).toBe('');
     expect(result.cards[2].coverUrl).toContain('/api/storage/media?name=');
     expect(result.cards[2].coverVariants?.original).toContain('/api/storage/media?name=');
-  });
-
-  it.skip('migrateCardCoversToStorage keeps URL cover and strips local cache refs', async () => {
-    const card = makeCard({
-      id: 'repair-1',
-      coverUrl: 'https://cdn.example.com/original.jpg',
-      coverVariants: {
-        original: 'https://cdn.example.com/original.jpg',
-        thumb: '/api/sqlite/media?name=stale-thumb.webp',
-        card: '/api/sqlite/media?name=stale-card.webp'
-      }
-    });
-
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-
-    const result = await migrateCardCoversToStorage([card], 'sqlite', 'redis');
-
-    expect(result.migrated).toBe(0);
-    expect(result.failed).toBe(0);
-    expect(result.cards[0].coverUrl).toBe('https://cdn.example.com/original.jpg');
-    expect(result.cards[0].coverVariants?.original).toBe('https://cdn.example.com/original.jpg');
-    expect(result.cards[0].coverVariants?.thumb).toBeUndefined();
-    expect(result.cards[0].coverVariants?.card).toBeUndefined();
-    expect(countSqliteMediaReferences(result.cards)).toBe(0);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it.skip('migrateCardCoversToStorage migrates local covers between drivers', async () => {
-    getStorageMock.mockReturnValue({ type: 'sqlite' } as any);
-
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(new Uint8Array([2, 2, 2]), {
-          status: 200,
-          headers: { 'Content-Type': 'image/png' }
-        })
-      )
-      .mockResolvedValueOnce(new Response('', { status: 207 }))
-      .mockResolvedValueOnce(new Response('', { status: 404 }))
-      .mockResolvedValueOnce(new Response('', { status: 201 }))
-      .mockResolvedValueOnce(new Response('', { status: 200 }));
-    vi.stubGlobal('fetch', fetchMock);
-    vi.stubGlobal('window', { location: { origin: 'http://localhost' } });
-
-    const card = makeCard({
-      id: 'local-1',
-      coverUrl: '/api/sqlite/media?name=local-original.png',
-      coverVariants: {
-        original: '/api/sqlite/media?name=local-original.png'
-      }
-    });
-
-    const result = await migrateCardCoversToStorage([card], 'sqlite', 'redis');
-
-    expect(result.migrated).toBe(1);
-    expect(result.failed).toBe(0);
-    expect(result.cards[0].coverUrl).toContain('/api/webdav?filename=');
-    expect(result.cards[0].coverVariants?.original).toContain('/api/webdav?filename=');
-    expect(fetchMock).toHaveBeenCalledTimes(5);
-    expect(String(fetchMock.mock.calls[1][0])).toBe('/api/webdav?filename=');
-    expect((fetchMock.mock.calls[1][1]?.headers as Record<string, string>)['x-dav-method']).toBe('PROPFIND');
-    expect(String(fetchMock.mock.calls[2][0])).toBe('/api/webdav?filename=covers');
-    expect((fetchMock.mock.calls[2][1]?.headers as Record<string, string>)['x-dav-method']).toBe('PROPFIND');
-    expect(String(fetchMock.mock.calls[3][0])).toBe('/api/webdav?filename=covers');
-    expect((fetchMock.mock.calls[3][1]?.headers as Record<string, string>)['x-dav-method']).toBe('MKCOL');
-    expect(String(fetchMock.mock.calls[4][0])).toContain('/api/webdav?filename=covers%2F');
-    expect((fetchMock.mock.calls[4][1]?.headers as Record<string, string>)['x-dav-method']).toBe('PUT');
   });
 
   it('forceOptimizeUrlCardCovers prefers coverUrl as source', async () => {

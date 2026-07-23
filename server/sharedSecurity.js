@@ -52,27 +52,6 @@ export const normalizeMediaName = (name) => {
   return raw;
 };
 
-const WEBDAV_ROOT_FILES = new Set(['public_data.json', 'private_data.json']);
-
-export const normalizeWebDavFilename = (filename) => {
-  const raw = String(filename || '').trim();
-  if (!raw) return '';
-  if (raw.includes('\\')) return null;
-
-  const segments = raw.split('/');
-  if (segments.some((segment) => !segment || segment === '.' || segment === '..')) return null;
-
-  if (segments.length === 1) {
-    if (segments[0] === 'covers' || WEBDAV_ROOT_FILES.has(segments[0])) return segments[0];
-    return null;
-  }
-
-  if (segments.length !== 2 || segments[0] !== 'covers') return null;
-  const mediaName = normalizeMediaName(segments[1]);
-  if (!mediaName || mediaName === '.' || mediaName === '..') return null;
-  return `covers/${mediaName}`;
-};
-
 export const USERNAME_PATTERN = /^[a-zA-Z0-9_-]{3,64}$/;
 export const PASSWORD_MIN_LEN = 6;
 export const PASSWORD_MAX_LEN = 256;

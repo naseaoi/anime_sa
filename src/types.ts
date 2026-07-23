@@ -32,13 +32,6 @@ export interface AuditLogEntry {
   message?: string;
 }
 
-export interface WebDavConfig {
-  url: string;
-  username: string;
-  password: string;
-  path: string;
-}
-
 export enum LoginStatus {
   IDLE,
   LOGGED_IN,
