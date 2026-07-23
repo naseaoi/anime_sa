@@ -28,6 +28,9 @@ npm run lint
 npm run audit:prod
 npm run audit:all
 npm test
+npm run test:coverage
+npx playwright install chromium
+npm run test:e2e
 npm run build
 ```
 

@@ -2,19 +2,20 @@
 
 本文记录修改代码时必须保留的行为契约、兼容入口和容易误判的边界。它描述的是当前实现，不代表所有现状都值得长期保留。
 
-部署、备份和常用命令见根目录 [`README.md`](../README.md)，发版流程见 [`docs/RELEASE.md`](./RELEASE.md)。文中涉及限制和路由时，以代码和测试为最终来源。
+部署、备份和常用命令见根目录 [`README.md`](../README.md)，API 字段和错误码见 [`docs/API_CONTRACT.md`](./API_CONTRACT.md)，公共数据容量策略见 [`docs/DATA_MODEL_POLICY.md`](./DATA_MODEL_POLICY.md)，发版流程见 [`docs/RELEASE.md`](./RELEASE.md)。文中涉及限制和路由时，以代码和测试为最终来源。
 
 ## 一、数据模型与保存语义
 
 ### `public_data` 是整体写入的聚合
 
-站点设置、标签和全部卡片作为一份 `PublicData` 写入 `public_data`。SQLite 默认使用 `data/local.db`，实际目录由 `SQLITE_DATA_DIR` 决定；数据库只有通用的 `kv_store(key, value)`，没有按卡片拆分的关系表。
+站点设置、标签和全部卡片作为一份 `PublicData` 写入 `public_data`。SQLite 默认使用 `data/local.db`，实际目录由 `SQLITE_DATA_DIR` 决定；公共数据仍在 `kv_store(key, value)` 中整体保存，没有按卡片拆分的关系表。媒体二进制位于 SQLite 的 `media_store`，不再写入 KV JSON。
 
 因此：
 
 - 修改任意卡片都会重写整份公共数据。
 - 新增字段不需要数据库迁移，但必须同步更新运行时归一化、默认值、对象构造点、草稿白名单和兼容测试。
 - 并发版本以整份数据的顶层 `updatedAt` 为基线，不能假设不同卡片可以独立写入。
+- 卡片容量和文档大小按 [`docs/DATA_MODEL_POLICY.md`](./DATA_MODEL_POLICY.md) 的指标和触发线维护。
 
 公共数据的运行时边界是 `shared/publicDataSchema.js` 导出的 `normalizePublicDataPayload`。SQLite、Redis、客户端读取和跨存储传输都必须经过这个边界。
 
@@ -47,7 +48,7 @@
 | `npm start` / Docker | `server.js` | SQLite 或 Redis |
 | Vercel | `api/storage.ts` | 仅 Redis |
 
-SQLite 主要由 `server/core/apiCore.js` 处理，Redis 主要由 `server/storage/redisApi.js` 处理。修改 API 业务时，至少核对两个驱动分支，以及开发、Node 和 Vercel 的路由入口。
+`server/core/storageApiHandler.js` 负责共享 HTTP 编排，`server/core/apiCore.js` 和 `server/storage/redisApi.js` 只提供 SQLite/Redis 驱动适配。修改 API 业务时，优先修改共享 handler，再核对两个驱动以及开发、Node 和 Vercel 的路由入口。
 
 `STORAGE_DRIVER` 在进程启动时解析，不支持运行时热切换。配置 `REDIS_URL` 但仍使用 SQLite 是合法状态，此时 Redis 只作为后台跨存储传输的另一端。
 
@@ -56,9 +57,9 @@ SQLite 主要由 `server/core/apiCore.js` 处理，Redis 主要由 `server/stora
 ### 读取、写入和错误响应
 
 - `readJsonObject` 把空 body 当作 `{}`；JSON 原始值和数组返回 400。
-- `public_data` 是公开的业务数据读取；`driver`、`ping`、Session 检查和媒体 GET 属于各自的独立端点，不要把它们混称为通用 KV 公开读取。
+- `public_data` 是公开的业务数据读取；`driver`、`ping`、`ready`、Session 检查、容量指标和媒体 GET 属于各自的独立端点，不要把它们混称为通用 KV 公开读取。`ping` 不连接存储，`ready` 才检查活动存储。
 - `public_data`、`private_data` 的写入，`private_data` 的读取，媒体上传/删除，远程图片代理，审计日志和存储传输都必须鉴权。登录、退出和 Session 检查是 Session 生命周期例外。
-- 方法不匹配使用 `methodNotAllowed`；其他错误使用 `errorResponse`，保持 JSON、`success: false` 和稳定的 `error` 字段。
+- 方法不匹配使用 `methodNotAllowed`；其他错误使用 `errorResponse`，保持 JSON、`success: false`、稳定的 `code` 和展示用 `error` 字段。客户端按 `code` 分支，不按错误文本分支。
 - 所有写请求继续经过同源校验；新增端点不能绕过该校验、请求体限制或审计入口。
 
 安全响应头的唯一来源是 `server/core/securityHeaders.js`。修改后运行 `npm run sync:vercel-headers` 更新 `vercel.json`，`npm run lint` 会通过 `check:config` 检查是否失步。Node.js 非生产环境不发送 HSTS；生产 Node.js 和 Vercel 会发送。
@@ -75,7 +76,7 @@ SQLite 主要由 `server/core/apiCore.js` 处理，Redis 主要由 `server/stora
 
 旧数据缺少顶层 `updatedAt` 时，由 `server/publicDataValidation.js` 的 `getPublicDataUpdatedAt` 从卡片时间推导。客户端的 `applyDerivedPublicDataVersion` 只是防御性兼容处理，服务端归一化才是版本判断的权威来源。
 
-Redis 使用 Lua 原子完成版本比较和写入。SQLite 当前依赖单进程、同步执行的读写顺序，不是跨进程事务；多进程或多实例部署不能依赖 SQLite 提供同等并发保证。
+Redis 使用 Lua 原子完成版本比较和写入。SQLite 在单进程内使用事务完成版本检查和写入，但仍不是跨进程或多实例共享锁；多进程或多实例部署不能依赖 SQLite 提供同等并发保证。
 
 ### 当前限制
 
@@ -91,7 +92,7 @@ Redis 使用 Lua 原子完成版本比较和写入。SQLite 当前依赖单进�
 | 公共数据 JSON 请求体 | 1 MiB |
 | 媒体上传和远程图片响应 | 10 MiB |
 
-`coverLocalData` 的限制是字符串长度，不是解码后的图片字节数；Base64 图片还要受整个公共数据 JSON 请求体限制。新增限制时同步修改 `server/publicDataValidation.js`、`server/core/constants.js` 和相关客户端校验。
+`coverLocalData` 的限制是字符串长度，不是解码后的图片字节数；历史 Base64 图片仍要受整个公共数据 JSON 请求体限制。新增限制时同步修改 `server/publicDataValidation.js`、`server/core/constants.js` 和相关客户端校验。新上传媒体不应再写入 `coverLocalData`。
 
 ## 四、兼容入口与路由规则
 
@@ -124,7 +125,9 @@ Redis 使用 Lua 原子完成版本比较和写入。SQLite 当前依赖单进�
 | `coverVariants.thumb/card/original` | 不同展示尺寸的实际来源 |
 | `coverLocalData` | 上传过程中的临时 Data URL，持久化后应清空 |
 
-`persistCardCover` 在浏览器端解码图片，通过 Canvas 生成缩略图、卡片图和必要的原图变体，优先使用 WebP，然后上传媒体，最后由调用方保存 `public_data`。公共数据保存冲突或失败时，已上传媒体可能暂时成为孤立资源，由 Media GC 收口；不要因为一次保存失败就猜测删除媒体，因为同名资源可能已被其他数据引用。
+`persistCardCover` 在浏览器端解码图片，通过 `src/services/coverImagePipeline.ts` 生成缩略图和卡片图，优先使用 WebP，再由 `src/services/coverMediaClient.ts` 上传媒体，最后由调用方保存 `public_data`。公共数据保存冲突或失败时，已上传媒体可能暂时成为孤立资源，由 Media GC 收口；不要因为一次保存失败就猜测删除媒体，因为同名资源可能已被其他数据引用。
+
+SQLite 媒体保存在 `media_store` BLOB 表，Redis 使用 `<prefix>:media:<name>` 二进制值和 `<prefix>:media-meta:<name>` 元数据。旧 KV Base64 媒体在读取或传输时兼容迁移；新增代码不得重新写入旧 JSON 形式。
 
 外部 URL 生成缩略图时，跨域或同源读取失败会经过需要管理员 Session 的 `/api/storage/remote-image`。服务端负责 SSRF、响应类型和大小检查，不能改成浏览器任意抓取后上传。
 
@@ -137,7 +140,7 @@ Media GC 只把以下路径中的 `name` 视为本站媒体引用：
 
 跨存储传输按以下顺序执行：校验并覆盖 `public_data`，复制 `private_data`，再按名称差集分批复制媒体。无效的源 `public_data` 不会覆盖目标。它不是跨数据与媒体的原子事务；中途失败时目标可能已经拥有新数据但缺少部分封面。目标端多余媒体不会删除，Session、限流和审计日志也不传输。
 
-`coverAssetService` 内部遗留的 `targetStorage` 参数不代表客户端可以指定写入驱动；真正的 SQLite/Redis 双向复制由服务端 `/api/storage/transfer` 完成。
+客户端封面服务只负责图片处理和当前 API 上传；真正的 SQLite/Redis 双向复制由服务端 `/api/storage/transfer` 完成。不要在客户端新增存储驱动分支。
 
 ## 六、凭据、Session 与审计
 
@@ -190,20 +193,25 @@ SQLite 和 Redis 的管理员凭据接口必须保持上述行为一致。
 
 ### 新增或修改存储 API
 
-- `server/core/apiCore.js`：SQLite handler。
-- `server/storage/redisApi.js`：Redis/Vercel handler。
+- `server/core/storageApiHandler.js`：共享 HTTP 编排、错误码、鉴权和端点行为。
+- `server/core/apiCore.js`：SQLite 驱动适配。
+- `server/storage/redisApi.js`：Redis/Vercel 驱动适配。
 - `api/storage.ts`：Vercel Function 入口。
 - `server/devMiddleware.ts`：开发路由挂载。
 - `server.js`：Node 路由、驱动分发和限流。
 - `vercel.json`：rewrite 和安全头配置。
 - 鉴权、同源校验、请求体上限、错误响应和审计日志。
+- `docs/API_CONTRACT.md`：端点、错误码和新增接口约束。
 - SQLite、Redis、Vercel 路由契约测试。
 
 ### 修改媒体引用方式
 
-- `src/services/coverAssetService.ts`：上传、变体生成和跨存储转换。
+- `src/services/coverAssetService.ts`：封面业务编排。
+- `src/services/coverImagePipeline.ts`：浏览器图片解码和变体生成。
+- `src/services/coverMediaClient.ts`：媒体上传和远程图片读取。
 - `src/utils/cardCover.ts`：展示来源回退。
 - `server/core/mediaGc.js`：引用扫描和清理。
+- `server/core/kvStore.js`、`server/storage/redisStore.js`：媒体二进制存储和旧数据兼容迁移。
 - `/api/storage/media`、旧 `/api/sqlite/media` 和跨存储传输。
 - 上传、远程图片、GC 和失败恢复测试。
 
@@ -227,6 +235,8 @@ SQLite 和 Redis 的管理员凭据接口必须保持上述行为一致。
 npm run lint
 npm test
 npm run build
+npm run test:coverage
+npm run test:e2e
 ```
 
-涉及安全依赖、发布或部署时，再执行 `npm run audit:prod`、`npm run audit:all`，并按 [`docs/RELEASE.md`](./RELEASE.md) 的流程核对版本和构建入口。
+支持 Node.js `20.19.0` 及以上版本；CI 会验证 Node.js 20.19.0 和 24。涉及安全依赖、发布或部署时，再执行 `npm run audit:prod`、`npm run audit:all`，使用 `npm run verify:sqlite-backup -- <backup.db>` 校验 SQLite 备份，并按 [`docs/RELEASE.md`](./RELEASE.md) 的流程核对版本和构建入口。

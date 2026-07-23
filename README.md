@@ -89,7 +89,7 @@ docker run -d \
 
 - `-v ./data:/app/data` 将 SQLite 数据库（`/app/data/local.db`）持久化到宿主机。
 - 容器启动时会设置 SQLite 挂载目录权限，再使用 UID `1000` 的 `node` 用户运行服务。
-- 容器健康检查访问 `/api/storage?key=ping`。
+- 容器健康检查访问 `/api/storage?key=ready`，同时验证进程和活动存储。
 - 镜像默认 `NODE_ENV=production`，Session Cookie 带 `Secure`，正式环境需通过 HTTPS 反向代理访问；仅在本机临时使用 HTTP 调试时可覆盖为 `-e NODE_ENV=development`。
 
 ### Vercel 部署
@@ -100,7 +100,7 @@ docker run -d \
 2. 创建支持标准 `redis://` 或 `rediss://` 连接串的 Redis 实例。
 3. 配置 `REDIS_URL` 和可选的 `REDIS_PREFIX`。
 4. 首次部署配置 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD`。
-5. 部署后访问 `/api/storage?key=ping`，响应中的 `driver` 应为 `redis`。
+5. 部署后访问 `/api/storage?key=ready`，响应中的 `driver` 应为 `redis`。
 
 Vercel 不使用 SQLite，跨存储传输仅在 Node.js / Docker 运行时可用。
 
@@ -123,7 +123,7 @@ server.js/devMiddleware → 驱动分发（SQLite storage API / Redis storage AP
 api/storage.ts → Redis storage API → server/storage
 ```
 
-`src/services/storageFactory.ts` 是客户端数据访问边界。SQLite 与 Redis 提供相同的数据、媒体、认证、审计和维护接口。
+`src/services/storageFactory.ts` 是兼容门面，实际能力拆分在 `authClient.ts`、`publicDataClient.ts`、`storageMaintenanceClient.ts` 和 `storageRuntime.ts`。SQLite 与 Redis 通过服务端统一 handler 提供相同的数据、媒体、认证、审计和维护接口。
 
 ### 数据键
 
@@ -171,7 +171,9 @@ api/storage.ts → Redis storage API → server/storage
 | `/api/storage/session` | Session 检查 |
 | `/api/storage?key=public_data` | 公共数据读写 |
 | `/api/storage?key=private_data` | 私有数据读写 |
-| `/api/storage?key=ping` | 健康检查 |
+| `/api/storage?key=ping` | 进程存活检查，不连接存储 |
+| `/api/storage?key=ready` | 活动存储就绪检查 |
+| `/api/storage/data-metrics` | 公共数据容量指标（需登录） |
 | `/api/storage?key=driver` | 活动驱动检查 |
 | `/api/storage/media` | 封面读写 |
 | `/api/storage/media-gc` | 封面清理 |
@@ -213,7 +215,7 @@ docker start anime_sa
 
 ### Redis
 
-使用托管平台提供的快照、导出或备份功能保存 `<prefix>:public_data`、`<prefix>:private_data`、`<prefix>:media:*`、`<prefix>:audit`。Session 和限流 Key 无需恢复。恢复后重新部署并检查 `/api/storage?key=ping`、后台登录、公共数据和封面。
+使用托管平台提供的快照、导出或备份功能保存 `<prefix>:public_data`、`<prefix>:private_data`、`<prefix>:media:*`、`<prefix>:media-meta:*`、`<prefix>:audit`。Session 和限流 Key 无需恢复。恢复后重新部署并检查 `/api/storage?key=ready`、后台登录、公共数据和封面。
 
 Redis 运维要点：
 
@@ -234,7 +236,7 @@ Redis 运维要点：
 
 - 检查 `SQLITE_DATA_DIR` 指向持久化挂载目录，且挂载模式不是只读。
 - 旧容器升级后需重新创建容器，使启动入口获得设置挂载目录权限的能力。
-- 请求 `/api/storage?key=ping`，检查 `data/local.db` 是否可读取。
+- 请求 `/api/storage?key=ready`，检查 `data/local.db` 是否可读取。
 
 **Redis**
 
@@ -257,7 +259,7 @@ Redis 运维要点：
 | `npm run test:e2e` | 运行浏览器冒烟测试 |
 | `npm run verify:sqlite-backup -- .\\backups\\local.db` | 校验 SQLite 备份完整性 |
 
-代码改动后依次执行 `npm run lint`、`npm test`、`npm run build` 验证。
+代码改动后依次执行 `npm run lint`、`npm test`、`npm run test:coverage`、`npm run test:e2e`、`npm run build` 验证。首次运行 E2E 前执行 `npx playwright install chromium`。
 
 ## 项目结构
 
@@ -279,10 +281,8 @@ vite.config.ts         Vite 配置 + 开发态 API 中间件
 data/local.db          SQLite 数据文件（运行时自动创建）
 docs/RELEASE.md        发布流程
 docs/MAINTAINER_GUIDE.md 项目独有约束、易错点与改动检查表
-docs/TECH_DEBT_BACKLOG.md 技术债、重构优先级与验收清单
 docs/DATA_MODEL_POLICY.md 公共数据模型、容量指标与迁移触发线
 docs/API_CONTRACT.md API 错误码、端点分组与扩展约束
-docs/NODE_VERSION_POLICY.md Node.js 最低支持版本与升级检查项
 ```
 
 ## 技术栈
@@ -298,7 +298,6 @@ docs/NODE_VERSION_POLICY.md Node.js 最低支持版本与升级检查项
 
 - 版本 tag 与镜像发布流程见 [docs/RELEASE.md](docs/RELEASE.md)。
 - 接手项目或开始结构性改造前，先读 [docs/MAINTAINER_GUIDE.md](docs/MAINTAINER_GUIDE.md)。
-- 重构规划与技术债优先级见 [docs/TECH_DEBT_BACKLOG.md](docs/TECH_DEBT_BACKLOG.md)。
 
 ## License
 
