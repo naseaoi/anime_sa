@@ -1,4 +1,6 @@
 import { MEDIA_BODY_LIMIT_BYTES, SESSION_COOKIE } from './constants.js';
+import { validateImageBytes } from './mediaValidation.js';
+import { fetchRemoteImage, RemoteImageError } from './remoteImage.js';
 import { normalizeAuditWritePayload } from './auditContract.js';
 import {
   buildPublicDataConflict,
@@ -14,7 +16,6 @@ import {
   readBoundedInteger,
   readJsonObject
 } from './httpUtils.js';
-import { isBlockedRemoteHost, safeFetchAgent } from './remoteSecurity.js';
 import { enforceSameOrigin } from './requestOrigin.js';
 import {
   hashPassword,
@@ -23,8 +24,6 @@ import {
   verifyPasswordHash
 } from '../sharedSecurity.js';
 import { getPublicDataUpdatedAt, normalizePublicDataPayload } from '../publicDataValidation.js';
-
-const REMOTE_USER_AGENT = 'anime-sa/1.0';
 
 /** @typedef {{ allowed: boolean, retryAfter?: number }} RateLimitResult */
 /** @typedef {(scope: string, clientIp: string, limit: number, windowSeconds: number) => Promise<RateLimitResult>} RateLimitFn */
@@ -36,54 +35,17 @@ const writeRemoteImage = async (request, response, url, requireAuth) => {
   const rawTarget = String(url.searchParams.get('url') || '').trim();
   if (!rawTarget) return errorResponse(response, 400, 'Missing url parameter');
 
-  let target;
   try {
-    target = new URL(rawTarget);
-  } catch {
-    return errorResponse(response, 400, 'Invalid remote image url');
+    const image = await fetchRemoteImage(rawTarget);
+    response.statusCode = 200;
+    response.setHeader('Cache-Control', 'no-store');
+    response.setHeader('Content-Type', image.contentType);
+    response.setHeader('Content-Length', image.bytes.length);
+    response.end(image.bytes);
+  } catch (error) {
+    if (error instanceof RemoteImageError) return errorResponse(response, error.status, error.message);
+    throw error;
   }
-  if (!['http:', 'https:'].includes(target.protocol)) {
-    return errorResponse(response, 400, 'Only http/https urls are allowed');
-  }
-  if (isBlockedRemoteHost(target.hostname)) {
-    return errorResponse(response, 403, 'Remote host is not allowed');
-  }
-
-  const upstream = await fetch(target.toString(), /** @type {RequestInit & { dispatcher: unknown }} */ ({
-    method: 'GET',
-    redirect: 'follow',
-    headers: { 'User-Agent': REMOTE_USER_AGENT, Accept: 'image/*,*/*;q=0.8' },
-    dispatcher: safeFetchAgent
-  }));
-
-  let finalUrl = null;
-  try {
-    finalUrl = upstream.url ? new URL(upstream.url) : null;
-  } catch {}
-  if (finalUrl && isBlockedRemoteHost(finalUrl.hostname)) {
-    return errorResponse(response, 403, 'Redirected host is not allowed');
-  }
-  if (!upstream.ok) return errorResponse(response, 502, `Remote fetch failed (${upstream.status})`);
-
-  const contentType = String(upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-  if (!contentType.startsWith('image/')) {
-    return errorResponse(response, 415, 'Remote resource is not an image');
-  }
-  const contentLength = Number(upstream.headers.get('content-length') || '0');
-  if (Number.isFinite(contentLength) && contentLength > MEDIA_BODY_LIMIT_BYTES) {
-    return errorResponse(response, 413, 'Remote image too large');
-  }
-
-  const bytes = Buffer.from(await upstream.arrayBuffer());
-  if (bytes.length > MEDIA_BODY_LIMIT_BYTES) {
-    return errorResponse(response, 413, 'Remote image too large');
-  }
-
-  response.statusCode = 200;
-  response.setHeader('Cache-Control', 'no-store');
-  response.setHeader('Content-Type', contentType);
-  response.setHeader('Content-Length', bytes.length);
-  response.end(bytes);
 };
 
 const checkRateLimit = async (response, rateLimit, scope, clientIp, limit, windowSeconds) => {
@@ -162,7 +124,9 @@ export const createStorageApiHandler = ({
       if (!(await auth.require(request, response, context))) return;
       if (request.method === 'POST') {
         const bytes = await readBody(request, MEDIA_BODY_LIMIT_BYTES);
-        await media.write(context, name, String(request.headers['content-type'] || 'application/octet-stream'), bytes);
+        const validated = validateImageBytes(request.headers['content-type'], bytes);
+        if (!validated) return errorResponse(response, 415, 'Unsupported or invalid image content');
+        await media.write(context, name, validated.contentType, validated.bytes);
         return jsonResponse(response, 200, { success: true, url: `/api/storage/media?name=${encodeURIComponent(name)}` });
       }
       await media.delete(context, name);

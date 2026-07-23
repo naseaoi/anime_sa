@@ -90,7 +90,7 @@ Redis 使用 Lua 原子完成版本比较和写入。SQLite 在单进程内使�
 | 普通资源 URL | 4096 字符 |
 | `coverLocalData` | 1,048,576 个字符 |
 | 公共数据 JSON 请求体 | 1 MiB |
-| 媒体上传和远程图片响应 | 10 MiB |
+| 媒体上传和远程图片响应 | 10 MiB，按流式读取累计值限制 |
 
 `coverLocalData` 的限制是字符串长度，不是解码后的图片字节数；历史 Base64 图片仍要受整个公共数据 JSON 请求体限制。新增限制时同步修改 `server/publicDataValidation.js`、`server/core/constants.js` 和相关客户端校验。新上传媒体不应再写入 `coverLocalData`。
 
@@ -130,6 +130,8 @@ Redis 使用 Lua 原子完成版本比较和写入。SQLite 在单进程内使�
 SQLite 媒体保存在 `media_store` BLOB 表，Redis 使用 `<prefix>:media:<name>` 二进制值和 `<prefix>:media-meta:<name>` 元数据。旧 KV Base64 媒体在读取或传输时兼容迁移；新增代码不得重新写入旧 JSON 形式。
 
 外部 URL 生成缩略图时，跨域或同源读取失败会经过需要管理员 Session 的 `/api/storage/remote-image`。服务端负责 SSRF、响应类型和大小检查，不能改成浏览器任意抓取后上传。
+
+媒体写入只接受 JPEG、PNG、WebP、GIF 和 AVIF，并校验文件签名与声明类型一致；SVG 和其他主动内容不得进入公开的同源媒体端点。远程图片逐跳校验重定向目标，并受总超时、重定向次数和流式字节上限约束。
 
 Media GC 只把以下路径中的 `name` 视为本站媒体引用：
 

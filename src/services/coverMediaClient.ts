@@ -1,4 +1,5 @@
 const MEDIA_UPLOAD_LIMIT_BYTES = 10 * 1024 * 1024;
+const SUPPORTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
 
 const extensionByMime: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -18,7 +19,7 @@ const buildAssetName = (cardId: string, mime: string, suffix: string) => {
 const readImageResponse = async (response: Response) => {
   if (!response.ok) throw new Error(`封面读取失败（${response.status}）`);
   const mime = String(response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
-  if (!mime.startsWith('image/')) throw new Error('封面源不是图片资源');
+  if (!SUPPORTED_IMAGE_TYPES.has(mime)) throw new Error('封面格式不受支持');
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes.byteLength > MEDIA_UPLOAD_LIMIT_BYTES) throw new Error('图片过大，请压缩后重试（最大 10MB）');
   return { mime, bytes };
