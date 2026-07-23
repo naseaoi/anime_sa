@@ -40,12 +40,12 @@
 | 操作 | 语义 | 持久化时机 |
 |---|---|---|
 | 后台卡片、标签、站点信息 | 暂存 | 更新 `AdminLayout.localData`，顶部“保存”时写入 `public_data` |
-| 公开详情页编辑、快速记录 | 即时保存 | `onPersist` 直接调用存储 API |
+| 公开详情页编辑、快速记录 | 即时保存 | 通过 `publicDataMutationService.ts` 处理封面和 revision 后写入 |
 | 管理员账号和密码 | 即时保存 | `/admin-credentials` 直接写入，必要时清除全部 Session |
 | 同步、封面优化 | 操作内保存 | 通过对应 API 执行；封面优化完成后保存新的公共数据 |
 | 媒体 GC | 操作内清理 | 通过对应 API 删除未引用媒体，不修改 `public_data` |
 
-后台卡片弹窗的字段变化使用 `onStage`，关闭弹窗只代表结束编辑。后台草稿保留到公共数据持久化成功；公开页面的 `onPersist` 成功后立即清理草稿。
+后台卡片弹窗的字段变化使用 `onStage`，关闭弹窗只代表结束编辑。提交成功与提交后刷新分开处理，刷新失败不能改写已提交结果。后台草稿保留到公共数据持久化成功；公开页面提交成功后立即清理草稿。
 
 公共数据写入返回 `PersistenceResult`：
 
@@ -92,9 +92,11 @@ Redis 使用 Lua 原子比较和写入；SQLite 仅在单进程事务内提供�
 
 卡片使用多标签，必须保留 `tagIds` 顺序并由 `MultiSelect` 保存完整数组。筛选按 `tagIds` 判断，详情按卡片 ID 查找；section 只用于 URL 和返回位置。没有列表上下文时，默认详情路径取 `tagIds[0]`，调整标签顺序可能改变默认 URL。
 
+section 解析、路径构建和旧 `?tag=` 迁移统一由 `src/utils/routeUtils.ts` 提供。
+
 结构化首页按推荐、在看、顶部卡片、普通标签分区排列，顶部卡片优先无标签内容，前面分区使用过的卡片不再重复出现。标签 slug 支持 Unicode，保留 `recommended`、`watching`、`tat`、`card`；保留词追加 `-tag`，无法生成名称 slug 时使用 `tag-{id}`。归一化保证 ID 和 slug 唯一，历史重复 slug 按 ID 追加确定性后缀；修改 slug 规则会使旧书签失效。
 
-当前现状：无标签且非推荐/在看的卡片暂时回退到 `recommended` 路径。重做路由前，先确定无分类卡片的正式 URL。
+当前现状：无标签且非推荐/在看的卡片暂时回退到 `recommended` 路径。
 
 ## 五、封面与媒体生命周期
 
@@ -106,7 +108,7 @@ Redis 使用 Lua 原子比较和写入；SQLite 仅在单进程事务内提供�
 | `coverVariants.thumb/card/original` | 展示尺寸对应的来源 |
 | `coverLocalData` | 上传过程中的临时 Data URL，持久化后清空 |
 
-`persistCardCover` 在浏览器端解码并生成变体，优先 WebP，再通过 `coverMediaClient.ts` 上传，由调用方最后保存 `public_data`。保存冲突或失败时已上传媒体可能暂时孤立，交给 Media GC 处理，不要立即猜测删除。
+`persistCardCover` 在浏览器端解码并生成变体，优先 WebP，再通过 `coverMediaClient.ts` 上传，由调用方最后保存 `public_data`。封面批处理统一报告进度和失败项。保存冲突或失败时已上传媒体可能暂时孤立，交给 Media GC 处理，不要立即猜测删除。
 
 SQLite 媒体在 `media_store`，Redis 使用 `<prefix>:media:<name>` 和元数据 key；旧 KV Base64 媒体只在读取或传输时兼容迁移，新代码不得写回旧 JSON。
 
@@ -140,16 +142,16 @@ SQLite 和 Redis 必须保持同一规则。审计日志经过 `auditContract.js
 | `tat_card_draft:admin:new`、`tat_card_draft:admin:edit:<encoded-id>` | localStorage | 等待后台保存的草稿 |
 | `tat_relogin_notice` | sessionStorage | 凭据变更后的登录提示 |
 
-修改站点设置缓存时同时检查 `public/bootstrap.js` 和 React；草稿不保存 `coverLocalData`。公共顶栏只能由 `PublicNavigationProvider` 渲染；认证状态通过 `tat:auth-changed`、`pageshow` 和窗口聚焦复核。封面允许为空，渲染时优先使用 `ImagePreview`；原生 `<img>` 必须先判断 URL。
+React 端浏览器状态经 `src/utils/browserState.ts` 校验读写；`public/bootstrap.js` 保留首屏所需的最小校验。草稿不保存 `coverLocalData`。公共顶栏只能由 `PublicNavigationProvider` 渲染；认证状态通过 `tat:auth-changed`、`pageshow` 和窗口聚焦复核。封面允许为空，渲染时优先使用 `ImagePreview`；原生 `<img>` 必须先判断 URL。
 
 ## 八、按改动类型检查
 
-- **公共数据字段：**核对 `server/publicDataValidation.js`、`src/domain/publicData.ts`、`src/domain/card.ts`、对象构造点和按需的 `src/utils/cardDraft.ts`；补 SQLite、Redis、客户端和旧数据兼容测试。
+- **公共数据字段：**核对 `server/publicDataValidation.js`、`src/domain/publicData.ts`、`src/domain/card.ts`、`src/services/publicDataMutationService.ts`、对象构造点和按需的 `src/utils/cardDraft.ts`；补 SQLite、Redis、客户端和旧数据兼容测试。
 - **通用存储 API：**先改 `server/core/storageApiHandler.js`，再核对 `server/core/apiCore.js`、`server/storage/redisApi.js`、`server/devMiddleware.ts`、`server.js`、`api/storage.ts`、`vercel.json`、`src/services/storageAdapter.ts` 和对应客户端 service。
 - **存储传输：**核对 `server/storage/transferApi.js`、`server/storage/transfer.js`、`src/services/storageMaintenanceClient.ts` 和 `src/components/admin/hooks/useSyncOperations.ts`，保持媒体先于数据传输。
 - **凭据和 Session：**核对 `server/core/credentialPolicy.js`、`server/core/adminCredentials.js`、`server/core/sessionCookie.js`、`server/core/sessionStore.js`、`server/storage/redisSession.js`、`server/storage/redisApi.js`、`server/sharedSecurity.js` 和 `src/services/authClient.ts`。
 - **请求和媒体安全：**核对 `server/core/constants.js`、`server/core/requestOrigin.js`、`server/core/mediaValidation.js`、`server/core/remoteImage.js`、`server/core/remoteSecurity.js`、`server/core/mediaGc.js`、SQLite/Redis 媒体存储以及客户端封面服务；覆盖上传、远程图片、GC 和失败恢复测试。
-- **路由、标签和浏览器状态：**核对 `src/utils/routeUtils.ts`、`src/components/PublicHome.tsx`、`src/hooks/useStructuredHomeSections.ts`、`src/components/PublicDetail.tsx`、`src/components/public/PublicNavigationContext.tsx`、`public/bootstrap.js` 和对应兼容测试。
+- **路由、标签和浏览器状态：**核对 `src/utils/routeUtils.ts`、`src/utils/browserState.ts`、`src/components/PublicHome.tsx`、`src/components/public/PublicNavigationContext.tsx`、`public/bootstrap.js` 和对应兼容测试。
 
 改变共享契约前先补回归测试；兼容入口必须有迁移方案和弃用周期后才能删除。修改数据、API、路由、媒体或 npm scripts 时，同时检查本文引用的路径、命令和规则是否仍然有效。
 

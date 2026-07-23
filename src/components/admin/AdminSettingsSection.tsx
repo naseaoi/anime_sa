@@ -4,6 +4,7 @@ import { PublicData, SiteSettings } from '../../types';
 import { getAdminProfile, logoutServerSession, updateAdminCredentials } from '../../services/storageFactory';
 import { errorMessage } from '../../services/apiClient';
 import { DEFAULT_THEME_COLOR, isValidThemeColor } from '../../utils/themeColor';
+import { writeReloginNotice } from '../../utils/browserState';
 import { Button, ConfirmModal, Input, useToast } from '../Common';
 import { AdminPanel } from './ui';
 
@@ -96,7 +97,7 @@ export const AdminSettingsSection: React.FC<AdminSettingsSectionProps> = ({ data
     setNewPassword('');
     setConfirmPassword('');
     if (res.requireRelogin) {
-      sessionStorage.setItem('tat_relogin_notice', '1');
+      writeReloginNotice();
       showToast('安全配置已更新，请重新登录', 'success');
       await logoutServerSession();
       window.location.reload();

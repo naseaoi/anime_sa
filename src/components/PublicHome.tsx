@@ -6,6 +6,8 @@ import { PublicData, CardData } from '../types';
 import { usePublicNavigation } from './public/PublicNavigationContext';
 import { PublicCardGrid } from './public/PublicCardGrid';
 import type { SortKey, SortOrder } from './public/PublicTopNav';
+import { getHomeScrollKey, readScrollPosition, readVisibleCount, writeScrollPosition, writeVisibleCount } from '../utils/browserState';
+import { PUBLIC_DATA_LIMITS } from '../../shared/publicDataSchema.js';
 import { PublicStructuredHome } from './public/PublicStructuredHome';
 import { CardGridSkeleton } from './public/PublicSkeletons';
 import { useBackToTop } from '../hooks/useBackToTop';
@@ -14,7 +16,7 @@ import { useHeroRotation } from '../hooks/useHeroRotation';
 import { useStructuredHomeSections } from '../hooks/useStructuredHomeSections';
 import { getCardCoverUrl } from '../utils/cardCover';
 import { getCoverAmbientColor } from '../utils/coverAmbientColor';
-import { getTagSlug, sectionFromCard } from '../utils/routeUtils';
+import { getTagSlug, resolveLegacySection, resolveSectionTag, sectionFromCard } from '../utils/routeUtils';
 import { getTagIcon } from '../utils/tagIcons';
 import { applyPageMetadata } from '../utils/seo';
 
@@ -44,12 +46,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData }) => 
   const { searchTerm, sortConfig, onTagChange, createRequestToken } = usePublicNavigation();
 
   const [visibleCount, setVisibleCount] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem('tat_visible_count');
-      return saved ? parseInt(saved) : INITIAL_LOAD_COUNT;
-    } catch {
-      return INITIAL_LOAD_COUNT;
-    }
+    return readVisibleCount(INITIAL_LOAD_COUNT, PUBLIC_DATA_LIMITS.maxCards);
   });
 
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -68,10 +65,10 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData }) => 
   const showBackToTop = useBackToTop();
 
   // 持久化 visibleCount
-  useEffect(() => { sessionStorage.setItem('tat_visible_count', visibleCount.toString()); }, [visibleCount]);
+  useEffect(() => { writeVisibleCount(visibleCount); }, [visibleCount]);
 
   // 列表滚动位置
-  const scrollStorageKey = `tat_home_scroll:${location.pathname}${location.search}`;
+  const scrollStorageKey = getHomeScrollKey(location.pathname, location.search);
   const hasRestoredScrollRef = useRef(false);
   const gridTransitionTimerRef = useRef<number | null>(null);
   const visitedGridKeysRef = useRef<Set<string>>(new Set());
@@ -86,7 +83,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData }) => 
 
   // 用户滚动位置持久化
   useEffect(() => {
-    const save = () => sessionStorage.setItem(scrollStorageKey, String(window.scrollY));
+    const save = () => writeScrollPosition(scrollStorageKey, window.scrollY);
     let rafId: number | null = null;
     const onUserScroll = () => {
       if (rafId !== null) return;
@@ -119,18 +116,8 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData }) => 
     };
   }, [scrollStorageKey]);
 
-  const tagSlugMap = useMemo(() => {
-    const map = new Map<string, string>();
-    data.tags.forEach((tag) => map.set(getTagSlug(tag), tag.id));
-    return map;
-  }, [data.tags]);
-
-  const activeTag = useMemo(() => {
-    if (!section) return 'all';
-    if (section === 'recommended') return 'recommended';
-    if (section === 'watching') return 'watching';
-    return tagSlugMap.get(section) || 'all';
-  }, [section, tagSlugMap]);
+  const resolvedActiveTag = useMemo(() => resolveSectionTag(section, data.tags), [section, data.tags]);
+  const activeTag = resolvedActiveTag || 'all';
 
   useEffect(() => {
     return () => {
@@ -152,11 +139,9 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData }) => 
 
   // 无效分区 fallback 到首页
   useEffect(() => {
-    if (!section) return;
-    if (section === 'recommended' || section === 'watching') return;
-    if (tagSlugMap.has(section)) return;
+    if (!section || resolvedActiveTag) return;
     navigate('/', { replace: true });
-  }, [section, tagSlugMap, navigate]);
+  }, [section, resolvedActiveTag, navigate]);
 
   // 旧链接 ?tag=xxx 迁移到 path 形式
   useEffect(() => {
@@ -169,21 +154,9 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData }) => 
     const query = nextParams.toString();
     const suffix = query ? `?${query}` : '';
 
-    if (legacyTag === 'recommended' || legacyTag === 'watching') {
-      navigate(`/${legacyTag}${suffix}`, { replace: true });
-      return;
-    }
-
-    const tagById = data.tags.find((tag) => tag.id === legacyTag);
-    if (tagById) {
-      navigate(`/${getTagSlug(tagById)}${suffix}`, { replace: true });
-      return;
-    }
-
-    if (tagSlugMap.has(legacyTag)) {
-      navigate(`/${legacyTag}${suffix}`, { replace: true });
-    }
-  }, [section, searchParams, data.tags, tagSlugMap, navigate]);
+    const legacySection = resolveLegacySection(legacyTag, data.tags);
+    if (legacySection) navigate(`/${legacySection}${suffix}`, { replace: true });
+  }, [section, searchParams, data.tags, navigate]);
 
   const resetListView = () => {
     setVisibleCount(INITIAL_LOAD_COUNT);
@@ -295,12 +268,11 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData }) => 
     if (hasRestoredScrollRef.current) return;
     if (filteredCards.length === 0) return;
 
-    const saved = sessionStorage.getItem(scrollStorageKey);
+    const saved = readScrollPosition(scrollStorageKey);
     hasRestoredScrollRef.current = true;
-    if (!saved) return;
+    if (saved === null || saved <= 0) return;
 
-    const y = parseInt(saved, 10);
-    if (!Number.isFinite(y) || y <= 0) return;
+    const y = saved;
 
     // 滚动恢复重试
     let attempts = 0;

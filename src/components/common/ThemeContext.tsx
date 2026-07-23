@@ -1,8 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-
-// --- Theme System ---
-
-type ThemeMode = 'light' | 'dark' | 'system';
+import { readThemeMode, writeThemeMode, type ThemeMode } from '../../utils/browserState';
 
 interface ThemeContextType {
   theme: ThemeMode;
@@ -21,7 +18,7 @@ export const useTheme = () => {
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<ThemeMode>(() => {
-    return (localStorage.getItem('tat_theme') as ThemeMode) || 'system';
+    return readThemeMode();
   });
   const [isDark, setIsDark] = useState(false);
 
@@ -46,7 +43,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     applyTheme();
-    localStorage.setItem('tat_theme', theme);
+    writeThemeMode(theme);
 
     // 系统主题变更时，仅 system 模式跟随
     const listener = () => {

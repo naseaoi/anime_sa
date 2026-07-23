@@ -1,14 +1,25 @@
 (function restoreCachedAppearance() {
+  const isSafeAssetUrl = (value) => {
+    if (typeof value !== 'string' || value.length > 4096) return false;
+    if (!value || value.startsWith('/')) return true;
+    try {
+      const parsed = new URL(value);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
   try {
     const cached = localStorage.getItem('tat_site_settings');
     if (cached) {
       const settings = JSON.parse(cached);
-      if (settings.title) {
+      if (settings && typeof settings === 'object' && typeof settings.title === 'string' && settings.title.length <= 120 && settings.title) {
         document.title = settings.title;
         document.querySelector('meta[property="og:title"]')?.setAttribute('content', settings.title);
         document.querySelector('meta[name="twitter:title"]')?.setAttribute('content', settings.title);
       }
-      if (settings.iconUrl) {
+      if (settings && typeof settings === 'object' && isSafeAssetUrl(settings.iconUrl) && settings.iconUrl) {
         document.getElementById('favicon')?.setAttribute('href', settings.iconUrl);
       }
       if (/^#[0-9a-fA-F]{6}$/.test(settings.themeColor || '')) {

@@ -6,9 +6,9 @@ import {
 import type { Tag } from '../../types';
 import type { CardStats } from '../../utils/cardStats';
 import { getTagIcon } from '../../utils/tagIcons';
+import type { SortKey, SortOrder } from '../../utils/browserState';
 
-export type SortKey = 'createdAt' | 'rating' | 'updatedAt';
-export type SortOrder = 'desc' | 'asc';
+export type { SortKey, SortOrder } from '../../utils/browserState';
 
 const SORT_LABELS: Record<SortKey, string> = {
   createdAt: '创建时间',

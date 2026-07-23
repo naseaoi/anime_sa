@@ -11,6 +11,7 @@ import { PublicHome } from './components/PublicHome';
 import { PublicHomeSkeleton } from './components/public/PublicSkeletons';
 import { PublicNavigationProvider } from './components/public/PublicNavigationContext';
 import { errorMessage } from './services/apiClient';
+import { readCachedSiteSettings, writeCachedSiteSettings } from './utils/browserState';
 
 const PublicDetail = React.lazy(() => import('./components/PublicDetail').then((m) => ({ default: m.PublicDetail })));
 const AdminLayout = React.lazy(() => import('./components/Admin').then((m) => ({ default: m.AdminLayout })));
@@ -57,12 +58,8 @@ const MainRouter: React.FC = () => {
   
   // 本地站点设置
   const [data, setData] = useState<PublicData>(() => {
-    try {
-      const cached = localStorage.getItem('tat_site_settings');
-      if (cached) {
-        return { ...DEFAULT_PUBLIC_DATA, settings: JSON.parse(cached) };
-      }
-    } catch (e) {}
+    const settings = readCachedSiteSettings();
+    if (settings) return { ...DEFAULT_PUBLIC_DATA, settings };
     return DEFAULT_PUBLIC_DATA;
   });
 
@@ -77,7 +74,7 @@ const MainRouter: React.FC = () => {
       hasLoadedDataRef.current = true;
 
       // 缓存最新设置到本地
-      localStorage.setItem('tat_site_settings', JSON.stringify(result.settings));
+      writeCachedSiteSettings(result.settings);
 
       applyThemeColor(result.settings.themeColor);
 

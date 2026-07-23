@@ -3,7 +3,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { PublicData } from '../types';
 import { getStorage, checkServerSession, logoutServerSession } from '../services/storageFactory';
-import { migrateEmbeddedCoverAssets } from '../services/coverAssetService';
 import { applyThemeColor } from '../utils/themeColor';
 import { applyPageMetadata } from '../utils/seo';
 import { useToast } from './Common';
@@ -14,10 +13,10 @@ import { AdminSyncSection } from './admin/AdminSyncSection';
 import { AdminSettingsSection } from './admin/AdminSettingsSection';
 import { AdminShell } from './admin/layout/AdminShell';
 import { useSyncOperations } from './admin/hooks/useSyncOperations';
-import { persistCardCover } from '../services/coverAssetService';
 import { clearCardDrafts } from '../utils/cardDraft';
-import { failedResult, isPersisted, PersistenceResult, stagedResult } from '../domain/persistence';
-import { errorMessage } from '../services/apiClient';
+import { isPersisted, PersistenceResult, stagedResult } from '../domain/persistence';
+import { commitWorkspaceMutation, refreshAfterCommit } from '../services/publicDataMutationService';
+import { writeCachedSiteSettings } from '../utils/browserState';
 
 interface AdminLayoutProps {
   initialData: PublicData;
@@ -69,42 +68,27 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
   };
 
   const persistData = useCallback(async (nextData: PublicData, successMessage?: string): Promise<PersistenceResult> => {
-    try {
-      const storage = getStorage();
-      const expectedRevision = nextData.revision;
-      const migrated = await migrateEmbeddedCoverAssets(nextData.cards);
-      const preparedCards = [];
-      for (const card of migrated.cards) {
-        preparedCards.push(
-          dirtyCardIdsRef.current.has(card.id) ? await persistCardCover(card) : card
-        );
-      }
-
-      const dataToSave = { ...nextData, cards: preparedCards, updatedAt: Date.now() };
-      const result = await storage.savePublicData(dataToSave, { expectedRevision });
-      if (!isPersisted(result)) {
-        const prefix = result.state === 'conflict' ? '数据已更新' : '保存失败';
-        showToast(`${prefix}: ${result.error}`, 'error');
-        return result;
-      }
-
-      const committedData = { ...dataToSave, revision: result.revision || dataToSave.revision };
-      clearCardDrafts(window.localStorage, [...initialData.cards, ...committedData.cards], true, 'admin');
-      dirtyCardIdsRef.current.clear();
-      setLocalData(committedData);
-      await refreshData();
-      localStorage.setItem('tat_site_settings', JSON.stringify(committedData.settings));
-      setHasChanges(false);
-      showToast(
-        successMessage || (migrated.migrated > 0 ? `保存成功，并迁移 ${migrated.migrated} 张本地封面` : '已保存更改'),
-        'success'
-      );
+    const result = await commitWorkspaceMutation(nextData, dirtyCardIdsRef.current);
+    if (!isPersisted(result)) {
+      const prefix = result.state === 'conflict' ? '数据已更新' : '保存失败';
+      showToast(`${prefix}: ${result.error}`, 'error');
       return result;
-    } catch (error: unknown) {
-      const message = errorMessage(error, '未知错误');
-      showToast(`保存失败: ${message}`, 'error');
-      return failedResult(message);
     }
+
+    const committedData = result.data;
+    clearCardDrafts(window.localStorage, [...initialData.cards, ...committedData.cards], true, 'admin');
+    dirtyCardIdsRef.current.clear();
+    setLocalData(committedData);
+    setHasChanges(false);
+    writeCachedSiteSettings(committedData.settings);
+    const refreshed = await refreshAfterCommit(refreshData);
+    showToast(
+      refreshed
+        ? (successMessage || (result.migrated ? `保存成功，并迁移 ${result.migrated} 张本地封面` : '已保存更改'))
+        : '保存成功，但页面刷新失败',
+      refreshed ? 'success' : 'info'
+    );
+    return result;
   }, [initialData.cards, refreshData, showToast]);
 
   const syncOps = useSyncOperations({

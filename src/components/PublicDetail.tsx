@@ -7,16 +7,13 @@ import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { PublicData, CardData } from '../types';
 import { Button, ImagePreview, Rating, useToast } from './Common';
-import { getStorage } from '../services/storageFactory';
-import { persistCardCover } from '../services/coverAssetService';
+import { refreshAfterCommit, updateCardMutation } from '../services/publicDataMutationService';
 import { usePublicNavigation } from './public/PublicNavigationContext';
 import { useCardCreate, QUICK_CREATE_INITIAL_CARD } from '../hooks/useCardCreate';
 import { getCardCoverUrl } from '../utils/cardCover';
 import { getCoverAmbientColor } from '../utils/coverAmbientColor';
 import { applyPageMetadata } from '../utils/seo';
-import { updateCardData } from '../domain/card';
-import { failedResult, persistedResult } from '../domain/persistence';
-import { errorMessage } from '../services/apiClient';
+import { failedResult } from '../domain/persistence';
 
 const CardEditModal = React.lazy(() => import('./CardEditModal').then((m) => ({ default: m.CardEditModal })));
 
@@ -95,34 +92,16 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
   const handlePersist = async (updatedCard: Partial<CardData>) => {
     if (!card) return failedResult('卡片不存在');
 
-    try {
-      const mergedCard = updateCardData(card, updatedCard, Date.now());
-      const nextCard = await persistCardCover(mergedCard);
-
-      const newCards = [...data.cards];
-      const idx = newCards.findIndex(c => c.id === card.id);
-      if (idx !== -1) {
-        newCards[idx] = nextCard;
-      }
-
-      const newData = { ...data, cards: newCards, updatedAt: Date.now() };
-      const storage = getStorage();
-       const result = await storage.savePublicData(newData, { expectedRevision: data.revision });
-
-      if (result.state === 'persisted') {
-        if (refreshData) await refreshData();
-        showToast('更新成功', 'success');
-        setIsEditing(false);
-        return persistedResult();
-      } else {
-        showToast(`保存失败: ${result.error}`, 'error');
-        return result;
-      }
-    } catch (error: unknown) {
-      const message = errorMessage(error, '未知错误');
-      showToast(`封面处理失败: ${message}`, 'error');
-      return failedResult(message);
+    const result = await updateCardMutation(data, card, updatedCard);
+    if (result.state !== 'persisted') {
+      showToast(`保存失败: ${result.error}`, 'error');
+      return result;
     }
+
+    const refreshed = await refreshAfterCommit(refreshData);
+    showToast(refreshed ? '更新成功' : '更新成功，但页面刷新失败', refreshed ? 'success' : 'info');
+    setIsEditing(false);
+    return result;
   };
 
   if (!card) return <div className="h-screen flex flex-col items-center justify-center gap-4 text-[color:var(--text-secondary)]">

@@ -266,9 +266,9 @@ Redis 运维要点：
 src/
 ├── domain/            领域类型、默认数据与存储模式
 ├── components/        界面组件（前台 + 后台）
-├── services/          API 客户端、存储适配与封面服务
+├── services/          API 客户端、存储适配、公共数据写入与封面服务
 ├── hooks/             跨组件复用的状态逻辑
-└── utils/             工具函数
+└── utils/             工具函数与浏览器状态边界
 shared/                前后端共享的运行时契约入口
 server.js              生产服务器（HTTP、静态文件、驱动分发，API 委托 server/）
 server/core/           SQLite API、Session、审计与安全模块

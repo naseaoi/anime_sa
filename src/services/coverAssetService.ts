@@ -9,6 +9,20 @@ export interface CoverProcessFailure {
   reason: string;
 }
 
+interface CoverProcessProgress {
+  total: number;
+  done: number;
+  optimized: number;
+  failed: number;
+}
+
+interface CoverBatchOptions {
+  shouldProcess: (card: CardData) => boolean;
+  process: (card: CardData) => Promise<CardData>;
+  recover: (card: CardData) => CardData;
+  onProgress?: (progress: CoverProcessProgress) => void;
+}
+
 const toCoverProcessFailure = (card: Pick<CardData, 'id' | 'title'>, error: unknown): CoverProcessFailure => {
   const message = error instanceof Error ? error.message : String(error || '未知错误');
   return {
@@ -57,6 +71,35 @@ const backfillMissingCoverVariants = async (card: Partial<CardData> & { id: stri
   } catch {
     return canonicalVariants;
   }
+};
+
+const processCoverBatch = async (cards: CardData[], options: CoverBatchOptions) => {
+  const total = cards.length;
+  let done = 0;
+  let optimized = 0;
+  let failed = 0;
+  const nextCards: CardData[] = [];
+  const failures: CoverProcessFailure[] = [];
+
+  for (const card of cards) {
+    if (!options.shouldProcess(card)) {
+      nextCards.push(card);
+    } else {
+      try {
+        nextCards.push(await options.process(card));
+        optimized += 1;
+      } catch (error) {
+        nextCards.push(options.recover(card));
+        failed += 1;
+        failures.push(toCoverProcessFailure(card, error));
+      }
+    }
+
+    done += 1;
+    options.onProgress?.({ total, done, optimized, failed });
+  }
+
+  return { cards: nextCards, optimized, failed, total, failures };
 };
 
 const hasDataUrlCover = (value?: string) => {
@@ -267,73 +310,20 @@ export const migrateEmbeddedCoverAssets = async (cards: CardData[]) => {
 
 export const forceOptimizeUrlCardCovers = async (
   cards: CardData[],
-  onProgress?: (progress: { total: number; done: number; optimized: number; failed: number }) => void
-) => {
-  const total = cards.length;
-  let done = 0;
-  let optimized = 0;
-  let failed = 0;
-  const nextCards: CardData[] = [];
-  const failures: CoverProcessFailure[] = [];
-
-  for (const card of cards) {
-    if (!shouldForceOptimizeUrlCover(card)) {
-      nextCards.push(card);
-      done += 1;
-      onProgress?.({ total, done, optimized, failed });
-      continue;
-    }
-
-    try {
-      const nextCard = await cacheUrlCoverVariantsForStorage(card);
-      nextCards.push(nextCard);
-      optimized += 1;
-    } catch (error) {
-      nextCards.push(restoreNetworkCoverUrl(card) || card);
-      failed += 1;
-      failures.push(toCoverProcessFailure(card, error));
-    }
-
-    done += 1;
-    onProgress?.({ total, done, optimized, failed });
-  }
-
-  return { cards: nextCards, optimized, failed, total, failures };
-};
+  onProgress?: (progress: CoverProcessProgress) => void
+) => processCoverBatch(cards, {
+  shouldProcess: shouldForceOptimizeUrlCover,
+  process: cacheUrlCoverVariantsForStorage,
+  recover: (card) => restoreNetworkCoverUrl(card) || card,
+  onProgress
+});
 
 export const optimizeCardCoverVariants = async (
   cards: CardData[],
-  onProgress?: (progress: { total: number; done: number; optimized: number; failed: number }) => void
-) => {
-  const total = cards.length;
-  let done = 0;
-  let optimized = 0;
-  let failed = 0;
-  const nextCards: CardData[] = [];
-  const failures: CoverProcessFailure[] = [];
-
-  for (const card of cards) {
-    const needsOptimize = needCoverVariantBackfill(card);
-    if (!needsOptimize) {
-      nextCards.push(card);
-      done += 1;
-      onProgress?.({ total, done, optimized, failed });
-      continue;
-    }
-
-    try {
-      const nextCard = await persistCardCover(card);
-      nextCards.push(nextCard);
-      optimized += 1;
-    } catch (error) {
-      nextCards.push(restoreNetworkCoverUrl(card) || card);
-      failed += 1;
-      failures.push(toCoverProcessFailure(card, error));
-    }
-
-    done += 1;
-    onProgress?.({ total, done, optimized, failed });
-  }
-
-  return { cards: nextCards, optimized, failed, total, failures };
-};
+  onProgress?: (progress: CoverProcessProgress) => void
+) => processCoverBatch(cards, {
+  shouldProcess: needCoverVariantBackfill,
+  process: persistCardCover,
+  recover: (card) => restoreNetworkCoverUrl(card) || card,
+  onProgress
+});

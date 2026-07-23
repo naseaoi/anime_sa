@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { getStorage } from '../../services/storageFactory';
+import { clearReloginNotice, readReloginNotice } from '../../utils/browserState';
 import { Button, Input } from '../Common';
 
 interface AdminLoginProps {
@@ -16,10 +17,9 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const key = sessionStorage.getItem('tat_relogin_notice');
-    if (key) {
+    if (readReloginNotice()) {
       setNotice('安全配置已更新，请使用最新账号密码重新登录。');
-      sessionStorage.removeItem('tat_relogin_notice');
+      clearReloginNotice();
     }
   }, []);
 

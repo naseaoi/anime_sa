@@ -3,7 +3,8 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import type { PublicData } from '../../types';
 import { useTheme } from '../Common';
 import { buildCardStats } from '../../utils/cardStats';
-import { getTagSlug } from '../../utils/routeUtils';
+import { buildSectionPath, resolveSectionTag } from '../../utils/routeUtils';
+import { clearScrollPosition, getHomeScrollKey, readSortConfig, writeSortConfig } from '../../utils/browserState';
 import { PublicTopNav, type SortKey, type SortOrder } from './PublicTopNav';
 
 interface PublicNavigationContextValue {
@@ -17,14 +18,6 @@ interface PublicNavigationContextValue {
 }
 
 const PublicNavigationContext = createContext<PublicNavigationContextValue | null>(null);
-
-const readSortConfig = (): { key: SortKey; order: SortOrder } => {
-  try {
-    const saved = sessionStorage.getItem('tat_sort_config');
-    if (saved) return JSON.parse(saved);
-  } catch {}
-  return { key: 'createdAt', order: 'desc' };
-};
 
 export const PublicNavigationProvider: React.FC<{
   data: PublicData;
@@ -44,15 +37,12 @@ export const PublicNavigationProvider: React.FC<{
 
   const activeTag = useMemo(() => {
     const section = location.pathname.split('/').filter(Boolean)[0];
-    if (!section) return 'all';
-    if (section === 'recommended' || section === 'watching') return section;
-    return data.tags.find((tag) => getTagSlug(tag) === section)?.id || 'all';
+    return resolveSectionTag(section, data.tags) || 'all';
   }, [data.tags, location.pathname]);
 
   const onTagChange = (tagId: string) => {
-    const tag = data.tags.find((item) => item.id === tagId);
-    const path = tagId === 'all' ? '/' : tagId === 'recommended' ? '/recommended' : tagId === 'watching' ? '/watching' : tag ? `/${getTagSlug(tag)}` : '/';
-    sessionStorage.removeItem(`tat_home_scroll:${path}${location.search}`);
+    const path = buildSectionPath(tagId, data.tags);
+    clearScrollPosition(getHomeScrollKey(path, location.search));
     navigate(`${path}${location.search}`);
     window.scrollTo({ top: 0, behavior: 'auto' });
   };
@@ -91,7 +81,7 @@ export const PublicNavigationProvider: React.FC<{
       order: sortConfig.key === key && sortConfig.order === 'desc' ? 'asc' : 'desc'
     } as const;
     setSortConfig(next);
-    sessionStorage.setItem('tat_sort_config', JSON.stringify(next));
+    writeSortConfig(next);
   };
 
   const contextValue = {

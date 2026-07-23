@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { getTagSlug, normalizeTagSlug, sectionFromCard, slugifyName } from './routeUtils';
+import {
+  buildSectionPath,
+  getTagSlug,
+  normalizeTagSlug,
+  resolveLegacySection,
+  resolveSectionTag,
+  sectionFromCard,
+  slugifyName
+} from './routeUtils';
 import type { CardData, Tag } from '../types';
 
 const makeTag = (overrides: Partial<Tag>): Tag => ({ id: 't1', name: '番剧', ...overrides } as Tag);
@@ -55,5 +63,33 @@ describe('sectionFromCard', () => {
     ];
 
     expect(sectionFromCard(card, tags)).toBe('收藏');
+  });
+});
+
+describe('section resolution', () => {
+  const tags = [
+    makeTag({ id: 'anime', name: '番剧' }),
+    makeTag({ id: 'game', name: '游戏' })
+  ];
+
+  it('uses one resolver for special, tag and invalid sections', () => {
+    expect(resolveSectionTag(undefined, tags)).toBe('all');
+    expect(resolveSectionTag('recommended', tags)).toBe('recommended');
+    expect(resolveSectionTag('番剧', tags)).toBe('anime');
+    expect(resolveSectionTag('missing', tags)).toBeNull();
+  });
+
+  it('builds canonical section paths', () => {
+    expect(buildSectionPath('all', tags)).toBe('/');
+    expect(buildSectionPath('watching', tags)).toBe('/watching');
+    expect(buildSectionPath('anime', tags)).toBe('/番剧');
+    expect(buildSectionPath('missing', tags)).toBe('/');
+  });
+
+  it('resolves legacy tag ids and slugs to canonical sections', () => {
+    expect(resolveLegacySection('recommended', tags)).toBe('recommended');
+    expect(resolveLegacySection('anime', tags)).toBe('番剧');
+    expect(resolveLegacySection('番剧', tags)).toBe('番剧');
+    expect(resolveLegacySection('missing', tags)).toBeNull();
   });
 });

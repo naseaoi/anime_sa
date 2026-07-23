@@ -1,11 +1,7 @@
 import { useState } from 'react';
 import { CardData, PublicData } from '../types';
-import { getStorage } from '../services/storageFactory';
-import { persistCardCover } from '../services/coverAssetService';
 import { useToast } from '../components/Common';
-import { createCardData } from '../domain/card';
-import { failedResult, persistedResult } from '../domain/persistence';
-import { errorMessage } from '../services/apiClient';
+import { createCardMutation, refreshAfterCommit } from '../services/publicDataMutationService';
 
 export const QUICK_CREATE_INITIAL_CARD: Partial<CardData> = {
   tagIds: [],
@@ -23,34 +19,16 @@ export const useCardCreate = (data: PublicData, refreshData?: () => Promise<void
   const { showToast } = useToast();
 
   const handleCreatePersist = async (cardData: Partial<CardData>) => {
-    try {
-      const now = Date.now();
-      const draftCard = createCardData(cardData, {
-        id: now.toString(),
-        now,
-        defaultTitle: 'Untitled'
-      });
-
-      const newCard = await persistCardCover(draftCard);
-      const result = await getStorage().savePublicData(
-        { ...data, cards: [...data.cards, newCard], updatedAt: now },
-        { expectedRevision: data.revision }
-      );
-
-      if (result.state === 'persisted') {
-        if (refreshData) await refreshData();
-        setIsCreateModalOpen(false);
-        showToast('创建成功', 'success');
-        return persistedResult();
-      } else {
-        showToast(result.error || '失败', 'error');
-        return result;
-      }
-    } catch (error: unknown) {
-      const message = errorMessage(error, '未知错误');
-      showToast(`封面处理失败: ${message}`, 'error');
-      return failedResult(message);
+    const result = await createCardMutation(data, cardData);
+    if (result.state !== 'persisted') {
+      showToast(result.error || '失败', 'error');
+      return result;
     }
+
+    const refreshed = await refreshAfterCommit(refreshData);
+    setIsCreateModalOpen(false);
+    showToast(refreshed ? '创建成功' : '创建成功，但页面刷新失败', refreshed ? 'success' : 'info');
+    return result;
   };
 
   return { isCreateModalOpen, setIsCreateModalOpen, handleCreatePersist };
