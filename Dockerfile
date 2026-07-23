@@ -27,6 +27,7 @@ COPY server.js ./
 COPY server/core/ ./server/core/
 COPY server/storage/ ./server/storage/
 COPY server/sharedSecurity.js server/publicDataValidation.js ./server/
+COPY shared/ ./shared/
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY --from=build /app/dist ./dist
 
