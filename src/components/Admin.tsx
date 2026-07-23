@@ -71,7 +71,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
   const persistData = useCallback(async (nextData: PublicData, successMessage?: string): Promise<PersistenceResult> => {
     try {
       const storage = getStorage();
-      const expectedUpdatedAt = Number(nextData.updatedAt || 0);
+      const expectedRevision = nextData.revision;
       const migrated = await migrateEmbeddedCoverAssets(nextData.cards);
       const preparedCards = [];
       for (const card of migrated.cards) {
@@ -81,18 +81,19 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
       }
 
       const dataToSave = { ...nextData, cards: preparedCards, updatedAt: Date.now() };
-      const result = await storage.savePublicData(dataToSave, { expectedUpdatedAt });
+      const result = await storage.savePublicData(dataToSave, { expectedRevision });
       if (!isPersisted(result)) {
         const prefix = result.state === 'conflict' ? '数据已更新' : '保存失败';
         showToast(`${prefix}: ${result.error}`, 'error');
         return result;
       }
 
-      clearCardDrafts(window.localStorage, [...initialData.cards, ...dataToSave.cards], true, 'admin');
+      const committedData = { ...dataToSave, revision: result.revision || dataToSave.revision };
+      clearCardDrafts(window.localStorage, [...initialData.cards, ...committedData.cards], true, 'admin');
       dirtyCardIdsRef.current.clear();
-      setLocalData(dataToSave);
+      setLocalData(committedData);
       await refreshData();
-      localStorage.setItem('tat_site_settings', JSON.stringify(dataToSave.settings));
+      localStorage.setItem('tat_site_settings', JSON.stringify(committedData.settings));
       setHasChanges(false);
       showToast(
         successMessage || (migrated.migrated > 0 ? `保存成功，并迁移 ${migrated.migrated} 张本地封面` : '已保存更改'),

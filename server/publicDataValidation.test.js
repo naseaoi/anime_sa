@@ -33,6 +33,7 @@ describe('public data validation', () => {
     const result = normalizePublicDataPayload(createData());
     expect(result).not.toBeNull();
     expect(result.updatedAt).toBe(20);
+    expect(result.revision).toBe('legacy:20');
     expect(getPublicDataUpdatedAt(result)).toBe(20);
   });
 

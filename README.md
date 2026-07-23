@@ -137,7 +137,7 @@ api/storage.ts → Redis storage API → server/storage
 
 ### 一致性与安全
 
-- 公共数据通过 `updatedAt` 执行乐观并发检查，冲突返回 409。
+- 公共数据通过服务端生成的 `revision` 执行乐观并发检查，冲突返回 409。
 - Redis 使用 Lua 脚本原子完成版本比较和写入。
 - 写请求校验 `Origin` 或 `Referer`。
 - Session Cookie 使用 `HttpOnly`、`SameSite=Strict`，生产环境使用 `Secure`。

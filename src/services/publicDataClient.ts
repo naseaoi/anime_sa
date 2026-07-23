@@ -15,10 +15,10 @@ export const getPublicData = async (): Promise<PublicData> => {
   return applyDerivedPublicDataVersion(normalized);
 };
 
-export const savePublicData = async (data: PublicData, options: SavePublicDataOptions = {}) => {
+export const savePublicData = async (data: PublicData, options: SavePublicDataOptions) => {
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (options.expectedUpdatedAt !== undefined) headers['X-Expected-Updated-At'] = String(options.expectedUpdatedAt);
+    headers['X-Expected-Revision'] = options.expectedRevision;
     const response = await requestWithSession(`${STORAGE_API_URL}?key=public_data`, {
       method: 'POST',
       headers,
@@ -28,7 +28,11 @@ export const savePublicData = async (data: PublicData, options: SavePublicDataOp
       const error = await readApiRequestError(response, `数据保存失败 (${response.status})`);
       return response.status === 409 ? conflictResult(error.message) : failedResult(error.message);
     }
-    return persistedResult();
+    const payload = await response.json().catch(() => ({}));
+    if (typeof payload?.revision !== 'string' || payload.revision.length === 0) {
+      return failedResult('服务端未返回新的数据 revision');
+    }
+    return persistedResult(payload.revision);
   } catch (error) {
     return failedResult(errorMessage(error, '数据保存失败'));
   }

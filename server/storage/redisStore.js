@@ -53,14 +53,14 @@ export const deleteRedisKey = async (redis, env, key) => {
   await redis.del(buildKey(env, key));
 };
 
-export const saveRedisPublicData = async (redis, env, value, expectedUpdatedAt) => {
+export const saveRedisPublicData = async (redis, env, value, expectedRevision) => {
   const key = buildKey(env, 'public_data');
-  const expected = expectedUpdatedAt === undefined ? '' : String(expectedUpdatedAt);
+  const expected = String(expectedRevision || '');
   const result = await redis.eval(
-    "local current=redis.call('GET',KEYS[1]); if ARGV[1]~='' then local version=0; if current then local parsed=cjson.decode(current); version=tonumber(parsed.updatedAt) or 0 end; if version~=tonumber(ARGV[1]) then return tostring(version) end end; redis.call('SET',KEYS[1],ARGV[2]); return 'OK'",
+    "local current=redis.call('GET',KEYS[1]); local revision='legacy:0'; if current then local parsed=cjson.decode(current); revision=tostring(parsed.revision or ('legacy:'..tostring(tonumber(parsed.updatedAt) or 0))) end; if revision~=ARGV[1] then return revision end; redis.call('SET',KEYS[1],ARGV[2]); return 'OK'",
     { keys: [key], arguments: [expected, JSON.stringify(value)] }
   );
-  return result === 'OK' ? { success: true } : { success: false, currentUpdatedAt: Number(result || 0) };
+  return result === 'OK' ? { success: true } : { success: false, currentRevision: String(result || 'legacy:0') };
 };
 
 const sessionKey = (env, token) => buildKey(env, `session:${token}`);

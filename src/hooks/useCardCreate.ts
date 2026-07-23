@@ -34,7 +34,7 @@ export const useCardCreate = (data: PublicData, refreshData?: () => Promise<void
       const newCard = await persistCardCover(draftCard);
       const result = await getStorage().savePublicData(
         { ...data, cards: [...data.cards, newCard], updatedAt: now },
-        { expectedUpdatedAt: Number(data.updatedAt || 0) }
+        { expectedRevision: data.revision }
       );
 
       if (result.state === 'persisted') {

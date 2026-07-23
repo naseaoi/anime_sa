@@ -36,13 +36,14 @@ describe('storageFactory', () => {
     const { storageAdapter } = await loadStorageFactory();
     const result = await storageAdapter.savePublicData({
       updatedAt: 20,
+      revision: 'legacy:20',
       settings: { title: 't', iconUrl: '' },
       tags: [],
       cards: []
-    }, { expectedUpdatedAt: 10 });
+    }, { expectedRevision: 'legacy:10' });
 
     expect(result).toEqual({ state: 'conflict', error: '数据已更新' });
-    expect(fetchMock.mock.calls[0][1]?.headers).toEqual(expect.objectContaining({ 'X-Expected-Updated-At': '10' }));
+    expect(fetchMock.mock.calls[0][1]?.headers).toEqual(expect.objectContaining({ 'X-Expected-Revision': 'legacy:10' }));
   });
 
   it('normalizes public data responses through the shared schema', async () => {

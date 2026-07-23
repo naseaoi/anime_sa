@@ -5,8 +5,7 @@ import {
   createRedisTransferDriver,
   createSqliteTransferDriver,
   transferStorageData,
-  transferStorageMediaBatch,
-  TRANSFER_DATA_KEYS
+  transferStorageMediaBatch
 } from './transfer.js';
 
 const createMemoryDriver = (initial = {}) => {

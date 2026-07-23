@@ -1,4 +1,4 @@
-import { getPublicDataUpdatedAt, normalizePublicDataPayload } from '../publicDataValidation.js';
+import { getPublicDataRevision, getPublicDataUpdatedAt, normalizePublicDataPayload } from '../publicDataValidation.js';
 
 const PUBLIC_DATA_CONFLICT_ERROR = '数据已被其他会话更新，请刷新后重试';
 
@@ -13,25 +13,25 @@ export const preparePublicDataWrite = (payload, headers) => {
     return { ok: false, status: 400, error: 'Invalid public_data payload' };
   }
 
-  const rawExpected = readHeader(headers, 'x-expected-updated-at');
-  if (rawExpected === undefined) {
-    return { ok: true, data, expectedUpdatedAt: undefined };
+  const rawExpected = readHeader(headers, 'x-expected-revision');
+  if (rawExpected === undefined || String(rawExpected).trim() === '') {
+    return { ok: false, status: 400, error: 'Missing expected data revision' };
+  }
+  const expectedRevision = String(rawExpected).trim();
+  if (expectedRevision.length > 128) {
+    return { ok: false, status: 400, error: 'Invalid expected data revision' };
   }
 
-  const expectedUpdatedAt = Number(rawExpected);
-  if (!Number.isFinite(expectedUpdatedAt) || expectedUpdatedAt < 0) {
-    return { ok: false, status: 400, error: 'Invalid expected data version' };
-  }
-
-  return { ok: true, data, expectedUpdatedAt };
+  return { ok: true, data, expectedRevision };
 };
 
-export const buildPublicDataConflict = (currentUpdatedAt) => ({
+export const buildPublicDataConflict = (currentRevision) => ({
   error: PUBLIC_DATA_CONFLICT_ERROR,
-  currentUpdatedAt
+  currentRevision
 });
 
 export const buildPublicDataWriteSuccess = (data) => ({
   success: true,
+  revision: getPublicDataRevision(data),
   updatedAt: getPublicDataUpdatedAt(data)
 });

@@ -1,11 +1,11 @@
 export type PersistenceResult =
-  | { state: 'persisted' }
+  | { state: 'persisted'; revision?: string }
   | { state: 'conflict'; error: string }
   | { state: 'failed'; error: string };
 
 export type StagedResult = { state: 'staged' };
 
-export const persistedResult = (): PersistenceResult => ({ state: 'persisted' });
+export const persistedResult = (revision?: string): PersistenceResult => ({ state: 'persisted', ...(revision ? { revision } : {}) });
 
 export const conflictResult = (error: string): PersistenceResult => ({ state: 'conflict', error });
 

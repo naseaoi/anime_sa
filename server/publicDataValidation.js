@@ -38,6 +38,7 @@
  * @typedef {object} PublicData
  * @property {number} [version]
  * @property {number} [updatedAt]
+ * @property {string} revision
  * @property {PublicSettings} settings
  * @property {PublicTag[]} tags
  * @property {PublicCard[]} cards
@@ -59,7 +60,8 @@ export const PUBLIC_DATA_LIMITS = Object.freeze({
   maxTagIconLength: 80,
   maxFooterLength: 500,
   minRating: 0,
-  maxRating: 5
+  maxRating: 5,
+  maxRevisionLength: 128
 });
 
 const {
@@ -78,7 +80,8 @@ const {
   maxTagIconLength: MAX_TAG_ICON_LENGTH,
   maxFooterLength: MAX_FOOTER_LENGTH,
   minRating: MIN_RATING,
-  maxRating: MAX_RATING
+  maxRating: MAX_RATING,
+  maxRevisionLength: MAX_REVISION_LENGTH
 } = PUBLIC_DATA_LIMITS;
 
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
@@ -94,6 +97,12 @@ const readString = (value, maxLength, allowEmpty = true) => {
 const readOptionalString = (value, maxLength) => {
   if (value === undefined || value === null || value === '') return undefined;
   return readString(value, maxLength);
+};
+
+const readRevision = (value) => {
+  if (typeof value !== 'string') return null;
+  const revision = value.trim();
+  return revision && revision.length <= MAX_REVISION_LENGTH ? revision : null;
 };
 
 const readTimestamp = (value, optional = false) => {
@@ -240,6 +249,12 @@ export const getPublicDataUpdatedAt = (value) => {
   }, 0);
 };
 
+export const getPublicDataRevision = (value) => {
+  if (!isRecord(value)) return 'legacy:0';
+  const direct = readRevision(value.revision);
+  return direct || `legacy:${getPublicDataUpdatedAt(value)}`;
+};
+
 /**
  * @param {unknown} value
  * @returns {PublicData|null}
@@ -254,11 +269,13 @@ export const normalizePublicDataPayload = (value) => {
 
   const version = readTimestamp(value.version, true);
   const updatedAt = readTimestamp(value.updatedAt, true);
-  if (version === null || updatedAt === null) return null;
+  const revision = value.revision === undefined ? getPublicDataRevision({ ...value, updatedAt, cards }) : readRevision(value.revision);
+  if (version === null || updatedAt === null || revision === null) return null;
 
   return {
     version,
     updatedAt: updatedAt ?? getPublicDataUpdatedAt({ cards }),
+    revision,
     settings,
     tags: tagResult.tags,
     cards

@@ -46,7 +46,7 @@ const createRedisHandler = (env, isProduction, runtime) => createStorageApiHandl
   data: {
     read: (redis, key) => readRedisJson(redis, env, key),
     write: (redis, key, value) => writeRedisJson(redis, env, key, value),
-    savePublic: (redis, value, expectedUpdatedAt) => saveRedisPublicData(redis, env, value, expectedUpdatedAt),
+    savePublic: (redis, value, expectedRevision) => saveRedisPublicData(redis, env, value, expectedRevision),
     metrics: async (redis) => buildPublicDataMetrics(await readRedisJson(redis, env, 'public_data'))
   },
   media: {

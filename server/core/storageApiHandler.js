@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { MEDIA_BODY_LIMIT_BYTES, SESSION_COOKIE } from './constants.js';
 import { validateImageBytes } from './mediaValidation.js';
 import { fetchRemoteImage, RemoteImageError } from './remoteImage.js';
@@ -268,10 +269,11 @@ export const createStorageApiHandler = ({
     if (!parsedBody.ok) return errorResponse(response, 400, parsedBody.error);
     const prepared = preparePublicDataWrite(parsedBody.data, request.headers);
     if (!prepared.ok) return errorResponse(response, prepared.status, prepared.error);
-    const result = await data.savePublic(context, prepared.data, prepared.expectedUpdatedAt);
-    if (!result.success) return jsonResponse(response, 409, buildPublicDataConflict(result.currentUpdatedAt));
-    await audit.append({ action: 'write_public_data', status: 'success', details: `updatedAt=${getPublicDataUpdatedAt(prepared.data)} ip=${clientIp}` }, context);
-    return jsonResponse(response, 200, buildPublicDataWriteSuccess(prepared.data));
+    const dataToSave = { ...prepared.data, revision: crypto.randomUUID() };
+    const result = await data.savePublic(context, dataToSave, prepared.expectedRevision);
+    if (!result.success) return jsonResponse(response, 409, buildPublicDataConflict(result.currentRevision));
+    await audit.append({ action: 'write_public_data', status: 'success', details: `revision=${dataToSave.revision} updatedAt=${getPublicDataUpdatedAt(dataToSave)} ip=${clientIp}` }, context);
+    return jsonResponse(response, 200, buildPublicDataWriteSuccess(dataToSave));
   } catch (error) {
     if (error && typeof error === 'object' && 'code' in error && error.code === 'PAYLOAD_TOO_LARGE') {
       return errorResponse(response, 413, 'Payload too large');

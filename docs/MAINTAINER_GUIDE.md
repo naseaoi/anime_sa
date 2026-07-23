@@ -66,15 +66,15 @@
 
 ## 三、公共数据写入与版本控制
 
-客户端保存公共数据时通过 `X-Expected-Updated-At` 发送读取时的版本。正确顺序是：
+客户端保存公共数据时通过 `X-Expected-Revision` 发送读取时的版本。正确顺序是：
 
-1. 保存当前数据的 `updatedAt` 作为 `expectedUpdatedAt`。
-2. 为待写数据生成新的 `updatedAt`。
+1. 保存当前数据的 `revision` 作为预期版本。
+2. 服务端生成新的 `revision`，客户端不生成并发版本。
 3. 服务端成功后再替换本地基线并刷新数据。
 
 冲突返回 409，调用方必须保留本地草稿或提示用户重新读取，不能静默覆盖。
 
-旧数据缺少顶层 `updatedAt` 时，由 `server/publicDataValidation.js` 的 `getPublicDataUpdatedAt` 从卡片时间推导。客户端的 `applyDerivedPublicDataVersion` 只是防御性兼容处理，服务端归一化才是版本判断的权威来源。
+旧数据缺少顶层 `revision` 时，由 `server/publicDataValidation.js` 根据 `updatedAt` 推导 `legacy:<timestamp>`。客户端的 `applyDerivedPublicDataVersion` 只是防御性兼容处理，服务端归一化才是版本判断的权威来源。
 
 Redis 使用 Lua 原子完成版本比较和写入。SQLite 在单进程内使用事务完成版本检查和写入，但仍不是跨进程或多实例共享锁；多进程或多实例部署不能依赖 SQLite 提供同等并发保证。
 

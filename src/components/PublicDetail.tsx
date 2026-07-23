@@ -107,7 +107,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
 
       const newData = { ...data, cards: newCards, updatedAt: Date.now() };
       const storage = getStorage();
-      const result = await storage.savePublicData(newData, { expectedUpdatedAt: Number(data.updatedAt || 0) });
+       const result = await storage.savePublicData(newData, { expectedRevision: data.revision });
 
       if (result.state === 'persisted') {
         if (refreshData) await refreshData();

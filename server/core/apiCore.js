@@ -1,5 +1,5 @@
 import { createStorageApiHandler } from './storageApiHandler.js';
-import { getPublicDataUpdatedAt } from '../publicDataValidation.js';
+import { getPublicDataRevision } from '../publicDataValidation.js';
 import { buildPublicDataMetrics } from './dataMetrics.js';
 import { appendAuditLog } from './auditStore.js';
 import { normalizeAuditWritePayload } from './auditContract.js';
@@ -62,12 +62,10 @@ const createSqliteHandler = (env, isProduction) => createStorageApiHandler({
   data: {
     read: (database, key) => dbGetJson(database, key),
     write: (database, key, value) => dbSetJson(database, key, value),
-    savePublic: (database, value, expectedUpdatedAt) => {
+    savePublic: (database, value, expectedRevision) => {
       const save = database.transaction(() => {
-        if (expectedUpdatedAt !== undefined) {
-          const currentUpdatedAt = getPublicDataUpdatedAt(dbGetJson(database, 'public_data'));
-          if (currentUpdatedAt !== expectedUpdatedAt) return { success: false, currentUpdatedAt };
-        }
+        const currentRevision = getPublicDataRevision(dbGetJson(database, 'public_data'));
+        if (currentRevision !== expectedRevision) return { success: false, currentRevision };
         dbSetJson(database, 'public_data', value);
         return { success: true };
       });
