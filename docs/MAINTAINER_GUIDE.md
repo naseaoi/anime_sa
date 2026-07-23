@@ -138,6 +138,8 @@ Media GC 只把以下路径中的 `name` 视为本站媒体引用：
 
 它会扫描 `coverUrl` 和全部 `coverVariants`。新增媒体 URL 形式或新增资源字段时，必须同步修改 `server/core/mediaGc.js`，否则仍在使用的资源可能被清理。
 
+Media GC 只删除未引用且最后更新时间超过 24 小时的资源。这个宽限期覆盖“媒体已上传但公共数据尚未保存”的窗口；修改媒体元数据或 GC 策略时，SQLite 和 Redis 必须保持相同判定。
+
 跨存储传输先按名称差集分批复制媒体，完成后再校验并覆盖 `private_data` 和 `public_data`。无效的源 `public_data` 不会覆盖目标。凭据被覆盖时会清除目标存储的全部 Session；目标是当前活动驱动时，当前浏览器也必须重新登录。目标端多余媒体不会删除，限流和审计日志不传输。
 
 客户端封面服务只负责图片处理和当前 API 上传；真正的 SQLite/Redis 双向复制由服务端 `/api/storage/transfer` 完成。不要在客户端新增存储驱动分支。

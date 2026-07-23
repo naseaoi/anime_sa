@@ -3,10 +3,10 @@ import { createStorageApiHandler } from '../core/storageApiHandler.js';
 import { buildCookie, clearCookie } from '../core/sessionCookie.js';
 import { buildAdminCredentialsForSave, buildAdminCredentialsResponse } from '../core/credentialPolicy.js';
 import { normalizeAuditEntry } from '../core/auditContract.js';
-import { parseMediaReferences } from '../core/mediaGc.js';
+import { MEDIA_GC_GRACE_MS, parseMediaReferences } from '../core/mediaGc.js';
 import { buildPublicDataMetrics } from '../core/dataMetrics.js';
 import { hashPassword } from '../sharedSecurity.js';
-import { appendRedisAudit, clearRedisSessions, consumeRateLimit, createRedisSession, deleteRedisMedia, destroyRedisSession, getRedisClient, listRedisMediaNames, readRedisAudit, readRedisJson, readRedisMedia, saveRedisMedia, saveRedisPublicData, verifyRedisSession, writeRedisJson } from './redisStore.js';
+import { appendRedisAudit, clearRedisSessions, consumeRateLimit, createRedisSession, deleteRedisMedia, destroyRedisSession, getRedisClient, listRedisMediaEntries, readRedisAudit, readRedisJson, readRedisMedia, saveRedisMedia, saveRedisPublicData, verifyRedisSession, writeRedisJson } from './redisStore.js';
 import { getSessionToken, requireRedisAuth } from './redisSession.js';
 
 const loadCredentials = async (redis, env) => {
@@ -55,13 +55,16 @@ const createRedisHandler = (env, isProduction, runtime) => createStorageApiHandl
     delete: (redis, name) => deleteRedisMedia(redis, env, name),
     gc: async (redis, publicData, limit) => {
       const references = parseMediaReferences(publicData);
-      const allNames = await listRedisMediaNames(redis, env);
-      const removable = allNames.filter((name) => !references.has(name));
+      const entries = await listRedisMediaEntries(redis, env);
+      const unreferenced = entries.filter((entry) => !references.has(entry.name));
+      const cutoff = Date.now() - MEDIA_GC_GRACE_MS;
+      const removable = unreferenced.filter((entry) => entry.updatedAt <= cutoff);
       const candidates = removable.slice(0, limit);
-      for (const name of candidates) await deleteRedisMedia(redis, env, name);
+      for (const entry of candidates) await deleteRedisMedia(redis, env, entry.name);
       return {
-        checked: allNames.length,
+        checked: entries.length,
         removed: candidates.length,
+        deferred: unreferenced.length - removable.length,
         pending: Math.max(0, removable.length - candidates.length),
         hasMore: removable.length > candidates.length
       };

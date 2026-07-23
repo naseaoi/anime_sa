@@ -60,6 +60,7 @@ export const runCoverGarbageCollectionBatch = async (limit = 100) => {
       success: true as const,
       removed: Number(data.removed || 0),
       checked: Number(data.checked || 0),
+      deferred: Number(data.deferred || 0),
       pending: Number(data.pending || 0),
       hasMore: !!data.hasMore
     };

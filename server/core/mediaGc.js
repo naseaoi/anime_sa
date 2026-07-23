@@ -1,5 +1,7 @@
 import { normalizeMediaName } from '../sharedSecurity.js';
-import { dbDeleteMedia, dbListMediaNames } from './kvStore.js';
+import { dbDeleteMedia, dbListMediaEntries, dbListMediaNames } from './kvStore.js';
+
+export const MEDIA_GC_GRACE_MS = 24 * 60 * 60 * 1000;
 
 export const parseMediaReferences = (publicData) => {
   const names = new Set();
@@ -35,12 +37,27 @@ export const collectSqliteMediaNames = (database) => {
   return names;
 };
 
-export const cleanupSqliteUnusedMedia = (database, referencedNames, limit = 100) => {
-  const allNames = collectSqliteMediaNames(database);
-  const removable = allNames.filter((name) => !referencedNames.has(name));
+export const cleanupSqliteUnusedMedia = (
+  database,
+  referencedNames,
+  limit = 100,
+  now = Date.now(),
+  graceMs = MEDIA_GC_GRACE_MS
+) => {
+  const entries = dbListMediaEntries(database)
+    .map((entry) => ({ name: normalizeMediaName(entry.name), updatedAt: Number(entry.updatedAt || 0) }))
+    .filter((entry) => entry.name);
+  const unreferenced = entries.filter((entry) => !referencedNames.has(entry.name));
+  const removable = unreferenced.filter((entry) => entry.updatedAt <= now - graceMs);
   const candidates = removable.slice(0, Math.max(1, limit));
-  for (const name of candidates) dbDeleteMedia(database, name);
+  for (const entry of candidates) dbDeleteMedia(database, entry.name);
   const removed = candidates.length;
   const pending = Math.max(0, removable.length - removed);
-  return { checked: allNames.length, removed, pending, hasMore: pending > 0 };
+  return {
+    checked: entries.length,
+    removed,
+    deferred: unreferenced.length - removable.length,
+    pending,
+    hasMore: pending > 0
+  };
 };

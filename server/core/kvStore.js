@@ -141,3 +141,17 @@ export const dbListMediaNames = (database) => {
   for (const row of legacyRows) names.add(String(row.key).slice('media:'.length));
   return [...names];
 };
+
+export const dbListMediaEntries = (database) => {
+  ensureMediaTable(database);
+  const entries = new Map(database.prepare('SELECT name, updated_at FROM media_store').all().map((row) => [
+    String(row.name),
+    { name: String(row.name), updatedAt: Number(row.updated_at || 0) }
+  ]));
+  const legacyRows = database.prepare("SELECT key FROM kv_store WHERE key LIKE 'media:%'").all();
+  for (const row of legacyRows) {
+    const name = String(row.key).slice('media:'.length);
+    if (!entries.has(name)) entries.set(name, { name, updatedAt: 0 });
+  }
+  return [...entries.values()];
+};

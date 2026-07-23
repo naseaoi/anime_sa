@@ -91,6 +91,7 @@ describe('storageFactory', () => {
       success: true,
       removed: 2,
       checked: 5,
+      deferred: 3,
       pending: 1,
       hasMore: true
     }), {
@@ -99,7 +100,7 @@ describe('storageFactory', () => {
     })));
 
     const { runCoverGarbageCollectionBatch } = await loadStorageFactory();
-    expect(await runCoverGarbageCollectionBatch(80)).toEqual({ success: true, removed: 2, checked: 5, pending: 1, hasMore: true });
+    expect(await runCoverGarbageCollectionBatch(80)).toEqual({ success: true, removed: 2, checked: 5, deferred: 3, pending: 1, hasMore: true });
   });
 
   it('reads audit logs', async () => {

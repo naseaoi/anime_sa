@@ -14,6 +14,7 @@ export interface GcProgress {
   rounds: number;
   removed: number;
   checked: number;
+  deferred: number;
   pending: number;
 }
 
@@ -72,6 +73,7 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
     setGcRunning(true);
     let totalRemoved = 0;
     let totalChecked = 0;
+    let deferred = 0;
     let rounds = 0;
     let pending = 0;
     try {
@@ -81,8 +83,9 @@ export const useSyncOperations = ({ getData, onPersistData, showToast, reloadInf
         rounds += 1;
         totalRemoved += result.removed;
         totalChecked = Math.max(totalChecked, result.checked);
+        deferred = Math.max(deferred, result.deferred);
         pending = result.pending;
-        setGcProgress({ rounds, removed: totalRemoved, checked: totalChecked, pending });
+        setGcProgress({ rounds, removed: totalRemoved, checked: totalChecked, deferred, pending });
         if (!result.hasMore) break;
       }
       notify(`封面清理完成：删除 ${totalRemoved} 个未引用资源`, 'success');

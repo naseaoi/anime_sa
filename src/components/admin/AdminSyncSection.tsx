@@ -150,7 +150,7 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syn
           </div>
           {syncOps.gcProgress && (
             <p className="mt-3 text-xs text-[color:var(--text-secondary)]">
-              已检查 {syncOps.gcProgress.checked} 个资源，删除 {syncOps.gcProgress.removed} 个，待处理 {syncOps.gcProgress.pending} 个
+              已检查 {syncOps.gcProgress.checked} 个资源，删除 {syncOps.gcProgress.removed} 个，宽限期内 {syncOps.gcProgress.deferred} 个，待处理 {syncOps.gcProgress.pending} 个
             </p>
           )}
           {syncOps.optimizeProgress && syncOps.optimizingCovers && (

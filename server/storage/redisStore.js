@@ -163,3 +163,12 @@ export const listRedisMediaNames = async (redis, env) => {
   }
   return names;
 };
+
+export const listRedisMediaEntries = async (redis, env) => {
+  const names = await listRedisMediaNames(redis, env);
+  return Promise.all(names.map(async (name) => {
+    const meta = await readRedisJson(redis, env, `media-meta:${name}`);
+    const updatedAt = Number(meta?.updatedAt || 0);
+    return { name, updatedAt: Number.isFinite(updatedAt) ? updatedAt : 0 };
+  }));
+};
