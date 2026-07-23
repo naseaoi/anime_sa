@@ -71,7 +71,7 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
-      <div className="relative w-full h-[52vh] min-h-[380px] sm:min-h-[440px] max-h-[680px] lg:h-[calc(52vh+4rem)] lg:min-h-[calc(440px+4rem)] lg:max-h-[744px] overflow-hidden">
+      <div className="relative w-full h-[min(70vw,320px)] min-h-[260px] max-h-[320px] sm:h-[min(54vw,380px)] sm:min-h-[300px] sm:max-h-[380px] lg:h-[calc(52vh+4rem)] lg:min-h-[calc(440px+4rem)] lg:max-h-[744px] overflow-hidden">
         <div aria-hidden className="absolute inset-0 hero-stage" />
         {heroCards.map((card, idx) => {
           const coverSource = getCardCoverSourceSet(card);
@@ -100,13 +100,13 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
                   />
                 </div>
               )}
-              <div className="absolute inset-0 lg:top-16 lg:left-auto lg:right-[var(--page-x)] lg:aspect-video lg:overflow-hidden lg:hero-cover-mask">
+              <div className="absolute inset-0 lg:top-16 lg:left-auto lg:right-[var(--page-x)] lg:aspect-video lg:overflow-hidden">
                 <ImagePreview
                   src={showCover ? coverSource.src : ''}
                   srcSet={showCover ? coverSource.srcSet : undefined}
                   sizes="(min-width: 1024px) calc(75vw - 2.5rem), 100vw"
                   alt={card.title}
-                  className="w-full h-full object-cover select-none lg:hero-cover-top-mask"
+                  className="w-full h-full object-cover select-none hero-cover-edge-mask"
                   loading={active ? 'eager' : 'lazy'}
                   fetchPriority={active ? 'high' : 'low'}
                   decoding="async"
@@ -121,7 +121,7 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
                 <h2 className="font-display text-3xl sm:text-5xl lg:text-4xl xl:text-5xl leading-tight text-[color:var(--text-primary)] line-clamp-2 max-w-3xl mb-3">
                   {card.title}
                 </h2>
-                <div className="flex items-center gap-3 mb-2.5">
+                <div className="hidden sm:flex items-center gap-3 mb-2.5">
                   <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[color:color-mix(in_srgb,var(--surface)_65%,transparent)] border border-[color:var(--line)] backdrop-blur-sm text-xs font-semibold text-[color:var(--text-primary)]">
                     <Star size={12} className="text-amber-400 fill-amber-400" />
                     {card.rating.toFixed(1)}
@@ -139,14 +139,14 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
           <>
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex((prev) => (prev - 1 + heroLength) % heroLength); }}
-              className="lg:hidden absolute left-3 top-1/2 -translate-y-1/2 p-2.5 z-30 rounded-full bg-[color:color-mix(in_srgb,var(--surface)_55%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--surface)_80%,transparent)] border border-[color:var(--line)] backdrop-blur-sm text-[color:var(--text-primary)] transition-all"
+              className="lg:hidden absolute left-3 top-[36%] sm:top-1/2 -translate-y-1/2 p-2.5 z-30 rounded-full bg-[color:color-mix(in_srgb,var(--surface)_55%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--surface)_80%,transparent)] border border-[color:var(--line)] backdrop-blur-sm text-[color:var(--text-primary)] transition-all"
               aria-label="上一张"
             >
               <ChevronLeft size={20} />
             </button>
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHeroIndex((prev) => (prev + 1) % heroLength); }}
-              className="lg:hidden absolute right-3 top-1/2 -translate-y-1/2 p-2.5 z-30 rounded-full bg-[color:color-mix(in_srgb,var(--surface)_55%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--surface)_80%,transparent)] border border-[color:var(--line)] backdrop-blur-sm text-[color:var(--text-primary)] transition-all"
+              className="lg:hidden absolute right-3 top-[36%] sm:top-1/2 -translate-y-1/2 p-2.5 z-30 rounded-full bg-[color:color-mix(in_srgb,var(--surface)_55%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--surface)_80%,transparent)] border border-[color:var(--line)] backdrop-blur-sm text-[color:var(--text-primary)] transition-all"
               aria-label="下一张"
             >
               <ChevronRight size={20} />

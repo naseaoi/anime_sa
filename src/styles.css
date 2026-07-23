@@ -446,15 +446,20 @@
     background: var(--hero-stage);
   }
 
-  /* 封面左缘渐隐，露出下层模糊铺底 */
-  .hero-cover-mask {
-    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 26%, #000 88%, transparent 100%);
-    mask-image: linear-gradient(to right, transparent 0, #000 26%, #000 88%, transparent 100%);
+  .hero-cover-edge-mask {
+    --hero-cover-vertical-mask: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, 0.35) 7%, #000 20%, #000 82%, rgba(0, 0, 0, 0.45) 94%, transparent 100%);
+    -webkit-mask-image: var(--hero-cover-vertical-mask);
+    mask-image: var(--hero-cover-vertical-mask);
   }
 
-  .hero-cover-top-mask {
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, 0.35) 7%, #000 20%, #000 100%);
-    mask-image: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, 0.35) 7%, #000 20%, #000 100%);
+  @media (min-width: 1024px) {
+    .hero-cover-edge-mask {
+      --hero-cover-horizontal-mask: linear-gradient(to right, transparent 0, #000 26%, #000 88%, transparent 100%);
+      -webkit-mask-image: var(--hero-cover-horizontal-mask), var(--hero-cover-vertical-mask);
+      -webkit-mask-composite: source-in;
+      mask-image: var(--hero-cover-horizontal-mask), var(--hero-cover-vertical-mask);
+      mask-composite: intersect;
+    }
   }
 
   .hero-backdrop-img {
