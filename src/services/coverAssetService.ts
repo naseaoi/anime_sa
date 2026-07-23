@@ -51,10 +51,11 @@ const backfillMissingCoverVariants = async (card: Partial<CardData> & { id: stri
   try {
     const source = await fetchImageBytesFromUrl(canonicalCoverUrl);
     const renditions = await buildCoverRenditions(source.mime, source.bytes);
-    const uploaded: Partial<Record<'thumb' | 'card', string>> = {};
+    const uploaded: Partial<Record<'thumb' | 'card' | 'original', string>> = {};
+    const cacheOriginal = hasNetworkUrlCover(canonicalCoverUrl);
 
     for (const rendition of renditions) {
-      if (rendition.key === 'original') continue;
+      if (rendition.key === 'original' && !cacheOriginal) continue;
       if (uploaded[rendition.key]) continue;
       uploaded[rendition.key] = await uploadCoverBytes(card.id, rendition.mime, rendition.bytes, rendition.key);
     }
@@ -65,7 +66,7 @@ const backfillMissingCoverVariants = async (card: Partial<CardData> & { id: stri
       coverVariants: {
         ...canonicalVariants,
         ...uploaded,
-        original: canonicalCoverUrl
+        original: uploaded.original || canonicalCoverUrl
       }
     });
   } catch {
@@ -126,7 +127,7 @@ const restoreNetworkCoverUrl = <T extends Partial<CardData>>(card: T, options?: 
     coverUrl,
     coverVariants: {
       ...(normalized || {}),
-      original: coverUrl
+      original: isLocalMediaUrl(normalized?.original) ? normalized?.original : coverUrl
     }
   });
 
@@ -181,10 +182,9 @@ const cacheUrlCoverVariantsForStorage = async <T extends Partial<CardData> & { i
   }
 
   const renditions = await buildCoverRenditions(source.mime, source.bytes);
-  const coverMap: Partial<Record<'thumb' | 'card', string>> = {};
+  const coverMap: Partial<Record<'thumb' | 'card' | 'original', string>> = {};
 
   for (const rendition of renditions) {
-    if (rendition.key === 'original') continue;
     if (coverMap[rendition.key]) continue;
     coverMap[rendition.key] = await uploadCoverBytes(card.id, rendition.mime, rendition.bytes, rendition.key);
   }
@@ -195,7 +195,7 @@ const cacheUrlCoverVariantsForStorage = async <T extends Partial<CardData> & { i
     coverVariants: {
       thumb: coverMap.thumb || coverUrl,
       card: coverMap.card || coverMap.thumb || coverUrl,
-      original: coverUrl
+      original: coverMap.original || coverUrl
     }
   });
 

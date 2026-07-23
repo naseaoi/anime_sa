@@ -108,7 +108,7 @@ section 解析、路径构建和旧 `?tag=` 迁移统一由 `src/utils/routeUtil
 | `coverVariants.thumb/card/original` | 展示尺寸对应的来源 |
 | `coverLocalData` | 上传过程中的临时 Data URL，持久化后清空 |
 
-`persistCardCover` 在浏览器端解码并生成变体，优先 WebP，再通过 `coverMediaClient.ts` 上传，由调用方最后保存 `public_data`。封面批处理统一报告进度和失败项。保存冲突或失败时已上传媒体可能暂时孤立，交给 Media GC 处理，不要立即猜测删除。
+`persistCardCover` 在浏览器端解码并生成变体，优先 WebP，再通过 `coverMediaClient.ts` 上传，由调用方最后保存 `public_data`。外部 URL 封面会保留 `coverUrl` 作为来源，同时把原图、缩略图和卡片图持久化到站内媒体；媒体响应使用长期浏览器/共享缓存和内容 ETag。封面批处理统一报告进度和失败项。保存冲突或失败时已上传媒体可能暂时孤立，交给 Media GC 处理，不要立即猜测删除。
 
 SQLite 媒体在 `media_store`，Redis 使用 `<prefix>:media:<name>` 和元数据 key；旧 KV Base64 媒体只在读取或传输时兼容迁移，新代码不得写回旧 JSON。
 

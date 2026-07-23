@@ -47,7 +47,7 @@ export const ImagePreview: React.FC<{
         />
       )}
       {showSkeleton && (
-        <div className="absolute inset-0 skeleton-shimmer pointer-events-none" />
+        <div className="absolute inset-0 cover-loading-shimmer pointer-events-none" aria-hidden="true" />
       )}
       {showFallback && (
         <div className="absolute inset-0 flex items-center justify-center text-stone-300 dark:text-zinc-600 pointer-events-none">

@@ -4,6 +4,7 @@ import { createStorageApiHandler } from './storageApiHandler.js';
 const createResponse = () => {
   const headers = new Map();
   return {
+    headers,
     statusCode: 200,
     body: Buffer.alloc(0),
     setHeader(name, value) { headers.set(String(name).toLowerCase(), value); },
@@ -26,6 +27,16 @@ const createHandler = (savePublic) => createStorageApiHandler({
   auth: { require: async () => true },
   data: { savePublic },
   media: {},
+  credentials: {},
+  audit: { append: vi.fn() }
+});
+
+const createMediaHandler = (media) => createStorageApiHandler({
+  driver: 'sqlite',
+  getContext: async () => ({}),
+  auth: { require: async () => true },
+  data: {},
+  media,
   credentials: {},
   audit: { append: vi.fn() }
 });
@@ -54,5 +65,39 @@ describe('public data revision API', () => {
 
     expect(response.statusCode).toBe(400);
     expect(savePublic).not.toHaveBeenCalled();
+  });
+});
+
+describe('media cache headers', () => {
+  it('serves immutable media with shared cache directives and honors ETag', async () => {
+    const media = { read: vi.fn(async () => ({ contentType: 'image/webp', bytes: Buffer.from('cover') })) };
+    const handler = createMediaHandler(media);
+    const first = createResponse();
+    await handler({
+      url: '/api/storage/media?name=cover.webp',
+      method: 'GET',
+      headers: { host: 'example.test', origin: 'http://example.test' },
+      socket: { remoteAddress: '127.0.0.1' }
+    }, first);
+
+    expect(first.statusCode).toBe(200);
+    expect(first.headers.get('cache-control')).toContain('s-maxage=31536000');
+    expect(first.headers.get('cache-control')).toContain('immutable');
+    expect(first.headers.get('etag')).toMatch(/^"[a-f0-9]{64}"$/);
+
+    const second = createResponse();
+    await handler({
+      url: '/api/storage/media?name=cover.webp',
+      method: 'GET',
+      headers: {
+        host: 'example.test',
+        origin: 'http://example.test',
+        'if-none-match': first.headers.get('etag')
+      },
+      socket: { remoteAddress: '127.0.0.1' }
+    }, second);
+
+    expect(second.statusCode).toBe(304);
+    expect(second.headers.get('etag')).toBe(first.headers.get('etag'));
   });
 });

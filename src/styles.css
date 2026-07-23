@@ -258,6 +258,22 @@
     animation: skeletonShimmer 1.35s ease-in-out infinite;
   }
 
+  .cover-loading-shimmer {
+    position: relative;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--surface) 4%, transparent);
+  }
+
+  .cover-loading-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: 42%;
+    transform: translateX(-140%);
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--surface) 36%, transparent), transparent);
+    animation: coverLoadingShimmer 1.8s ease-in-out infinite;
+  }
+
   /* 观后感 Markdown 渲染：仅作用于 .markdown-body 容器内，避免污染全局
      Tailwind base 已 reset 了标题/列表样式，这里按观后感场景重新建立排版层级 */
   .markdown-body > *:first-child {
@@ -575,10 +591,22 @@
     }
   }
 
+  @keyframes coverLoadingShimmer {
+    100% {
+      transform: translateX(340%);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .skeleton-shimmer::after {
       animation: none;
       transform: none;
+    }
+
+    .cover-loading-shimmer::after {
+      animation: none;
+      transform: none;
+      opacity: 0.5;
     }
   }
 }

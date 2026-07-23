@@ -49,6 +49,8 @@ const writeRemoteImage = async (request, response, url, requireAuth) => {
   }
 };
 
+const buildMediaEtag = (bytes) => `"${crypto.createHash('sha256').update(bytes).digest('hex')}"`;
+
 const checkRateLimit = async (response, rateLimit, scope, clientIp, limit, windowSeconds) => {
   if (!rateLimit) return true;
   const result = await rateLimit(scope, clientIp, limit, windowSeconds);
@@ -115,8 +117,15 @@ export const createStorageApiHandler = ({
       if (request.method === 'GET') {
         const item = await media.read(context, name);
         if (!item) return errorResponse(response, 404, 'Media not found');
+        const etag = buildMediaEtag(item.bytes);
+        response.setHeader('ETag', etag);
+        response.setHeader('Cache-Control', 'public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400, immutable');
+        if (request.headers['if-none-match'] === etag) {
+          response.statusCode = 304;
+          response.end();
+          return;
+        }
         response.statusCode = 200;
-        response.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         response.setHeader('Content-Type', item.contentType);
         response.setHeader('Content-Length', item.bytes.length);
         response.end(item.bytes);

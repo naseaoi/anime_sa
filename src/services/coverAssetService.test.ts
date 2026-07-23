@@ -203,6 +203,7 @@ describe('coverAssetService', () => {
         })
       )
       .mockResolvedValueOnce(new Response('', { status: 200 }))
+      .mockResolvedValueOnce(new Response('', { status: 200 }))
       .mockResolvedValueOnce(new Response('', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -217,14 +218,16 @@ describe('coverAssetService', () => {
       }
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(String(fetchMock.mock.calls[0][0])).toContain('/api/storage/remote-image?url=');
-    const secondHeaders = fetchMock.mock.calls[1][1]?.headers as Record<string, string>;
-    const thirdHeaders = fetchMock.mock.calls[2][1]?.headers as Record<string, string>;
-    expect(secondHeaders['Content-Type']).toBe('image/webp');
-    expect(thirdHeaders['Content-Type']).toBe('image/webp');
+    const originalHeaders = fetchMock.mock.calls[1][1]?.headers as Record<string, string>;
+    const thumbHeaders = fetchMock.mock.calls[2][1]?.headers as Record<string, string>;
+    const cardHeaders = fetchMock.mock.calls[3][1]?.headers as Record<string, string>;
+    expect(originalHeaders['Content-Type']).toBe('image/jpeg');
+    expect(thumbHeaders['Content-Type']).toBe('image/webp');
+    expect(cardHeaders['Content-Type']).toBe('image/webp');
     expect(result.coverUrl).toBe('https://cdn.example.com/original.jpg');
-    expect(result.coverVariants?.original).toBe('https://cdn.example.com/original.jpg');
+    expect(result.coverVariants?.original).toContain('/api/storage/media?name=');
     expect(result.coverVariants?.thumb).toContain('.webp');
     expect(result.coverVariants?.card).toContain('.webp');
   });
@@ -273,6 +276,7 @@ describe('coverAssetService', () => {
         })
       )
       .mockResolvedValueOnce(new Response('', { status: 200 }))
+      .mockResolvedValueOnce(new Response('', { status: 200 }))
       .mockResolvedValueOnce(new Response('', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -288,8 +292,9 @@ describe('coverAssetService', () => {
       }
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(String(fetchMock.mock.calls[0][0])).toContain('/api/storage/remote-image?url=');
+    expect(result.coverVariants?.original).toContain('/api/storage/media?name=');
     expect(result.coverVariants?.thumb).toContain('/api/storage/media?name=');
     expect(result.coverVariants?.card).toContain('/api/storage/media?name=');
   });
@@ -452,11 +457,11 @@ describe('coverAssetService', () => {
     expect(result.optimized).toBe(1);
     expect(result.failed).toBe(0);
     expect(result.cards[0].coverUrl).toBe('https://cdn.example.com/original.jpg');
-    expect(result.cards[0].coverVariants?.original).toBe('https://cdn.example.com/original.jpg');
+    expect(result.cards[0].coverVariants?.original).toContain('/api/storage/media?name=');
     expect(result.cards[0].coverVariants?.thumb).toContain('/api/storage/media?name=');
     expect(result.cards[0].coverVariants?.card).toContain('/api/storage/media?name=');
     expect(String(fetchMock.mock.calls[0][0])).toContain(encodeURIComponent('https://cdn.example.com/original.jpg'));
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it('forceOptimizeUrlCardCovers restores network coverUrl when cache generation fails', async () => {
