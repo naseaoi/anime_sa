@@ -452,6 +452,11 @@
     mask-image: linear-gradient(to right, transparent 0, #000 26%, #000 88%, transparent 100%);
   }
 
+  .hero-cover-top-mask {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, 0.35) 7%, #000 20%, #000 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, 0.35) 7%, #000 20%, #000 100%);
+  }
+
   .hero-backdrop-img {
     filter: blur(56px) saturate(1.15);
     transform: scale(1.3);

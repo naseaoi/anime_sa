@@ -1,12 +1,16 @@
 import { PublicData } from '../types';
 
+export const DEFAULT_ICON_URL = '/icon.png';
+
+export const resolveSiteIconUrl = (iconUrl?: string) => iconUrl?.trim() || DEFAULT_ICON_URL;
+
 export const DEFAULT_PUBLIC_DATA: PublicData = {
   version: 0,
   updatedAt: 0,
   revision: 'legacy:0',
   settings: {
     title: '我的收藏',
-    iconUrl: 'https://lucide.dev/favicon.ico',
+    iconUrl: DEFAULT_ICON_URL,
     themeColor: '#c78c2b',
     footerText: 'All rights reserved',
     footerLeft: '© 2026',

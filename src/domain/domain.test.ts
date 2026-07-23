@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { applyDerivedPublicDataVersion, DEFAULT_PUBLIC_DATA } from './publicData';
+import {
+  applyDerivedPublicDataVersion,
+  DEFAULT_ICON_URL,
+  DEFAULT_PUBLIC_DATA,
+  resolveSiteIconUrl
+} from './publicData';
 import { isStorageMode, STORAGE_MODES } from './storage';
 
 describe('storage domain', () => {
@@ -30,5 +35,11 @@ describe('public data domain', () => {
 
   it('keeps default data free of cards', () => {
     expect(DEFAULT_PUBLIC_DATA.cards).toEqual([]);
+  });
+
+  it('uses the default icon when the configured URL is blank', () => {
+    expect(resolveSiteIconUrl('')).toBe(DEFAULT_ICON_URL);
+    expect(resolveSiteIconUrl('   ')).toBe(DEFAULT_ICON_URL);
+    expect(resolveSiteIconUrl('https://example.com/icon.png')).toBe('https://example.com/icon.png');
   });
 });
