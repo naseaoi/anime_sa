@@ -1,4 +1,5 @@
 import { PUBLIC_DATA_LIMITS } from '../publicDataValidation.js';
+import { inspectSqliteStorage } from './sqliteMaintenance.js';
 
 export const buildPublicDataMetrics = (value) => {
   const tags = Array.isArray(value?.tags) ? value.tags : [];
@@ -21,3 +22,11 @@ export const buildPublicDataMetrics = (value) => {
     }
   };
 };
+
+export const buildSqliteDataMetrics = (database, value) => ({
+  ...buildPublicDataMetrics(value),
+  storage: {
+    driver: 'sqlite',
+    ...inspectSqliteStorage(database)
+  }
+});

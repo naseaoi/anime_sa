@@ -61,17 +61,20 @@
 | `npm start` / Docker | `server.js` | SQLite 或 Redis |
 | Vercel | `api/storage.ts` | 仅 Redis |
 
-`server/core/storageApiHandler.js` 负责共享 HTTP 编排；SQLite、Redis 和各运行时入口只负责适配。`STORAGE_DRIVER` 在启动时解析，不支持热切换；客户端先调用 `getStorageAsync()` 再读取驱动状态。
+`server/core/storageApiHandler.js` 负责共享 HTTP 编排；SQLite、Redis 和各运行时入口只负责适配。`STORAGE_DRIVER` 在启动时解析，不支持热切换；公开页面直接读取公共数据，进入后台时才调用 `fetchStorageDriver()` 初始化驱动状态。
 
 API 约束：
 
 - `readJsonObject` 将空 body 视为 `{}`，原始值和数组返回 400；普通请求体上限 1 MiB，媒体上限 10 MiB。
 - `public_data` GET 是公开业务数据；`driver`、`ping`、`ready`、Session、容量指标和媒体 GET 是独立端点。`ping` 不连接存储，`ready` 检查活动存储。
+- `public_data` GET 使用 revision ETag 和公开可重验证缓存；其他 JSON 默认 `no-store`，不能把缓存策略扩散到 Session 或私有数据。
 - `public_data` 写入、媒体写入/删除、远程图片代理、审计日志和存储传输需要鉴权；凭据只通过专用接口或服务端传输处理。登录、退出和 Session 检查是生命周期例外。
 - 状态变更请求必须通过同源校验；新增端点沿用请求体限制、错误响应和相应审计策略。
 - 方法不匹配使用 `methodNotAllowed`；其他错误使用 `errorResponse`，保持 JSON、`success: false`、稳定 `code` 和展示用 `error`。客户端按 `code` 分支。
 
 安全响应头唯一来源是 `server/core/securityHeaders.js`。修改后运行 `npm run sync:vercel-headers`，并用 `npm run lint` 检查 `vercel.json` 是否同步；HSTS 仅在生产 Node.js 和 Vercel 发送。
+
+`npm run build` 会为可压缩静态资源生成 `.gz` 和 `.br` 文件，Node.js 生产服务器优先发送预压缩文件。成功静态资源和媒体请求默认不逐条记录，API、错误和耗时达到 1 秒的请求保留结构化日志。SIGTERM / SIGINT 会停止接收请求并关闭活动存储连接。
 
 ## 三、公共数据写入与版本控制
 
@@ -168,6 +171,6 @@ React 端浏览器状态经 `src/utils/browserState.ts` 校验读写；`public/b
 | 公共数据、API、存储、鉴权、媒体 | `npm run lint`、`npm test`、`npm run test:coverage`、`npm run build` |
 | 路由、登录、跨存储或关键用户流程 | 上述验证加 `npm run test:e2e` |
 | 安全依赖、发布或部署 | 再运行 `npm run audit:prod`、`npm run audit:all`，按 [`docs/RELEASE.md`](./RELEASE.md) 核对版本和入口 |
-| SQLite 结构、迁移或备份 | 再运行 `npm run verify:sqlite-backup -- <backup.db>` |
+| SQLite 结构、迁移或备份 | 再运行 `npm run optimize:sqlite` 和 `npm run verify:sqlite-backup -- <backup.db>` |
 
 首次运行 E2E 先执行 `npx playwright install chromium`。支持 Node.js `20.19.0` 及以上，CI 验证 20.19.0 和 24。

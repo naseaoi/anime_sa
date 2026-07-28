@@ -1,6 +1,6 @@
 import { createStorageApiHandler } from './storageApiHandler.js';
 import { getPublicDataRevision } from '../publicDataValidation.js';
-import { buildPublicDataMetrics } from './dataMetrics.js';
+import { buildSqliteDataMetrics } from './dataMetrics.js';
 import { appendAuditLog } from './auditStore.js';
 import { normalizeAuditWritePayload } from './auditContract.js';
 import { BODY_LIMIT_BYTES, MEDIA_BODY_LIMIT_BYTES, SESSION_COOKIE } from './constants.js';
@@ -71,7 +71,7 @@ const createSqliteHandler = (env, isProduction) => createStorageApiHandler({
       });
       return save();
     },
-    metrics: (database) => buildPublicDataMetrics(dbGetJson(database, 'public_data'))
+    metrics: (database) => buildSqliteDataMetrics(database, dbGetJson(database, 'public_data'))
   },
   media: {
     read: (database, name) => dbGetMedia(database, name),

@@ -12,18 +12,29 @@ export const logEvent = (level, event, fields = {}) => {
   else console.log(output);
 };
 
+export const shouldLogHttpRequest = (request, status, durationMs) => {
+  if (status >= 400 || durationMs >= 1000) return true;
+  const pathname = String(request.url || '').split('?')[0];
+  const isApi = pathname.startsWith('/api/');
+  const isMedia = pathname === '/api/storage/media' || pathname === '/api/sqlite/media';
+  return isApi && !isMedia;
+};
+
 export const instrumentResponse = (request, response, requestId, startedAt, driver) => {
   response.setHeader('X-Request-Id', requestId);
   const end = response.end.bind(response);
   response.end = (...args) => {
-    logEvent(response.statusCode >= 500 ? 'error' : 'info', 'http_request', {
-      requestId,
-      method: request.method,
-      path: String(request.url || '').split('?')[0],
-      status: response.statusCode,
-      durationMs: Date.now() - startedAt,
-      driver
-    });
+    const durationMs = Date.now() - startedAt;
+    if (shouldLogHttpRequest(request, response.statusCode, durationMs)) {
+      logEvent(response.statusCode >= 500 ? 'error' : 'info', 'http_request', {
+        requestId,
+        method: request.method,
+        path: String(request.url || '').split('?')[0],
+        status: response.statusCode,
+        durationMs,
+        driver
+      });
+    }
     return end(...args);
   };
 };

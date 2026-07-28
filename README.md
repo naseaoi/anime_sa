@@ -212,6 +212,18 @@ docker start anime_sa
 
 恢复时停止服务，替换 `data/local.db`，再启动服务并检查前台、后台登录和封面。
 
+数据库维护默认只输出报告，不写入数据：
+
+```powershell
+npm run optimize:sqlite
+```
+
+执行维护前停止服务。`--apply` 会先创建并校验备份，再迁移仍被引用的旧媒体、清理超过宽限期的无引用媒体并执行 `VACUUM`：
+
+```powershell
+npm run optimize:sqlite -- .\\data\\local.db --apply --backup .\\backups\\local-before-optimize.db
+```
+
 ### Redis
 
 使用托管平台提供的快照、导出或备份功能保存 `<prefix>:public_data`、`<prefix>:private_data`、`<prefix>:media:*`、`<prefix>:media-meta:*`、`<prefix>:audit`。Session 和限流 Key 无需恢复。恢复后重新部署并检查 `/api/storage?key=ready`、后台登录、公共数据和封面。
@@ -248,7 +260,7 @@ Redis 运维要点：
 | 命令 | 说明 |
 |---|---|
 | `npm run dev` | 启动 Vite 开发服务器 |
-| `npm run build` | 构建前端产物到 `dist/` |
+| `npm run build` | 构建前端产物到 `dist/` 并生成 gzip / Brotli 文件 |
 | `npm start` | 生产模式运行 |
 | `npm run lint` | 客户端/服务端静态检查 |
 | `npm run audit:prod` | 生产依赖安全审计 |
@@ -257,6 +269,8 @@ Redis 运维要点：
 | `npm run test:coverage` | 运行测试并检查覆盖率门槛 |
 | `npm run test:e2e` | 运行浏览器冒烟测试 |
 | `npm run verify:sqlite-backup -- .\\backups\\local.db` | 校验 SQLite 备份完整性 |
+| `npm run optimize:sqlite` | 只读检查 SQLite 页占用和旧媒体 |
+| `npm run optimize:sqlite -- .\\data\\local.db --apply --backup <path>` | 备份后维护并压缩 SQLite |
 
 代码改动后依次执行 `npm run lint`、`npm test`、`npm run test:coverage`、`npm run test:e2e`、`npm run build` 验证。首次运行 E2E 前执行 `npx playwright install chromium`。
 

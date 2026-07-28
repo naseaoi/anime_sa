@@ -16,6 +16,8 @@
 
 客户端应根据 `code` 分支，`error` 只用于展示，不作为程序判断条件。公共数据写入必须带 `X-Expected-Revision`，服务端成功响应返回新的 `revision`。
 
+`public_data` GET 返回基于 `revision` 的 `ETag` 和 `Cache-Control: public, no-cache`。客户端可以发送 `If-None-Match`，数据未变化时返回 304；Session、私有配置、写入和错误响应继续使用 `no-store`。Node.js 根据 `Accept-Encoding` 压缩可压缩 API 响应。
+
 | 状态码 | code |
 |---:|---|
 | 400 | `BAD_REQUEST` |
@@ -42,3 +44,5 @@
 - 探针：`?key=driver`、`?key=ping`（进程探针）、`?key=ready`（存储就绪探针）
 
 新增端点必须复用 `errorResponse`、同源校验、请求体限制、鉴权和审计策略，并补 SQLite/Redis 契约测试。
+
+SQLite 的 `/data-metrics` 在公共文档指标外返回 `storage`，包含页大小、总页数、空闲页、媒体表字节数和旧媒体引用统计。Redis 不返回 SQLite 页指标。

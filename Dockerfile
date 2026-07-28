@@ -1,28 +1,28 @@
-# 构建阶段
-FROM node:24-alpine AS build
+FROM node:24-alpine AS dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN apk add --no-cache --virtual .build-deps python3 make g++ \
+    && npm ci
+
+FROM dependencies AS build
 COPY . .
 ARG VITE_APP_VERSION=dev
 ENV VITE_APP_VERSION=$VITE_APP_VERSION
 RUN npm run build
 
-# 运行阶段
+FROM dependencies AS production-dependencies
+RUN npm prune --omit=dev \
+    && npm cache clean --force
+
 FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 
-# 安装生产依赖
 COPY package.json package-lock.json ./
 RUN apk add --no-cache su-exec \
-    && apk add --no-cache --virtual .build-deps python3 make g++ \
-    && npm ci --omit=dev \
-    && apk del .build-deps \
-    && npm cache clean --force \
     && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+COPY --from=production-dependencies /app/node_modules ./node_modules
 
-# 拷贝运行文件
 COPY server.js ./
 COPY server/core/ ./server/core/
 COPY server/storage/ ./server/storage/

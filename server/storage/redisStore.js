@@ -39,6 +39,14 @@ export const getRedisClient = async (env) => {
   return redisClient;
 };
 
+export const closeRedisClient = async () => {
+  const client = redisClient;
+  redisClient = null;
+  redisIdentity = '';
+  redisConnectPromise = null;
+  if (client?.isOpen) await client.close();
+};
+
 export const readRedisJson = async (redis, env, key) => {
   const raw = await redis.get(buildKey(env, key));
   if (!raw) return null;

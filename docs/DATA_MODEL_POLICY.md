@@ -4,7 +4,7 @@
 
 ## 监控指标
 
-管理员可以读取 `/api/storage/data-metrics` 查看当前文档的标签数、卡片数、JSON 字节数和上限利用率。接口需要管理员 Session。
+管理员可以读取 `/api/storage/data-metrics` 查看当前文档的标签数、卡片数、JSON 字节数和上限利用率。SQLite 额外返回数据库页、空闲页、媒体表和旧媒体统计。接口需要管理员 Session。
 
 当前触发线：
 

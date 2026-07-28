@@ -4,6 +4,7 @@ import Database from 'better-sqlite3';
 
 let dbInstance = null;
 let maintenanceStarted = false;
+let maintenanceTimer = null;
 
 const ensureMediaTable = (database) => {
   database.exec(`
@@ -47,9 +48,10 @@ const cleanupExpiredSessions = (database) => {
 
 const startMaintenance = (database) => {
   try { cleanupExpiredSessions(database); } catch {}
-  setInterval(() => {
+  maintenanceTimer = setInterval(() => {
     try { cleanupExpiredSessions(database); } catch {}
-  }, 60 * 60 * 1000).unref();
+  }, 60 * 60 * 1000);
+  maintenanceTimer.unref();
 };
 
 export const ensureDb = () => {
@@ -74,6 +76,14 @@ export const ensureDb = () => {
     startMaintenance(dbInstance);
   }
   return dbInstance;
+};
+
+export const closeDb = () => {
+  if (maintenanceTimer) clearInterval(maintenanceTimer);
+  maintenanceTimer = null;
+  maintenanceStarted = false;
+  if (dbInstance?.open) dbInstance.close();
+  dbInstance = null;
 };
 
 export const dbGetJson = (database, key) => {

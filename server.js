@@ -11,9 +11,12 @@ import { setSecurityHeaders } from './server/core/securityHeaders.js';
 import { getClientIp } from './server/core/httpUtils.js';
 import { createInMemoryRateLimiter } from './server/core/rateLimit.js';
 import { loadRuntimeConfig } from './server/core/runtimeConfig.js';
-import { createRequestId, instrumentResponse } from './server/core/logger.js';
+import { createRequestId, instrumentResponse, logEvent } from './server/core/logger.js';
 import { createFileStatCache } from './server/core/fileStatCache.js';
 import { installResponseCompression, selectResponseEncoding } from './server/core/responseCompression.js';
+import { createGracefulShutdown } from './server/core/gracefulShutdown.js';
+import { closeDb } from './server/core/kvStore.js';
+import { closeRedisClient } from './server/storage/redisStore.js';
 
 const runtimeConfig = loadRuntimeConfig(process.env);
 const PORT = runtimeConfig.port;
@@ -177,3 +180,20 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running at http://0.0.0.0:${PORT}`);
   console.log(`- Storage Driver: ${STORAGE_DRIVER === 'redis' ? 'Redis' : `SQLite (Data: ${DATA_DIR})`}`);
 });
+
+const shutdown = createGracefulShutdown({
+  server,
+  closeStorage: () => STORAGE_DRIVER === 'redis' ? closeRedisClient() : Promise.resolve(closeDb()),
+  onEvent: (event, signal, error) => {
+    logEvent(error ? 'error' : 'info', `server_shutdown_${event}`, {
+      signal,
+      ...(error ? { error: error instanceof Error ? error.message : String(error) } : {})
+    });
+    if (error) process.exitCode = 1;
+  },
+  onTimeout: () => { process.exitCode = 1; }
+});
+
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.once(signal, () => { void shutdown(signal); });
+}
