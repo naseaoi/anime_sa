@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   applyDerivedPublicDataVersion,
   DEFAULT_ICON_URL,
+  DEFAULT_NAV_ICON_URL,
   DEFAULT_PUBLIC_DATA,
+  resolveNavigationIconUrl,
   resolveSiteIconUrl
 } from './publicData';
 import { isStorageMode, STORAGE_MODES } from './storage';
@@ -41,5 +43,11 @@ describe('public data domain', () => {
     expect(resolveSiteIconUrl('')).toBe(DEFAULT_ICON_URL);
     expect(resolveSiteIconUrl('   ')).toBe(DEFAULT_ICON_URL);
     expect(resolveSiteIconUrl('https://example.com/icon.png')).toBe('https://example.com/icon.png');
+  });
+
+  it('uses a compact navigation icon for the default site icon', () => {
+    expect(resolveNavigationIconUrl('')).toBe(DEFAULT_NAV_ICON_URL);
+    expect(resolveNavigationIconUrl(DEFAULT_ICON_URL)).toBe(DEFAULT_NAV_ICON_URL);
+    expect(resolveNavigationIconUrl('https://example.com/icon.png')).toBe('https://example.com/icon.png');
   });
 });

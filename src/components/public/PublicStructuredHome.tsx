@@ -28,6 +28,18 @@ interface PublicStructuredHomeProps extends HeroProps {
   tags: Tag[];
 }
 
+export const resolveInitialShelfKey = (sections: StructuredHomeSections) => {
+  if (sections.topCards.length > 0) return 'top';
+  if (sections.recommendedCards.length > 0) return 'recommended';
+  if (sections.watchingCards.length > 0) return 'watching';
+  const firstTagId = sections.tagSections[0]?.tag.id;
+  return firstTagId ? `tag:${firstTagId}` : null;
+};
+
+export const resolveShelfEagerCount = (showHero: boolean, shelfKey: string, firstShelfKey: string | null) => (
+  !showHero && firstShelfKey === shelfKey ? 2 : 0
+);
+
 // 剧场首页：全宽 Hero + 各分区横向 shelf
 export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
   sections, gridKey, sectionCardLimit, showHero, heroCards,
@@ -35,6 +47,8 @@ export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
   getCardHref, getCardState, onTagChange, tags
 }) => {
   const shelfProps = { limit: sectionCardLimit, getCardState, tags };
+  const firstShelfKey = resolveInitialShelfKey(sections);
+  const eagerCountFor = (key: string) => resolveShelfEagerCount(showHero, key, firstShelfKey);
 
   return (
     <div key={`sections-${gridKey}`}>
@@ -58,6 +72,7 @@ export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
             icon={<span className="w-6 h-6 inline-flex items-center justify-center text-[color:var(--accent)]"><Clock3 size={22} /></span>}
             title="最新收录"
             cards={sections.topCards}
+            eagerCount={eagerCountFor('top')}
             getCardHref={(card) => getCardHref(card, 'all')}
             {...shelfProps}
           />
@@ -68,6 +83,7 @@ export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
             icon={<span className="w-6 h-6 inline-flex items-center justify-center text-amber-500"><ThumbsUp size={22} /></span>}
             title="精选推荐"
             cards={sections.recommendedCards}
+            eagerCount={eagerCountFor('recommended')}
             getCardHref={(card) => getCardHref(card, 'recommended')}
             onViewMore={() => onTagChange('recommended')}
             {...shelfProps}
@@ -79,6 +95,7 @@ export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
             icon={<span className="w-6 h-6 inline-flex items-center justify-center text-sky-500"><PlayCircle size={22} /></span>}
             title="正在观看"
             cards={sections.watchingCards}
+            eagerCount={eagerCountFor('watching')}
             getCardHref={(card) => getCardHref(card, 'watching')}
             onViewMore={() => onTagChange('watching')}
             {...shelfProps}
@@ -91,6 +108,7 @@ export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
             icon={<span className="w-6 h-6 inline-flex items-center justify-center text-[color:var(--accent)]">{getTagIcon(section.tag.icon, 'w-5 h-5') || <span className="text-2xl font-bold leading-none">|</span>}</span>}
             title={section.tag.name}
             cards={section.cards}
+            eagerCount={eagerCountFor(`tag:${section.tag.id}`)}
             getCardHref={(card) => getCardHref(card, getTagSlug(section.tag))}
             onViewMore={() => onTagChange(section.tag.id)}
             {...shelfProps}

@@ -446,14 +446,16 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData }) => 
       </main>
 
       <Suspense fallback={null}>
-        <CardEditModal
-          isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
-          title="快速记录"
-          initialCard={QUICK_CREATE_INITIAL_CARD}
-          tags={data.tags}
-          onPersist={handleCreatePersist}
-        />
+        {isCreateModalOpen && (
+          <CardEditModal
+            isOpen
+            onClose={() => setIsCreateModalOpen(false)}
+            title="快速记录"
+            initialCard={QUICK_CREATE_INITIAL_CARD}
+            tags={data.tags}
+            onPersist={handleCreatePersist}
+          />
+        )}
       </Suspense>
     </div>
   );

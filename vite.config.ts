@@ -21,10 +21,6 @@ export default defineConfig(({ mode }) => {
           codeSplitting: {
             groups: [
               {
-                name: 'react-dp',
-                test: /node_modules[\\/](react-day-picker|date-fns)[\\/]/
-              },
-              {
                 name: 'react-vendor',
                 test: /node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/
               },

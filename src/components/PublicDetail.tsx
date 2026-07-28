@@ -7,7 +7,6 @@ import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { PublicData, CardData } from '../types';
 import { Button, ImagePreview, Rating, useToast } from './Common';
-import { refreshAfterCommit, updateCardMutation } from '../services/publicDataMutationService';
 import { usePublicNavigation } from './public/PublicNavigationContext';
 import { useCardCreate, QUICK_CREATE_INITIAL_CARD } from '../hooks/useCardCreate';
 import { getCardCoverUrl } from '../utils/cardCover';
@@ -92,6 +91,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
   const handlePersist = async (updatedCard: Partial<CardData>) => {
     if (!card) return failedResult('卡片不存在');
 
+    const { refreshAfterCommit, updateCardMutation } = await import('../services/publicDataMutationService');
     const result = await updateCardMutation(data, card, updatedCard);
     if (result.state !== 'persisted') {
       showToast(`保存失败: ${result.error}`, 'error');
@@ -275,22 +275,26 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
       )}
 
       <Suspense fallback={null}>
-        <CardEditModal
-          isOpen={isEditing}
-          onClose={() => setIsEditing(false)}
-          title="编辑记录"
-          initialCard={card}
-          tags={data.tags}
-          onPersist={handlePersist}
-        />
-        <CardEditModal
-          isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
-          title="快速记录"
-          initialCard={QUICK_CREATE_INITIAL_CARD}
-          tags={data.tags}
-          onPersist={handleCreatePersist}
-        />
+        {isEditing && (
+          <CardEditModal
+            isOpen
+            onClose={() => setIsEditing(false)}
+            title="编辑记录"
+            initialCard={card}
+            tags={data.tags}
+            onPersist={handlePersist}
+          />
+        )}
+        {isCreateModalOpen && (
+          <CardEditModal
+            isOpen
+            onClose={() => setIsCreateModalOpen(false)}
+            title="快速记录"
+            initialCard={QUICK_CREATE_INITIAL_CARD}
+            tags={data.tags}
+            onPersist={handleCreatePersist}
+          />
+        )}
       </Suspense>
     </div>
   );

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { CardData, PublicData } from '../types';
 import { useToast } from '../components/Common';
-import { createCardMutation, refreshAfterCommit } from '../services/publicDataMutationService';
 
 export const QUICK_CREATE_INITIAL_CARD: Partial<CardData> = {
   tagIds: [],
@@ -19,6 +18,7 @@ export const useCardCreate = (data: PublicData, refreshData?: () => Promise<void
   const { showToast } = useToast();
 
   const handleCreatePersist = async (cardData: Partial<CardData>) => {
+    const { createCardMutation, refreshAfterCommit } = await import('../services/publicDataMutationService');
     const result = await createCardMutation(data, cardData);
     if (result.state !== 'persisted') {
       showToast(result.error || '失败', 'error');

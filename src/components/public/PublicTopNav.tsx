@@ -4,7 +4,7 @@ import {
   ArrowUpDown, Sun, Moon, Monitor, Library, Check
 } from 'lucide-react';
 import type { Tag } from '../../types';
-import { resolveSiteIconUrl } from '../../domain/publicData';
+import { resolveNavigationIconUrl } from '../../domain/publicData';
 import type { CardStats } from '../../utils/cardStats';
 import { getTagIcon } from '../../utils/tagIcons';
 import type { SortKey, SortOrder } from '../../utils/browserState';
@@ -57,7 +57,7 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
   const [scrolled, setScrolled] = useState(false);
   const menuAreaRef = useRef<HTMLDivElement>(null);
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
-  const logoSrc = resolveSiteIconUrl(iconUrl);
+  const logoSrc = resolveNavigationIconUrl(iconUrl);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -163,7 +163,7 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
       <div className="relative z-10 px-[var(--page-x)]">
         <div className="h-14 lg:h-16 flex items-center gap-4 lg:gap-6">
           <button type="button" className="flex items-center gap-3 shrink-0 cursor-pointer select-none text-left" onClick={handleLogoClick}>
-            <img src={logoSrc} alt="Logo" className="w-8 h-8 object-contain" />
+            <img src={logoSrc} alt="Logo" width={32} height={32} decoding="async" className="w-8 h-8 object-contain" />
             <div className="hidden sm:block">
               <p className="font-display text-lg leading-tight text-[color:var(--text-primary)] whitespace-nowrap">{title}</p>
               <p className="text-[9px] tracking-[0.24em] uppercase text-[color:var(--text-secondary)] whitespace-nowrap leading-none">Cinema Archive</p>

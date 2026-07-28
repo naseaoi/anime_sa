@@ -12,13 +12,14 @@ interface PublicShelfProps {
   getCardState: () => { from: string };
   onViewMore?: () => void;
   tags: Tag[];
+  eagerCount?: number;
 }
 
 const SHELF_CARD_SIZES = '(max-width: 639px) 70vw, (max-width: 1023px) 40vw, 300px';
 
 // 首页横向分区：标题行 + snap 滚动卡片带，桌面端悬停浮现两侧翻页钮
 export const PublicShelf: React.FC<PublicShelfProps> = ({
-  icon, title, cards, limit, getCardHref, getCardState, onViewMore, tags
+  icon, title, cards, limit, getCardHref, getCardState, onViewMore, tags, eagerCount = 0
 }) => {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const visibleCards = cards.slice(0, limit);
@@ -114,7 +115,7 @@ export const PublicShelf: React.FC<PublicShelfProps> = ({
               href={getCardHref(card)}
               state={getCardState()}
               tagNameById={tagNameById}
-              eager={index < 2}
+              eager={index < eagerCount}
               sizes={SHELF_CARD_SIZES}
               className="w-[68vw] sm:w-[280px] lg:w-[300px] shrink-0 snap-start"
             />

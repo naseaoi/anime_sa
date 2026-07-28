@@ -1,8 +1,14 @@
 import { PublicData } from '../types';
 
 export const DEFAULT_ICON_URL = '/icon.png';
+export const DEFAULT_NAV_ICON_URL = '/icon-64.png';
 
 export const resolveSiteIconUrl = (iconUrl?: string) => iconUrl?.trim() || DEFAULT_ICON_URL;
+
+export const resolveNavigationIconUrl = (iconUrl?: string) => {
+  const resolved = resolveSiteIconUrl(iconUrl);
+  return resolved === DEFAULT_ICON_URL ? DEFAULT_NAV_ICON_URL : resolved;
+};
 
 export const DEFAULT_PUBLIC_DATA: PublicData = {
   version: 0,
