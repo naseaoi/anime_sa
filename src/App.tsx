@@ -2,7 +2,13 @@
 import React, { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { DEFAULT_PUBLIC_DATA } from './domain/publicData';
-import { AUTH_CHANGED_EVENT, getStorageAsync, checkServerSession } from './services/storageFactory';
+import {
+  AUTH_CHANGED_EVENT,
+  checkServerSession,
+  fetchStorageDriver,
+  getStorage,
+  getStorageRuntimeState
+} from './services/storageFactory';
 import { PublicData } from './types';
 import { ToastProvider, ThemeProvider } from './components/Common';
 import { applyThemeColor } from './utils/themeColor';
@@ -26,6 +32,32 @@ const skeletonForPath = (pathname: string): React.ReactElement | null => {
 const RouteFallback: React.FC = () => {
   const { pathname } = useLocation();
   return skeletonForPath(pathname);
+};
+
+const AdminRoute: React.FC<{
+  initialData: PublicData;
+  refreshData: () => Promise<void>;
+}> = ({ initialData, refreshData }) => {
+  const [ready, setReady] = useState(() => getStorageRuntimeState().status === 'ready');
+  const [error, setError] = useState<string | null>(null);
+
+  const initialize = useCallback(async () => {
+    setError(null);
+    try {
+      await fetchStorageDriver();
+      setReady(true);
+    } catch (cause) {
+      setError(errorMessage(cause, '无法读取存储驱动'));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!ready) void initialize();
+  }, [initialize, ready]);
+
+  if (error) return <DataLoadError message={error} onRetry={() => void initialize()} />;
+  if (!ready) return null;
+  return <AdminLayout initialData={initialData} refreshData={refreshData} />;
 };
 
 const DataLoadError: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => (
@@ -68,7 +100,7 @@ const MainRouter: React.FC = () => {
     loadErrorRef.current = null;
     setLoadError(null);
     try {
-      const storage = await getStorageAsync();
+      const storage = getStorage();
       const result = await storage.getPublicData();
       setData(result);
       hasLoadedDataRef.current = true;
@@ -97,6 +129,7 @@ const MainRouter: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+    if (window.location.pathname.startsWith('/tat')) void fetchStorageDriver();
   }, [fetchData]);
 
   // 全局检测管理员权限
@@ -126,7 +159,7 @@ const MainRouter: React.FC = () => {
           <PublicNavigationProvider data={data} isAdmin={isAdmin}>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
-              <Route path="/tat/*" element={<AdminLayout initialData={data} refreshData={fetchData} />} />
+              <Route path="/tat/*" element={<AdminRoute initialData={data} refreshData={fetchData} />} />
               <Route path="/" element={<PublicHome data={data} refreshData={fetchData} />} />
               <Route path="/:section" element={<PublicHome data={data} refreshData={fetchData} />} />
               <Route path="/:section/:id" element={<PublicDetail data={data} refreshData={fetchData} isAdmin={isAdmin} />} />

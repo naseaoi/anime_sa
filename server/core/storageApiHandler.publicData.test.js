@@ -41,6 +41,16 @@ const createMediaHandler = (media) => createStorageApiHandler({
   audit: { append: vi.fn() }
 });
 
+const createPublicReadHandler = (value) => createStorageApiHandler({
+  driver: 'sqlite',
+  getContext: async () => ({}),
+  auth: { require: async () => true },
+  data: { read: vi.fn(async () => value) },
+  media: {},
+  credentials: {},
+  audit: { append: vi.fn() }
+});
+
 describe('public data revision API', () => {
   it('requires a revision and replaces it with a server-generated value', async () => {
     const savePublic = vi.fn(async (_context, value, expectedRevision) => {
@@ -65,6 +75,41 @@ describe('public data revision API', () => {
 
     expect(response.statusCode).toBe(400);
     expect(savePublic).not.toHaveBeenCalled();
+  });
+
+  it('supports public revalidation with a revision ETag', async () => {
+    const value = {
+      version: 1,
+      updatedAt: 1,
+      revision: 'revision-1',
+      settings: { title: '收藏', iconUrl: '' },
+      tags: [],
+      cards: []
+    };
+    const handler = createPublicReadHandler(value);
+    const first = createResponse();
+    await handler({
+      url: '/api/storage?key=public_data',
+      method: 'GET',
+      headers: { host: 'example.test' },
+      socket: { remoteAddress: '127.0.0.1' }
+    }, first);
+
+    expect(first.statusCode).toBe(200);
+    expect(first.headers.get('cache-control')).toBe('public, no-cache');
+    expect(first.headers.get('pragma')).toBeUndefined();
+    expect(first.headers.get('etag')).toMatch(/^"[A-Za-z0-9_-]{43}"$/);
+
+    const second = createResponse();
+    await handler({
+      url: '/api/storage?key=public_data',
+      method: 'GET',
+      headers: { host: 'example.test', 'if-none-match': first.headers.get('etag') },
+      socket: { remoteAddress: '127.0.0.1' }
+    }, second);
+
+    expect(second.statusCode).toBe(304);
+    expect(second.body.length).toBe(0);
   });
 });
 

@@ -3,8 +3,14 @@ import { errorMessage, requestJson, requestWithSession } from './apiClient';
 
 const STORAGE_API_URL = '/api/storage';
 export const AUTH_CHANGED_EVENT = 'tat:auth-changed';
+const SESSION_CACHE_MS = 15_000;
+
+let sessionPending: Promise<boolean> | null = null;
+let sessionCachedAt = 0;
+let sessionCachedValue = false;
 
 export const notifyAuthChanged = () => {
+  sessionCachedAt = 0;
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
 };
 
@@ -30,13 +36,26 @@ export const logout = async () => {
   notifyAuthChanged();
 };
 
-export const checkSession = async () => {
-  try {
-    const data = await requestJson<{ authenticated?: boolean }>(`${STORAGE_API_URL}/session`, {}, 'Session 检查失败');
-    return !!data.authenticated;
-  } catch {
-    return false;
+export const checkSession = async (force = false) => {
+  const now = Date.now();
+  if (!force && sessionCachedAt > 0 && now - sessionCachedAt < SESSION_CACHE_MS) {
+    return sessionCachedValue;
   }
+  if (sessionPending) return sessionPending;
+
+  sessionPending = requestJson<{ authenticated?: boolean }>(`${STORAGE_API_URL}/session`, {}, 'Session 检查失败')
+    .then((data) => !!data.authenticated)
+    .catch(() => false)
+    .then((authenticated) => {
+      sessionCachedValue = authenticated;
+      sessionCachedAt = Date.now();
+      return authenticated;
+    })
+    .finally(() => {
+      sessionPending = null;
+    });
+
+  return sessionPending;
 };
 
 export const getAdminProfile = () => requestJson<AdminProfile>(`${STORAGE_API_URL}/admin-profile`, {}, '读取管理员信息失败');

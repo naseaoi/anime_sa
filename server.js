@@ -1,7 +1,6 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
-import zlib from 'zlib';
 import {
   errorResponse,
   handleStorageApi
@@ -13,6 +12,8 @@ import { getClientIp } from './server/core/httpUtils.js';
 import { createInMemoryRateLimiter } from './server/core/rateLimit.js';
 import { loadRuntimeConfig } from './server/core/runtimeConfig.js';
 import { createRequestId, instrumentResponse } from './server/core/logger.js';
+import { createFileStatCache } from './server/core/fileStatCache.js';
+import { installResponseCompression, selectResponseEncoding } from './server/core/responseCompression.js';
 
 const runtimeConfig = loadRuntimeConfig(process.env);
 const PORT = runtimeConfig.port;
@@ -54,44 +55,11 @@ const isCompressibleType = (contentType) =>
 
 const createWeakEtag = (stat) => `W/"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
 
-// 静态文件状态缓存
-// index.html 走 no-cache 响应头，5s 内 mtime 抖动也不会引发功能问题
 const STAT_CACHE_TTL_MS = 5000;
-const statCache = new Map();
+const statCache = createFileStatCache({ ttlMs: STAT_CACHE_TTL_MS, maxEntries: 512 });
+const getCachedStat = statCache.get;
 
-const getCachedStat = async (filePath) => {
-  const now = Date.now();
-  const cached = statCache.get(filePath);
-  if (cached && cached.exp > now) return cached;
-
-  try {
-    const stat = await fs.promises.stat(filePath);
-    const entry = { stat, isDirectory: stat.isDirectory(), missing: false, exp: now + STAT_CACHE_TTL_MS };
-    statCache.set(filePath, entry);
-    return entry;
-  } catch (err) {
-    if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
-      const entry = { stat: null, isDirectory: false, missing: true, exp: now + STAT_CACHE_TTL_MS };
-      statCache.set(filePath, entry);
-      return entry;
-    }
-    throw err;
-  }
-};
-
-const streamWithOptionalCompression = (req, res, filePath, contentType, stat) => {
-  const acceptEncoding = String(req.headers['accept-encoding'] || '').toLowerCase();
-  const canCompress = isCompressibleType(contentType) && stat.size > 1024;
-  const useBrotli = canCompress && acceptEncoding.includes('br');
-  const useGzip = canCompress && !useBrotli && acceptEncoding.includes('gzip');
-
-  if (useBrotli || useGzip) {
-    res.setHeader('Vary', 'Accept-Encoding');
-    res.removeHeader('Content-Length');
-  } else {
-    res.setHeader('Content-Length', stat.size);
-  }
-
+const streamFile = (res, filePath) => {
   const input = fs.createReadStream(filePath);
   input.on('error', () => {
     if (!res.headersSent) {
@@ -102,17 +70,18 @@ const streamWithOptionalCompression = (req, res, filePath, contentType, stat) =>
     res.destroy();
   });
 
-  if (useBrotli) {
-    res.setHeader('Content-Encoding', 'br');
-    input.pipe(zlib.createBrotliCompress()).pipe(res);
-    return;
-  }
-  if (useGzip) {
-    res.setHeader('Content-Encoding', 'gzip');
-    input.pipe(zlib.createGzip()).pipe(res);
-    return;
-  }
   input.pipe(res);
+};
+
+const resolvePrecompressedAsset = async (req, filePath, contentType, stat) => {
+  if (!isCompressibleType(contentType) || stat.size <= 1024) return null;
+  const encoding = selectResponseEncoding(req.headers['accept-encoding']);
+  if (!encoding) return null;
+  const suffix = encoding === 'br' ? '.br' : '.gz';
+  const encodedPath = `${filePath}${suffix}`;
+  const encodedEntry = await getCachedStat(encodedPath);
+  if (encodedEntry.missing || encodedEntry.isDirectory || !encodedEntry.stat) return null;
+  return { encoding, filePath: encodedPath, stat: encodedEntry.stat };
 };
 
 // ===== 速率限制（按 IP+scope 计数，窗口过期自动清理） =====
@@ -134,6 +103,7 @@ const checkRateLimit = (req, res, scope, max, windowMs) => {
 
 const server = http.createServer(async (req, res) => {
   instrumentResponse(req, res, createRequestId(req), Date.now(), STORAGE_DRIVER);
+  installResponseCompression(req, res);
   setSecurityHeaders(res, IS_PRODUCTION);
   const url = new URL(req.url || '/', `http://${req.headers.host || 'local'}`);
 
@@ -188,8 +158,19 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('ETag', etag);
   res.setHeader('Last-Modified', fileStat.mtime.toUTCString());
   res.setHeader('Cache-Control', filePath.endsWith('index.html') ? 'no-cache' : 'public, max-age=31536000, immutable');
-
-  streamWithOptionalCompression(req, res, filePath, contentType, fileStat);
+  const encodedAsset = await resolvePrecompressedAsset(req, filePath, contentType, fileStat);
+  const responsePath = encodedAsset?.filePath || filePath;
+  const responseStat = encodedAsset?.stat || fileStat;
+  if (encodedAsset) {
+    res.setHeader('Content-Encoding', encodedAsset.encoding);
+    res.setHeader('Vary', 'Accept-Encoding');
+  }
+  res.setHeader('Content-Length', responseStat.size);
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
+  streamFile(res, responsePath);
 });
 
 server.listen(PORT, '0.0.0.0', () => {

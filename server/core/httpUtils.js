@@ -16,11 +16,14 @@ const ERROR_CODES = Object.freeze({
   503: 'SERVICE_UNAVAILABLE'
 });
 
-export const jsonResponse = (response, status, payload) => {
+export const jsonResponse = (response, status, payload, options = {}) => {
   response.statusCode = status;
   response.setHeader('Content-Type', 'application/json; charset=utf-8');
-  response.setHeader('Cache-Control', 'no-store');
-  response.setHeader('Pragma', 'no-cache');
+  response.setHeader('Cache-Control', options.cacheControl || 'no-store');
+  if (options.etag) response.setHeader('ETag', options.etag);
+  if (!options.cacheControl || options.cacheControl === 'no-store') {
+    response.setHeader('Pragma', 'no-cache');
+  }
   response.end(JSON.stringify(payload));
 };
 

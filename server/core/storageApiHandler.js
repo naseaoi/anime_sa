@@ -50,6 +50,12 @@ const writeRemoteImage = async (request, response, url, requireAuth) => {
 };
 
 const buildMediaEtag = (bytes) => `"${crypto.createHash('sha256').update(bytes).digest('hex')}"`;
+const buildPublicDataEtag = (revision) => `"${crypto.createHash('sha256').update(String(revision || '')).digest('base64url')}"`;
+
+const matchesEtag = (requestValue, etag) => String(requestValue || '')
+  .split(',')
+  .map((value) => value.trim())
+  .some((value) => value === '*' || value === etag);
 
 const checkRateLimit = async (response, rateLimit, scope, clientIp, limit, windowSeconds) => {
   if (!rateLimit) return true;
@@ -271,7 +277,18 @@ export const createStorageApiHandler = ({
       const value = await data.read(context, key);
       if (!value) return jsonResponse(response, 200, null);
       const normalized = normalizePublicDataPayload(value);
-      return normalized ? jsonResponse(response, 200, normalized) : errorResponse(response, 500, 'Stored public_data is invalid');
+      if (!normalized) return errorResponse(response, 500, 'Stored public_data is invalid');
+
+      const etag = buildPublicDataEtag(normalized.revision);
+      const cacheControl = 'public, no-cache';
+      response.setHeader('ETag', etag);
+      response.setHeader('Cache-Control', cacheControl);
+      if (matchesEtag(request.headers['if-none-match'], etag)) {
+        response.statusCode = 304;
+        response.end();
+        return;
+      }
+      return jsonResponse(response, 200, normalized, { cacheControl, etag });
     }
 
     const parsedBody = await readJsonObject(request);
