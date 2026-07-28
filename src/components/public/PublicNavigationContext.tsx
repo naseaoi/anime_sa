@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from '../../router';
 import type { PublicData } from '../../types';
 import { useTheme } from '../Common';
 import { buildCardStats } from '../../utils/cardStats';

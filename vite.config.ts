@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => {
             groups: [
               {
                 name: 'react-vendor',
-                test: /node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/
+                test: /node_modules[\\/](react|react-dom|scheduler|wouter)[\\/]/
               },
               {
                 name: 'icons',

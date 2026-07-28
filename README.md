@@ -284,6 +284,7 @@ src/
 ├── hooks/             跨组件复用的状态逻辑
 └── utils/             工具函数与浏览器状态边界
 shared/                前后端共享的运行时契约入口
+src/router/            wouter 路由适配、站内导航约束与回归测试
 server.js              生产服务器（HTTP、静态文件、驱动分发，API 委托 server/）
 server/core/           SQLite API、Session、审计与安全模块
 server/storage/        Redis API 与数据能力、跨存储传输
@@ -302,7 +303,7 @@ docs/API_CONTRACT.md API 错误码、端点分组与扩展约束
 
 | 层 | 技术 |
 |---|---|
-| 前端 | React 18 + TypeScript + Vite 8 + Tailwind CSS 3 + React Router 6 |
+| 前端 | React 18 + TypeScript + Vite 8 + Tailwind CSS 3 + wouter 3 |
 | 后端 | Node.js 原生 HTTP 服务器、Vercel Functions |
 | 数据库 | better-sqlite3（KV 存储模式）、Redis |
 | CI/CD | GitHub Actions、依赖审计、容器扫描、GitHub Container Registry |

@@ -44,14 +44,16 @@
 
 ## D. 依赖与验证
 
-- [ ] 升级 React Router，消除当前生产依赖审计中的 moderate 漏洞。
-- [ ] 更新架构、维护和发布文档中的新增命令与运行行为。
-- [ ] `npm run lint` 通过。
-- [ ] `npm test` 通过。
-- [ ] `npm run test:coverage` 通过。
-- [ ] `npm run test:e2e` 通过。
-- [ ] `npm run build` 通过并核对首屏产物。
-- [ ] `npm run audit:prod` 与 `npm run audit:all` 通过。
+- [x] 使用 wouter 替换存在安全公告冲突的 React Router 发布线，消除生产依赖审计漏洞。
+- [x] 更新架构、维护和发布文档中的新增命令与运行行为。
+- [x] `npm run lint` 通过。
+- [x] `npm test` 通过。
+- [x] `npm run test:coverage` 通过。
+- [x] `npm run test:e2e` 通过。
+- [x] `npm run build` 通过并核对首屏产物。
+- [x] `npm run audit:prod` 与 `npm run audit:all` 通过。
+
+最终结果：首屏 JavaScript 80.47 KiB gzip；40 个测试文件、147 个单元测试和路由 E2E 通过；生产与全部依赖审计均为 0 漏洞。Docker Desktop 守护进程未运行，本机未执行镜像构建。
 
 ## 完成标准
 

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Redirect, Route, Switch } from '../router';
 import { PublicData } from '../types';
 import { getStorage, checkServerSession, logoutServerSession } from '../services/storageFactory';
 import { applyThemeColor } from '../utils/themeColor';
@@ -133,21 +133,18 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ initialData, refreshDa
         window.location.href = '/';
       }}
     >
-      <Routes>
-        <Route path="cards" element={<AdminCardsSection data={localData} onUpdate={handleDataChange} />} />
-        <Route path="tags" element={<AdminTagsSection data={localData} onUpdate={(d) => handleDataChange(d)} />} />
-        <Route
-          path="sync"
-          element={
-            <AdminSyncSection
-              syncOps={syncOps}
-              syncInfoToken={syncInfoToken}
-            />
-          }
-        />
-        <Route path="settings" element={<AdminSettingsSection data={localData} onUpdate={(d) => handleDataChange(d)} />} />
-        <Route path="*" element={<Navigate to="cards" replace />} />
-      </Routes>
+      <Switch>
+        <Route path="/tat/cards"><AdminCardsSection data={localData} onUpdate={handleDataChange} /></Route>
+        <Route path="/tat/tags"><AdminTagsSection data={localData} onUpdate={(d) => handleDataChange(d)} /></Route>
+        <Route path="/tat/sync">
+          <AdminSyncSection
+            syncOps={syncOps}
+            syncInfoToken={syncInfoToken}
+          />
+        </Route>
+        <Route path="/tat/settings"><AdminSettingsSection data={localData} onUpdate={(d) => handleDataChange(d)} /></Route>
+        <Route><Redirect to="/tat/cards" replace /></Route>
+      </Switch>
     </AdminShell>
   );
 };

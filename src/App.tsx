@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useCallback, useRef, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Redirect, Route, Router, Switch, useLocation } from './router';
 import { DEFAULT_PUBLIC_DATA } from './domain/publicData';
 import {
   AUTH_CHANGED_EVENT,
@@ -155,20 +155,19 @@ const MainRouter: React.FC = () => {
   return (
     <div className="relative min-h-screen isolate">
       <div className="relative z-10">
-        <BrowserRouter>
+        <Router>
           <PublicNavigationProvider data={data} isAdmin={isAdmin}>
           <Suspense fallback={<RouteFallback />}>
-            <Routes>
-              <Route path="/tat/*" element={<AdminRoute initialData={data} refreshData={fetchData} />} />
-              <Route path="/" element={<PublicHome data={data} refreshData={fetchData} />} />
-              <Route path="/:section" element={<PublicHome data={data} refreshData={fetchData} />} />
-              <Route path="/:section/:id" element={<PublicDetail data={data} refreshData={fetchData} isAdmin={isAdmin} />} />
-              <Route path="/card/:id" element={<PublicDetail data={data} refreshData={fetchData} isAdmin={isAdmin} />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+            <Switch>
+              <Route path={/^\/tat(?:\/.*)?\/?$/}><AdminRoute initialData={data} refreshData={fetchData} /></Route>
+              <Route path="/"><PublicHome data={data} refreshData={fetchData} /></Route>
+              <Route path="/:section"><PublicHome data={data} refreshData={fetchData} /></Route>
+              <Route path="/:section/:id"><PublicDetail data={data} refreshData={fetchData} isAdmin={isAdmin} /></Route>
+              <Route><Redirect to="/" replace /></Route>
+            </Switch>
           </Suspense>
           </PublicNavigationProvider>
-        </BrowserRouter>
+        </Router>
       </div>
     </div>
   );

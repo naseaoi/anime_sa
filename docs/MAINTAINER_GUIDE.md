@@ -97,6 +97,8 @@ Redis 使用 Lua 原子比较和写入；SQLite 仅在单进程事务内提供�
 
 section 解析、路径构建和旧 `?tag=` 迁移统一由 `src/utils/routeUtils.ts` 提供。
 
+客户端路由使用 wouter，`src/router/index.tsx` 统一提供 History state、查询字符串、后退导航和站内链接适配。业务组件不直接导入 wouter；新增导航目标必须是以单个 `/` 开头的站内绝对路径。`/tat` 及其子路径使用带边界的匹配规则，不能误匹配 `/tattoo`。
+
 结构化首页按推荐、在看、顶部卡片、普通标签分区排列，顶部卡片优先无标签内容，前面分区使用过的卡片不再重复出现。标签 slug 支持 Unicode，保留 `recommended`、`watching`、`tat`、`card`；保留词追加 `-tag`，无法生成名称 slug 时使用 `tag-{id}`。归一化保证 ID 和 slug 唯一，历史重复 slug 按 ID 追加确定性后缀；修改 slug 规则会使旧书签失效。
 
 当前现状：无标签且非推荐/在看的卡片暂时回退到 `recommended` 路径。
@@ -154,7 +156,7 @@ React 端浏览器状态经 `src/utils/browserState.ts` 校验读写；`public/b
 - **存储传输：**核对 `server/storage/transferApi.js`、`server/storage/transfer.js`、`src/services/storageMaintenanceClient.ts` 和 `src/components/admin/hooks/useSyncOperations.ts`，保持媒体先于数据传输。
 - **凭据和 Session：**核对 `server/core/credentialPolicy.js`、`server/core/adminCredentials.js`、`server/core/sessionCookie.js`、`server/core/sessionStore.js`、`server/storage/redisSession.js`、`server/storage/redisApi.js`、`server/sharedSecurity.js` 和 `src/services/authClient.ts`。
 - **请求和媒体安全：**核对 `server/core/constants.js`、`server/core/requestOrigin.js`、`server/core/mediaValidation.js`、`server/core/remoteImage.js`、`server/core/remoteSecurity.js`、`server/core/mediaGc.js`、SQLite/Redis 媒体存储以及客户端封面服务；覆盖上传、远程图片、GC 和失败恢复测试。
-- **路由、标签和浏览器状态：**核对 `src/utils/routeUtils.ts`、`src/utils/browserState.ts`、`src/components/PublicHome.tsx`、`src/components/public/PublicNavigationContext.tsx`、`public/bootstrap.js` 和对应兼容测试。
+- **路由、标签和浏览器状态：**核对 `src/router/`、`src/utils/routeUtils.ts`、`src/utils/browserState.ts`、`src/components/PublicHome.tsx`、`src/components/public/PublicNavigationContext.tsx`、`public/bootstrap.js` 和对应兼容测试。
 
 改变共享契约前先补回归测试；兼容入口必须有迁移方案和弃用周期后才能删除。修改数据、API、路由、媒体或 npm scripts 时，同时检查本文引用的路径、命令和规则是否仍然有效。
 

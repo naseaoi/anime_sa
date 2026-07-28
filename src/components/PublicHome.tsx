@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, Suspense } from 'react';
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from '../router';
 import { ThumbsUp, PlayCircle, Grid, ArrowUp } from 'lucide-react';
 import { PublicData, CardData } from '../types';
 import { usePublicNavigation } from './public/PublicNavigationContext';

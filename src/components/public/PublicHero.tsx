@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '../../router';
 import { ChevronLeft, ChevronRight, Star } from 'lucide-react';
 import type { CardData } from '../../types';
 import { ImagePreview } from '../Common';
