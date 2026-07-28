@@ -28,6 +28,28 @@ const writeJson = (database, key, value) => {
   database.prepare('INSERT INTO kv_store (key, value) VALUES (?, ?)').run(key, JSON.stringify(value));
 };
 
+const publicDataWithCover = (coverUrl) => ({
+  version: 1,
+  updatedAt: 1,
+  revision: 'revision-1',
+  settings: { title: '收藏', iconUrl: '' },
+  tags: [],
+  cards: [{
+    id: 'card-1',
+    title: '条目',
+    coverUrl,
+    description: '',
+    startDate: '',
+    endDate: '',
+    rating: 0,
+    tagIds: [],
+    isRecommended: false,
+    isWatching: false,
+    createdAt: 1,
+    updatedAt: 1
+  }]
+});
+
 afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) {
     fs.rmSync(directory, { recursive: true, force: true });
@@ -37,9 +59,7 @@ afterEach(() => {
 describe('SQLite maintenance', () => {
   it('reports storage pages and legacy media references without writing', () => {
     const database = createDatabase();
-    writeJson(database, 'public_data', {
-      cards: [{ coverUrl: '/api/storage/media?name=used.webp' }]
-    });
+    writeJson(database, 'public_data', publicDataWithCover('/api/storage/media?name=used.webp'));
     writeJson(database, 'media:used.webp', { contentType: 'image/webp', base64: Buffer.from('used').toString('base64') });
     writeJson(database, 'media:unused.webp', { contentType: 'image/webp', base64: Buffer.from('unused').toString('base64') });
 
@@ -53,9 +73,7 @@ describe('SQLite maintenance', () => {
 
   it('migrates referenced legacy media and removes unused media', () => {
     const database = createDatabase();
-    writeJson(database, 'public_data', {
-      cards: [{ coverUrl: '/api/storage/media?name=used.webp' }]
-    });
+    writeJson(database, 'public_data', publicDataWithCover('/api/storage/media?name=used.webp'));
     writeJson(database, 'media:used.webp', { contentType: 'image/webp', base64: Buffer.from('used').toString('base64') });
     writeJson(database, 'media:unused.webp', { contentType: 'image/webp', base64: Buffer.from('unused').toString('base64') });
 
@@ -65,6 +83,20 @@ describe('SQLite maintenance', () => {
     expect(result.gc.removed).toBe(1);
     expect(result.report.legacyMedia.count).toBe(0);
     expect(result.report.mediaTable.count).toBe(1);
+    database.close();
+  });
+
+  it('aborts cleanup when public data is invalid', () => {
+    const database = createDatabase();
+    database.prepare('INSERT INTO kv_store (key, value) VALUES (?, ?)').run('public_data', '{invalid');
+    database.prepare(`
+      INSERT INTO media_store (name, content_type, bytes, updated_at)
+      VALUES (?, ?, ?, ?)
+    `).run('used.webp', 'image/webp', Buffer.from('used'), 0);
+
+    expect(() => applySqliteMaintenance(database, { graceMs: 0, vacuum: false }))
+      .toThrow('Stored public_data is invalid; maintenance aborted');
+    expect(database.prepare('SELECT COUNT(*) AS count FROM media_store').get().count).toBe(1);
     database.close();
   });
 });

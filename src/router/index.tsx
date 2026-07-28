@@ -56,3 +56,4 @@ export const Redirect: React.FC<RedirectProps> = (props) => {
 };
 
 export { Route, Router, Switch, useParams, useSearchParams };
+export { isAdminRoutePath } from './navigation';

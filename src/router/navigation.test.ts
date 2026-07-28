@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertInternalRouteTarget, isInternalRouteTarget } from './navigation';
+import { assertInternalRouteTarget, isAdminRoutePath, isInternalRouteTarget } from './navigation';
 
 describe('router navigation', () => {
   it('accepts internal absolute paths with search and hash values', () => {
@@ -13,5 +13,12 @@ describe('router navigation', () => {
       expect(isInternalRouteTarget(target)).toBe(false);
       expect(() => assertInternalRouteTarget(target)).toThrow('internal absolute path');
     }
+  });
+
+  it('matches only the administrator route boundary', () => {
+    expect(isAdminRoutePath('/tat')).toBe(true);
+    expect(isAdminRoutePath('/tat/cards')).toBe(true);
+    expect(isAdminRoutePath('/tattoo')).toBe(false);
+    expect(isAdminRoutePath('/tat-archive')).toBe(false);
   });
 });

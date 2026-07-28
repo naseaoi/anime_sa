@@ -5,11 +5,13 @@ const STORAGE_API_URL = '/api/storage';
 export const AUTH_CHANGED_EVENT = 'tat:auth-changed';
 const SESSION_CACHE_MS = 15_000;
 
-let sessionPending: Promise<boolean> | null = null;
+let sessionGeneration = 0;
+let sessionPending: { generation: number; promise: Promise<boolean> } | null = null;
 let sessionCachedAt = 0;
 let sessionCachedValue = false;
 
 export const notifyAuthChanged = () => {
+  sessionGeneration += 1;
   sessionCachedAt = 0;
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
 };
@@ -36,26 +38,29 @@ export const logout = async () => {
   notifyAuthChanged();
 };
 
-export const checkSession = async (force = false) => {
+export const checkSession = async (force = false): Promise<boolean> => {
   const now = Date.now();
   if (!force && sessionCachedAt > 0 && now - sessionCachedAt < SESSION_CACHE_MS) {
     return sessionCachedValue;
   }
-  if (sessionPending) return sessionPending;
+  const generation = sessionGeneration;
+  if (sessionPending?.generation === generation) return sessionPending.promise;
 
-  sessionPending = requestJson<{ authenticated?: boolean }>(`${STORAGE_API_URL}/session`, {}, 'Session 检查失败')
+  const promise: Promise<boolean> = requestJson<{ authenticated?: boolean }>(`${STORAGE_API_URL}/session`, {}, 'Session 检查失败')
     .then((data) => !!data.authenticated)
     .catch(() => false)
-    .then((authenticated) => {
+    .then(async (authenticated) => {
+      if (generation !== sessionGeneration) return checkSession();
       sessionCachedValue = authenticated;
       sessionCachedAt = Date.now();
       return authenticated;
     })
     .finally(() => {
-      sessionPending = null;
+      if (sessionPending?.promise === promise) sessionPending = null;
     });
 
-  return sessionPending;
+  sessionPending = { generation, promise };
+  return promise;
 };
 
 export const getAdminProfile = () => requestJson<AdminProfile>(`${STORAGE_API_URL}/admin-profile`, {}, '读取管理员信息失败');

@@ -31,4 +31,23 @@ describe('auth session checks', () => {
     expect(await checkSession(true)).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('discards an in-flight result after authentication changes', async () => {
+    let resolveStale: ((response: Response) => void) | undefined;
+    const staleResponse = new Promise<Response>((resolve) => { resolveStale = resolve; });
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(() => staleResponse)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { checkSession, notifyAuthChanged } = await import('./authClient');
+
+    const staleCheck = checkSession();
+    notifyAuthChanged();
+    const currentCheck = checkSession();
+    resolveStale?.(new Response(JSON.stringify({ authenticated: false }), { status: 200 }));
+
+    expect(await Promise.all([staleCheck, currentCheck])).toEqual([true, true]);
+    expect(await checkSession()).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

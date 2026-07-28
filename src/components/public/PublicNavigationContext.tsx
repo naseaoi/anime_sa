@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from '../../router';
+import { isAdminRoutePath, useLocation, useNavigate, useSearchParams } from '../../router';
 import type { PublicData } from '../../types';
 import { useTheme } from '../Common';
 import { buildCardStats } from '../../utils/cardStats';
@@ -32,7 +32,7 @@ export const PublicNavigationProvider: React.FC<{
   const [createRequestToken, setCreateRequestToken] = useState(0);
   const cardStats = useMemo(() => buildCardStats(data.cards), [data.cards]);
   const searchTerm = searchParams.get('q') || '';
-  const isAdminRoute = location.pathname.startsWith('/tat');
+  const isAdminRoute = isAdminRoutePath(location.pathname);
   const isDetail = !isAdminRoute && location.pathname.split('/').filter(Boolean).length >= 2;
 
   const activeTag = useMemo(() => {

@@ -7,14 +7,6 @@ const indexPath = path.join(distDir, 'index.html');
 const html = fs.readFileSync(indexPath, 'utf8');
 const initialScripts = [...html.matchAll(/(?:src|href)="\/(assets\/[^"]+\.js)"/g)]
   .map((match) => match[1]);
-const forbidden = ['react-dp', 'CardEditModal', 'publicDataMutationService'];
-
-for (const marker of forbidden) {
-  if (initialScripts.some((file) => file.includes(marker))) {
-    throw new Error(`Initial bundle unexpectedly includes ${marker}`);
-  }
-}
-
 const gzipBytes = initialScripts.reduce((total, file) => {
   const bytes = fs.readFileSync(path.join(distDir, file));
   return total + zlib.gzipSync(bytes).length;

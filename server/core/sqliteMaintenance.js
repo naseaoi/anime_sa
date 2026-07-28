@@ -1,5 +1,6 @@
 import { MEDIA_GC_GRACE_MS, cleanupSqliteUnusedMedia, parseMediaReferences } from './mediaGc.js';
-import { dbGetJson, dbSetMedia } from './kvStore.js';
+import { normalizePublicDataPayload } from '../publicDataValidation.js';
+import { dbSetMedia } from './kvStore.js';
 
 const readLegacyRows = (database) => database
   .prepare("SELECT key, value FROM kv_store WHERE key LIKE 'media:%'")
@@ -19,11 +20,26 @@ const parseLegacyMedia = (row) => {
   }
 };
 
+const readMaintenancePublicData = (database) => {
+  const row = database.prepare('SELECT value FROM kv_store WHERE key = ?').get('public_data');
+  if (!row) return { cards: [] };
+
+  let value;
+  try {
+    value = JSON.parse(String(row.value || ''));
+  } catch {
+    throw new Error('Stored public_data is invalid; maintenance aborted');
+  }
+  const normalized = normalizePublicDataPayload(value);
+  if (!normalized) throw new Error('Stored public_data is invalid; maintenance aborted');
+  return normalized;
+};
+
 export const inspectSqliteStorage = (database) => {
   const pageSize = Number(database.pragma('page_size', { simple: true }) || 0);
   const pageCount = Number(database.pragma('page_count', { simple: true }) || 0);
   const freePages = Number(database.pragma('freelist_count', { simple: true }) || 0);
-  const publicData = dbGetJson(database, 'public_data') || { cards: [] };
+  const publicData = readMaintenancePublicData(database);
   const references = parseMediaReferences(publicData);
   const legacyRows = readLegacyRows(database);
   const mediaTable = database.prepare(`
@@ -71,7 +87,7 @@ export const applySqliteMaintenance = (
   database,
   { now = Date.now(), graceMs = MEDIA_GC_GRACE_MS, vacuum = true } = {}
 ) => {
-  const publicData = dbGetJson(database, 'public_data') || { cards: [] };
+  const publicData = readMaintenancePublicData(database);
   const references = parseMediaReferences(publicData);
   let migrated = 0;
 

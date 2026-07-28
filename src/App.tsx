@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useCallback, useRef, Suspense } from 'react';
-import { Redirect, Route, Router, Switch, useLocation } from './router';
+import { isAdminRoutePath, Redirect, Route, Router, Switch, useLocation } from './router';
 import { DEFAULT_PUBLIC_DATA } from './domain/publicData';
 import {
   AUTH_CHANGED_EVENT,
@@ -22,7 +22,7 @@ import { readCachedSiteSettings, writeCachedSiteSettings } from './utils/browser
 const PublicDetail = React.lazy(() => import('./components/PublicDetail').then((m) => ({ default: m.PublicDetail })));
 const AdminLayout = React.lazy(() => import('./components/Admin').then((m) => ({ default: m.AdminLayout })));
 const skeletonForPath = (pathname: string): React.ReactElement | null => {
-  if (pathname.startsWith('/tat')) return null;
+  if (isAdminRoutePath(pathname)) return null;
 
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length >= 2) return null;
@@ -129,7 +129,9 @@ const MainRouter: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-    if (window.location.pathname.startsWith('/tat')) void fetchStorageDriver();
+    if (isAdminRoutePath(window.location.pathname)) {
+      void fetchStorageDriver().catch(() => {});
+    }
   }, [fetchData]);
 
   // 全局检测管理员权限

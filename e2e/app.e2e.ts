@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test';
 
 test('public and administrator routes preserve navigation behavior', async ({ page }) => {
+  let driverRequests = 0;
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/storage' && url.searchParams.get('key') === 'driver') driverRequests += 1;
+  });
+
   await page.goto('/');
   await expect(page).toHaveTitle('我的收藏');
 
@@ -24,6 +30,7 @@ test('public and administrator routes preserve navigation behavior', async ({ pa
 
   await page.goto('/tattoo');
   await expect(page).toHaveURL(/\/$/);
+  expect(driverRequests).toBe(0);
 
   await page.goto('/tat');
   await expect(page.getByRole('heading', { name: '后台管理登录' })).toBeVisible();
