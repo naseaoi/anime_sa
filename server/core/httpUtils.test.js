@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   errorResponse,
+  getStaticCacheControl,
   getClientIp,
   methodNotAllowed,
+  parseRequestUrl,
   readBoundedInteger,
   readJsonObject
 } from './httpUtils.js';
@@ -31,6 +33,18 @@ describe('HTTP utilities', () => {
     expect(readBoundedInteger(null, 50, 1, 200)).toBe(50);
     expect(readBoundedInteger('', 50, 1, 200)).toBe(50);
     expect(readBoundedInteger('999', 50, 1, 200)).toBe(200);
+  });
+
+  it('parses request paths without trusting the Host header', () => {
+    expect(parseRequestUrl('/api/storage?key=ready')?.pathname).toBe('/api/storage');
+    expect(parseRequestUrl('http://[')).toBeNull();
+  });
+
+  it('only gives immutable caching to fingerprinted assets', () => {
+    expect(getStaticCacheControl('/assets/index-abc123.js')).toBe('public, max-age=31536000, immutable');
+    expect(getStaticCacheControl('/bootstrap.js')).toBe('no-cache');
+    expect(getStaticCacheControl('/site.webmanifest')).toBe('no-cache');
+    expect(getStaticCacheControl('/index.html')).toBe('no-cache');
   });
 
   it('parses JSON objects and rejects other JSON values', async () => {

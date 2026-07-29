@@ -118,3 +118,17 @@ export const readBoundedInteger = (value, fallback, min, max) => {
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(max, Math.max(min, Math.trunc(parsed)));
 };
+
+export const parseRequestUrl = (value) => {
+  try {
+    return new URL(String(value || '/'), 'http://local');
+  } catch {
+    return null;
+  }
+};
+
+export const getStaticCacheControl = (pathname) => (
+  String(pathname || '').startsWith('/assets/')
+    ? 'public, max-age=31536000, immutable'
+    : 'no-cache'
+);

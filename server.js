@@ -8,7 +8,7 @@ import {
 import { handleRedisStorageApi } from './server/storage/redisApi.js';
 import { handleStorageTransferApi } from './server/storage/transferApi.js';
 import { setSecurityHeaders } from './server/core/securityHeaders.js';
-import { getClientIp } from './server/core/httpUtils.js';
+import { getClientIp, getStaticCacheControl, parseRequestUrl } from './server/core/httpUtils.js';
 import { createInMemoryRateLimiter } from './server/core/rateLimit.js';
 import { loadRuntimeConfig } from './server/core/runtimeConfig.js';
 import { createRequestId, instrumentResponse, logEvent } from './server/core/logger.js';
@@ -104,11 +104,16 @@ const checkRateLimit = (req, res, scope, max, windowMs) => {
 
 // ===== HTTP 服务器 =====
 
-const server = http.createServer(async (req, res) => {
+const handleRequest = async (req, res) => {
   instrumentResponse(req, res, createRequestId(req), Date.now(), STORAGE_DRIVER);
   installResponseCompression(req, res);
   setSecurityHeaders(res, IS_PRODUCTION);
-  const url = new URL(req.url || '/', `http://${req.headers.host || 'local'}`);
+  const url = parseRequestUrl(req.url);
+  if (!url) {
+    res.statusCode = 400;
+    res.end('Bad Request');
+    return;
+  }
 
   if (url.pathname.startsWith('/api/storage') || url.pathname.startsWith('/api/sqlite')) {
     if (url.pathname === '/api/storage/transfer') {
@@ -160,7 +165,8 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Content-Type', contentType);
   res.setHeader('ETag', etag);
   res.setHeader('Last-Modified', fileStat.mtime.toUTCString());
-  res.setHeader('Cache-Control', filePath.endsWith('index.html') ? 'no-cache' : 'public, max-age=31536000, immutable');
+  const cachePath = filePath.endsWith('index.html') ? '/index.html' : url.pathname;
+  res.setHeader('Cache-Control', getStaticCacheControl(cachePath));
   const encodedAsset = await resolvePrecompressedAsset(req, filePath, contentType, fileStat);
   const responsePath = encodedAsset?.filePath || filePath;
   const responseStat = encodedAsset?.stat || fileStat;
@@ -174,6 +180,22 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   streamFile(res, responsePath);
+};
+
+const server = http.createServer((req, res) => {
+  void handleRequest(req, res).catch((error) => {
+    logEvent('error', 'http_request_unhandled', {
+      method: req.method,
+      path: String(req.url || '').split('?')[0],
+      error: error instanceof Error ? error.message : String(error)
+    });
+    if (res.headersSent) {
+      res.destroy();
+      return;
+    }
+    res.statusCode = 500;
+    res.end('Internal Server Error');
+  });
 });
 
 server.listen(PORT, '0.0.0.0', () => {
