@@ -161,20 +161,24 @@ export const AdminSyncSection: React.FC<AdminSyncSectionProps> = ({ syncOps, syn
         </AdminPanel>
       </div>
 
-      <AdminPanel title="审计日志">
-        <div className="mb-3 flex justify-end">
+      <AdminPanel
+        title="审计日志"
+        action={(
           <Button variant="ghost" size="sm" onClick={loadAudit} disabled={auditLoading}>
             {auditLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
             刷新
           </Button>
-        </div>
+        )}
+      >
         <div className="space-y-2 max-h-[calc(100vh-16rem)] overflow-y-auto scrollbar-thinest pr-1">
           {auditLogs.length === 0 && <p className="text-sm text-[color:var(--text-secondary)]">暂无日志</p>}
           {auditLogs.map((item) => (
             <div key={item.id} className="rounded-[8px] border border-[color:var(--line)] p-3 text-xs">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">{formatAction(item.action)}</span>
-                <AdminBadge tone={item.status === 'failed' ? 'danger' : 'success'}>{item.status}</AdminBadge>
+                <AdminBadge tone={item.status === 'failed' ? 'danger' : 'success'}>
+                  {item.status === 'failed' ? '失败' : '成功'}
+                </AdminBadge>
               </div>
               <p className="mt-1 text-[color:var(--text-secondary)]">{new Date(item.ts).toLocaleString()}</p>
               {item.message && <p className="mt-1 break-words">{item.message}</p>}
