@@ -15,7 +15,13 @@ const createMemoryDriver = (initial = {}) => {
     sessionsCleared: 0,
     readJson: async (key) => (store.has(key) ? store.get(key) : null),
     writeJson: async (key, value) => { store.set(key, value); },
-    clearSessions: async function clearSessions() { this.sessionsCleared += 1; },
+    replaceData: async function replaceData(values) {
+      const next = new Map(store);
+      for (const [key, value] of values) next.set(key, value);
+      store.clear();
+      for (const [key, value] of next) store.set(key, value);
+      if (values.has('private_data')) this.sessionsCleared += 1;
+    },
     listMediaNames: async () => [...store.keys()]
       .filter((key) => key.startsWith('media:'))
       .map((key) => key.slice('media:'.length))
@@ -155,6 +161,24 @@ class FakeRedis {
     return removed;
   }
   async sMembers() { return []; }
+  multi() {
+    const operations = [];
+    return {
+      set: (key, value) => { operations.push(['set', key, value]); },
+      del: (input) => { operations.push(['del', input]); },
+      exec: async () => {
+        const next = new Map(this.values);
+        for (const [operation, key, value] of operations) {
+          if (operation === 'set') next.set(key, value);
+          else {
+            const keys = Array.isArray(key) ? key : [key];
+            keys.forEach((item) => next.delete(item));
+          }
+        }
+        this.values = next;
+      }
+    };
+  }
   async *scanIterator({ MATCH }) {
     const prefix = String(MATCH || '').replace(/\*$/, '');
     yield [...this.values.keys()].filter((key) => key.startsWith(prefix));
@@ -210,6 +234,32 @@ describe('storage transfer driver integration', () => {
       contentType: 'image/webp',
       bytes: Buffer.from('bb', 'base64')
     });
+  });
+
+  it('rolls back sqlite data and sessions when an atomic replacement fails', async () => {
+    const passwordHash = await hashPassword('secret');
+    const db = createSqliteDb();
+    const source = createMemoryDriver({
+      public_data: createPublicData(12),
+      private_data: { username: 'admin', passwordHash }
+    });
+    const target = createSqliteTransferDriver(db);
+
+    await target.writeJson('public_data', createPublicData(1));
+    await target.writeJson('session:existing', { expiresAt: Date.now() + 60_000 });
+    db.exec(`
+      CREATE TRIGGER fail_private_data BEFORE INSERT ON kv_store
+      WHEN NEW.key = 'private_data'
+      BEGIN
+        SELECT RAISE(ABORT, 'injected transfer failure');
+      END
+    `);
+
+    await expect(transferStorageData(source, target)).rejects.toThrow('injected transfer failure');
+    expect(await target.readJson('public_data')).toMatchObject(createPublicData(1));
+    expect(await target.readJson('private_data')).toBeNull();
+    expect(await target.readJson('session:existing')).toMatchObject({ expiresAt: expect.any(Number) });
+    db.close();
   });
 
   it('reruns without duplicating media already present in the target', async () => {

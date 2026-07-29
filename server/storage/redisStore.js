@@ -61,6 +61,24 @@ export const deleteRedisKey = async (redis, env, key) => {
   await redis.del(buildKey(env, key));
 };
 
+export const replaceRedisJsonData = async (redis, env, values) => {
+  const entries = [...values.entries()];
+  const clearsSessions = values.has('private_data');
+  const sessionTokens = clearsSessions ? await redis.sMembers(sessionIndexKey(env)) : [];
+  const transaction = redis.multi();
+
+  for (const [key, value] of entries) {
+    transaction.set(buildKey(env, key), JSON.stringify(value));
+  }
+  if (clearsSessions) {
+    if (sessionTokens.length > 0) {
+      transaction.del(sessionTokens.map((token) => sessionKey(env, token)));
+    }
+    transaction.del(sessionIndexKey(env));
+  }
+  await transaction.exec();
+};
+
 export const saveRedisPublicData = async (redis, env, value, expectedRevision) => {
   const key = buildKey(env, 'public_data');
   const expected = String(expectedRevision || '');

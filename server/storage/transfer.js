@@ -2,10 +2,10 @@ import { dbGetJson, dbGetMedia, dbListMediaNames, dbSetJson, dbSetMedia } from '
 import { clearAllSessions } from '../core/sessionStore.js';
 import { hashPassword, isValidUsername, normalizeMediaName, normalizePrivateDataPayload } from '../sharedSecurity.js';
 import {
-  clearRedisSessions,
   listRedisMediaNames,
   readRedisJson,
   readRedisMedia,
+  replaceRedisJsonData,
   saveRedisMedia,
   writeRedisJson
 } from './redisStore.js';
@@ -29,7 +29,13 @@ export const createSqliteTransferDriver = (db) => ({
   mode: 'sqlite',
   readJson: async (key) => dbGetJson(db, key),
   writeJson: async (key, value) => { dbSetJson(db, key, value); },
-  clearSessions: async () => { clearAllSessions(db); },
+  replaceData: async (values) => {
+    const replace = db.transaction((entries) => {
+      for (const [key, value] of entries) dbSetJson(db, key, value);
+      if (values.has('private_data')) clearAllSessions(db);
+    });
+    replace([...values.entries()]);
+  },
   listMediaNames: async () => dbListMediaNames(db),
   readMedia: async (name) => dbGetMedia(db, name),
   writeMedia: async (name, media) => dbSetMedia(db, name, media.contentType, media.bytes)
@@ -39,7 +45,7 @@ export const createRedisTransferDriver = (redis, env) => ({
   mode: 'redis',
   readJson: (key) => readRedisJson(redis, env, key),
   writeJson: (key, value) => writeRedisJson(redis, env, key, value),
-  clearSessions: () => clearRedisSessions(redis, env),
+  replaceData: (values) => replaceRedisJsonData(redis, env, values),
   listMediaNames: () => listRedisMediaNames(redis, env),
   readMedia: (name) => readRedisMedia(redis, env, name),
   writeMedia: (name, media) => saveRedisMedia(redis, env, name, media.contentType, media.bytes)
@@ -59,14 +65,9 @@ export const transferStorageData = async (source, target) => {
     values.set(key, value);
   }
 
-  const copied = [];
-  for (const key of ['private_data', 'public_data']) {
-    if (!values.has(key)) continue;
-    await target.writeJson(key, values.get(key));
-    copied.push(key);
-  }
+  const copied = ['private_data', 'public_data'].filter((key) => values.has(key));
+  if (values.size > 0) await target.replaceData(values);
   const credentialsChanged = copied.includes('private_data');
-  if (credentialsChanged) await target.clearSessions?.();
   return { copied, credentialsChanged };
 };
 
