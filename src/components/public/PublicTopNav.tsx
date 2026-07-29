@@ -36,6 +36,7 @@ interface PublicTopNavProps {
   theme: 'light' | 'dark' | 'system';
   toggleTheme: () => void;
   overlay?: boolean;
+  narrow?: boolean;
 }
 
 interface NavItem {
@@ -50,7 +51,7 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
   iconUrl, title, tags, activeTag, totalCards, cardStats, onTagChange,
   searchTerm, onSearchChange, onClearSearch,
   sortKey, sortOrder, onSortChange,
-  isAdmin, onCreateClick, theme, toggleTheme, overlay = false
+  isAdmin, onCreateClick, theme, toggleTheme, overlay = false, narrow = false
 }) => {
   const [openMenu, setOpenMenu] = useState<'sort' | 'overview' | null>(null);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(() => searchTerm.length > 0);
@@ -160,7 +161,7 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
 
   return (
     <header className={`sticky top-0 z-40 border-b transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ${overlay ? 'lg:-mb-16' : ''} ${scrolled ? 'backdrop-blur-2xl border-[color:color-mix(in_srgb,var(--line)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--surface)_30%,transparent)] shadow-[0_10px_36px_rgba(0,0,0,0.10)]' : 'backdrop-blur-0 bg-transparent border-transparent shadow-none'}`}>
-      <div className="relative z-10 px-[var(--page-x)]">
+      <div className={`relative z-10 transition-[padding] duration-500 ease-out ${narrow ? 'px-[var(--detail-x)]' : 'px-[var(--page-x)]'}`}>
         <div className="h-14 lg:h-16 flex items-center gap-4 lg:gap-6">
           <button type="button" className="flex items-center gap-3 shrink-0 cursor-pointer select-none text-left" onClick={handleLogoClick}>
             <img src={logoSrc} alt="Logo" width={32} height={32} decoding="async" className="w-8 h-8 object-contain" />

@@ -116,6 +116,7 @@ export const PublicNavigationProvider: React.FC<{
           theme={theme}
           toggleTheme={toggleTheme}
           overlay={isDetail || location.pathname === '/'}
+          narrow={isDetail}
         />
       )}
       {children}

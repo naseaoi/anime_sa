@@ -128,7 +128,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
 
       <aside
         className="hidden lg:block fixed top-16 bottom-0 z-30 group/detail-back"
-        style={{ left: 'max(2rem, calc((100vw - 100rem) / 2 + 2rem))', width: 'clamp(5rem, 9vw, 9rem)' }}
+        style={{ left: 'max(var(--detail-pad), calc((100vw - var(--detail-max)) / 2 + var(--detail-pad)))', width: 'var(--detail-rail)' }}
       >
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <button
@@ -142,7 +142,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
       </aside>
 
       <main className="relative z-10 flex-1 pt-8 lg:pt-28 pb-6 lg:pb-10">
-        <div className="w-full max-w-[100rem] mx-auto px-5 lg:px-8 grid grid-cols-1 lg:grid-cols-[clamp(5rem,9vw,9rem)_minmax(0,80rem)_clamp(5rem,9vw,9rem)] gap-6 lg:gap-8">
+        <div className="w-full max-w-[var(--detail-max)] mx-auto px-[var(--detail-pad)] grid grid-cols-1 lg:grid-cols-[var(--detail-rail)_minmax(0,80rem)_var(--detail-rail)] gap-6 lg:gap-[var(--detail-gap)]">
           <div className="hidden lg:block" aria-hidden="true" />
           <div className="min-w-0">
           <div className="grid grid-cols-1 lg:grid-cols-[1.25fr_1fr] gap-7 lg:gap-12 items-center mb-8 lg:mb-12 fade-up">

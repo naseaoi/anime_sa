@@ -28,6 +28,11 @@
     --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.12);
     --page-x: 1.5rem;
     --shelf-bleed: 1.5rem;
+    --detail-max: 100rem;
+    --detail-pad: 1.25rem;
+    --detail-rail: 0rem;
+    --detail-gap: 0rem;
+    --detail-x: calc(max(0px, (100% - var(--detail-max)) / 2) + var(--detail-pad) + var(--detail-rail) + var(--detail-gap));
   }
 
   html.dark {
@@ -56,6 +61,9 @@
   @media (min-width: 1024px) {
     :root {
       --page-x: max(4rem, 6vw);
+      --detail-pad: 2rem;
+      --detail-rail: clamp(5rem, 9vw, 9rem);
+      --detail-gap: 2rem;
     }
   }
 
