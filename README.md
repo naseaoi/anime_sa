@@ -155,12 +155,7 @@ api/storage.ts → Redis storage API → server/storage
 - 审计日志追加与分页读取
 - 限流计数和健康检查
 
-新驱动通过独立服务端模块接入 `/api/storage`，不修改页面组件和领域模型。
-
-### 关键约束
-
-- `vercel.json` 中 `/api/storage/:path*` → `/api/storage` 的 rewrite 不可删除：Vercel 按文件精确路由，`/api/storage/login` 等子路径经该 rewrite 进入函数，缺失时请求落入 SPA fallback 返回 HTML。
-- `server/storage/redisStore.js` 的 `getRedisClient` 在初次连接失败时清空模块级缓存再抛错，下次调用重新建连；Docker 长驻进程依赖该语义应对 Redis 晚就绪。
+新驱动通过独立服务端模块接入 `/api/storage`，不修改页面组件和领域模型。改动前先读 [docs/MAINTAINER_GUIDE.md](docs/MAINTAINER_GUIDE.md) 中的兼容入口与硬契约。
 
 ## API
 
@@ -179,26 +174,19 @@ api/storage.ts → Redis storage API → server/storage
 | `/api/storage/audit-logs` | 审计日志 |
 | `/api/storage/transfer` | 跨存储数据传输（仅 Node.js / Docker） |
 
-`key=driver` 在 Node.js / Docker 返回 `STORAGE_DRIVER` 指定的驱动（默认 `sqlite`），在 Vercel 返回 `redis`。
-
-### 跨存储传输
-
-`/api/storage/transfer` 仅在 Node.js / Docker 运行时挂载：
-
-- `GET` 返回活动驱动与可用驱动列表。
-- `POST scope=data` 复制 `public_data` 与 `private_data`，凭据变化会清除目标存储的 Session。
-- `POST scope=media` 按名称差集分批复制封面，响应携带 `pending`/`hasMore` 供前端循环。
-- Session、限流和审计日志属于运行环境本地状态，不参与传输。
+`key=driver` 在 Node.js / Docker 返回 `STORAGE_DRIVER` 指定的驱动（默认 `sqlite`），在 Vercel 返回 `redis`。错误码、缓存与鉴权约束见 [docs/MAINTAINER_GUIDE.md](docs/MAINTAINER_GUIDE.md)。
 
 ## 备份与恢复
 
 ### 跨存储传输（Node.js / Docker）
 
-配置 `REDIS_URL` 后，后台「同步」页提供 SQLite 与 Redis 之间的双向传输：
+配置 `REDIS_URL` 后，后台「同步」页提供 SQLite 与 Redis 之间的双向传输，服务端入口是 `/api/storage/transfer`：
 
 - 「备份到 X」先复制封面，再把活动存储的公共数据和管理员凭据复制到另一存储。
 - 「从 X 恢复」先复制封面，再覆盖活动存储的数据和凭据；目标 Session 会失效，完成后页面自动刷新并要求重新登录。
+- 封面按名称差集分批复制，响应携带 `pending`/`hasMore` 供前端循环。
 - 传输只新增或覆盖同名数据；目标中多出的封面可在恢复后执行「清理未引用封面」。
+- Session、限流和审计日志属于运行环境本地状态，不参与传输。
 
 ### SQLite
 
@@ -272,7 +260,7 @@ Redis 运维要点：
 | `npm run optimize:sqlite` | 只读检查 SQLite 页占用和旧媒体 |
 | `npm run optimize:sqlite -- .\\data\\local.db --apply --backup <path>` | 备份后维护并压缩 SQLite |
 
-代码改动后依次执行 `npm run lint`、`npm test`、`npm run test:coverage`、`npm run test:e2e`、`npm run build` 验证。首次运行 E2E 前执行 `npx playwright install chromium`。
+代码改动后按 [docs/MAINTAINER_GUIDE.md](docs/MAINTAINER_GUIDE.md) 的验证表选择范围，最全一轮是 `npm run lint`、`npm test`、`npm run test:coverage`、`npm run test:e2e`、`npm run build`。首次运行 E2E 前执行 `npx playwright install chromium`。
 
 ## 项目结构
 
@@ -294,9 +282,7 @@ api/                   Vercel Functions 入口
 vite.config.ts         Vite 配置 + 开发态 API 中间件
 data/local.db          SQLite 数据文件（运行时自动创建）
 docs/RELEASE.md        发布流程
-docs/MAINTAINER_GUIDE.md 项目独有约束、易错点与改动检查表
-docs/DATA_MODEL_POLICY.md 公共数据模型、容量指标与迁移触发线
-docs/API_CONTRACT.md API 错误码、端点分组与扩展约束
+docs/MAINTAINER_GUIDE.md 行为契约、API 错误码、数据模型上限与改动检查表
 ```
 
 ## 技术栈

@@ -1,35 +1,12 @@
 # 维护者约束、兼容入口与高风险改动
 
-本文记录修改代码时必须保留的行为契约、兼容入口和容易误判的边界。它描述的是当前实现，不代表所有现状都值得长期保留。
-
-部署、备份和常用命令见根目录 [`README.md`](../README.md)，API 字段和错误码见 [`docs/API_CONTRACT.md`](./API_CONTRACT.md)，公共数据容量策略见 [`docs/DATA_MODEL_POLICY.md`](./DATA_MODEL_POLICY.md)，发版流程见 [`docs/RELEASE.md`](./RELEASE.md)。文中涉及限制和路由时，以代码和测试为最终来源。
-
-## 开工前
-
-先按改动面阅读对应章节，再检查代码和测试：
-
-| 改动面 | 必读章节 |
-|---|---|
-| 数据模型、保存、并发 | 一、三、八 |
-| API、存储、鉴权 | 二、三、六、八 |
-| 媒体、封面、GC | 二、五、八 |
-| 路由、标签、浏览器状态 | 四、七、八 |
-| 验证、发布、备份 | 九 |
-
-本文中的规则分为四类：
-
-- **硬契约**：修改后必须保持兼容，例如 `revision`、鉴权和媒体安全校验。
-- **兼容保留**：有迁移方案和弃用周期后才能删除，例如旧路由和历史媒体 URL。
-- **当前限制**：容量、请求体和字段长度等运行边界。
-- **当前现状**：已知但不一定长期保留的行为，重做前先确定替代方案。
+本文记录修改代码时必须保留的行为契约、兼容入口和运行边界。部署、备份、API 端点清单和常用命令见根目录 [`README.md`](../README.md)，发版流程见 [`docs/RELEASE.md`](./RELEASE.md)。涉及限制和路由时以代码和测试为最终来源。
 
 ## 一、数据模型与保存语义
 
-`public_data` 是整体写入的文档聚合，包含站点设置、标签和全部卡片。SQLite 默认使用 `data/local.db`（目录由 `SQLITE_DATA_DIR` 决定），公共数据保存在 `kv_store`；Redis 使用对应的 KV key。卡片没有独立写入，修改任意卡片都会重写整份文档。
+`public_data` 是整体写入的文档聚合（`document-kv-v1`），包含站点设置、标签和全部卡片。SQLite 默认使用 `data/local.db`（目录由 `SQLITE_DATA_DIR` 决定），公共数据保存在 `kv_store`；Redis 使用对应的 KV key。卡片没有独立写入，修改任意卡片都会重写整份文档，不能假设不同卡片可以独立并发写入。
 
-媒体存储、旧 Base64 迁移和 `coverLocalData` 生命周期见第五部分。
-
-公共数据使用整份文档级并发控制，具体 `revision` 流程见第三部分。不能假设不同卡片可以独立并发写入；容量和文档大小按 [`docs/DATA_MODEL_POLICY.md`](./DATA_MODEL_POLICY.md) 的指标维护。
+媒体存储、旧 Base64 迁移和 `coverLocalData` 生命周期见第五部分，`revision` 流程见第三部分。
 
 对外返回或写入的 `PublicData`、客户端接收的数据和跨存储传输的数据，必须经过 `shared/publicDataSchema.js` 导出的 `normalizePublicDataPayload`。`src/types.ts` 中的 `PublicData`、`CardData`、`Tag` 和 `SiteSettings` 从该函数的返回值推导；JSDoc 类型和归一化逻辑维护在 `server/publicDataValidation.js`，不要另建 `.d.ts` 类型。
 
@@ -53,6 +30,12 @@
 - `conflict`：乐观锁冲突，不能静默覆盖。
 - `failed`：其他失败。
 
+### 容量指标
+
+`/api/storage/data-metrics` 返回当前文档的标签数、卡片数、JSON 字节数和上限利用率，需要管理员 Session。SQLite 额外返回数据库页、空闲页、媒体表字节数和旧媒体引用统计，Redis 不返回页指标。
+
+达到以下任一条件时复核文档聚合形态：卡片 1600、标签 160、JSON 800 KiB（均为对应上限的 80%），或出现多人同时编辑、跨实例写入需求。
+
 ## 二、运行入口与 API 契约
 
 | 场景 | 入口 | 驱动 |
@@ -63,45 +46,81 @@
 
 `server/core/storageApiHandler.js` 负责共享 HTTP 编排；SQLite、Redis 和各运行时入口只负责适配。`STORAGE_DRIVER` 在启动时解析，不支持热切换；公开页面直接读取公共数据，进入后台时才调用 `fetchStorageDriver()` 初始化驱动状态。
 
-API 约束：
+`server/storage/redisStore.js` 的 `getRedisClient` 在初次连接失败时清空模块级缓存再抛错，下次调用重新建连；Docker 长驻进程依赖该语义应对 Redis 晚就绪。
+
+### 错误响应
+
+所有错误响应包含 `success: false`、稳定的 `code` 和展示用 `error`：
+
+```json
+{
+  "success": false,
+  "code": "BAD_REQUEST",
+  "error": "错误描述"
+}
+```
+
+客户端按 `code` 分支，`error` 不作为程序判断条件。方法不匹配使用 `methodNotAllowed`，其他错误使用 `errorResponse`。
+
+| 状态码 | code |
+|---:|---|
+| 400 | `BAD_REQUEST` |
+| 401 | `UNAUTHORIZED` |
+| 403 | `FORBIDDEN` |
+| 404 | `NOT_FOUND` |
+| 405 | `METHOD_NOT_ALLOWED` |
+| 409 | `CONFLICT` |
+| 413 | `PAYLOAD_TOO_LARGE` |
+| 415 | `UNSUPPORTED_MEDIA_TYPE` |
+| 429 | `RATE_LIMITED` |
+| 500 | `INTERNAL_ERROR` |
+| 501 | `NOT_IMPLEMENTED` |
+| 502 | `UPSTREAM_ERROR` |
+| 503 | `SERVICE_UNAVAILABLE` |
+
+### 请求、鉴权与缓存
 
 - `readJsonObject` 将空 body 视为 `{}`，原始值和数组返回 400；普通请求体上限 1 MiB，媒体上限 10 MiB。
-- `public_data` GET 是公开业务数据；`driver`、`ping`、`ready`、Session、容量指标和媒体 GET 是独立端点。`ping` 不连接存储，`ready` 检查活动存储。
-- `public_data` GET 使用 revision ETag 和公开可重验证缓存；其他 JSON 默认 `no-store`，不能把缓存策略扩散到 Session 或私有数据。
-- `public_data` 写入、媒体写入/删除、远程图片代理、审计日志和存储传输需要鉴权；凭据只通过专用接口或服务端传输处理。登录、退出和 Session 检查是生命周期例外。
-- 状态变更请求必须通过同源校验；新增端点沿用请求体限制、错误响应和相应审计策略。
-- 方法不匹配使用 `methodNotAllowed`；其他错误使用 `errorResponse`，保持 JSON、`success: false`、稳定 `code` 和展示用 `error`。客户端按 `code` 分支。
+- `public_data` GET 是公开业务数据，返回基于 `revision` 的 `ETag` 和 `Cache-Control: public, no-cache`，客户端可用 `If-None-Match` 命中 304。`driver`、`ping`、`ready`、Session、容量指标和媒体 GET 是独立端点；`ping` 不连接存储，`ready` 检查活动存储。
+- 其他 JSON 默认 `no-store`，不能把缓存策略扩散到 Session 或私有数据。Node.js 按 `Accept-Encoding` 压缩可压缩 API 响应。
+- `public_data` 写入、媒体写入与删除、远程图片代理、审计日志和存储传输需要鉴权；凭据只通过专用接口或服务端传输处理。登录、退出和 Session 检查是生命周期例外。
+- 状态变更请求必须通过同源校验。
+- 新增端点复用 `errorResponse`、同源校验、请求体限制、鉴权和审计策略，并补 SQLite / Redis 契约测试。
 
 安全响应头唯一来源是 `server/core/securityHeaders.js`。修改后运行 `npm run sync:vercel-headers`，并用 `npm run lint` 检查 `vercel.json` 是否同步；HSTS 仅在生产 Node.js 和 Vercel 发送。
 
-`npm run build` 会为可压缩静态资源生成 `.gz` 和 `.br` 文件，Node.js 生产服务器优先发送预压缩文件。成功静态资源和媒体请求默认不逐条记录，API、错误和耗时达到 1 秒的请求保留结构化日志。SIGTERM / SIGINT 会停止接收请求并关闭活动存储连接。
+`npm run build` 会为可压缩静态资源生成 `.gz` 和 `.br` 文件，Node.js 生产服务器优先发送预压缩文件。`/assets/` 下的哈希构建产物使用长期不可变缓存，`bootstrap.js`、manifest、图标和 SPA fallback 使用可重验证缓存。成功的静态资源和媒体请求默认不逐条记录，API、错误和耗时达到 1 秒的请求保留结构化日志。SIGTERM / SIGINT 会停止接收请求并关闭活动存储连接。
 
 ## 三、公共数据写入与版本控制
 
 客户端通过 `X-Expected-Revision` 发送读取时的 `revision`；服务端比较后生成新的 `revision`。成功后才更新本地基线，409 冲突必须保留草稿或提示重新读取，不能静默覆盖。缺少 `revision` 的旧数据由服务端根据 `updatedAt` 派生 `legacy:<timestamp>`，客户端派生逻辑只是兼容兜底。
 
-Redis 使用 Lua 原子比较和写入；SQLite 仅在单进程事务内提供版本检查，不能作为多进程或多实例共享锁。
+Redis 使用 Lua 原子比较和写入；SQLite 仅在单进程事务内提供版本检查，不能作为多进程或多实例共享锁。两者都不提供跨数据中心的分布式事务。
 
 当前限制：标签 200、卡片 2000、单卡片标签 200、标题 200 字符、简介 20000 字符、普通资源 URL 4096 字符、`coverLocalData` 1,048,576 字符、公共 JSON 请求体 1 MiB、媒体上传和远程图片响应 10 MiB。`coverLocalData` 按字符串长度限制；历史 Base64 图片仍受 JSON 请求体限制。修改限制时同步更新验证常量和客户端校验。
 
 ## 四、兼容入口与路由规则
 
-以下是兼容保留入口，不能直接删除：
+以下是兼容保留入口，必须有迁移方案和弃用周期后才能删除：
 
 - `/api/sqlite/*`：历史封面 URL；开发和 Node 会转发到当前驱动，Vercel 不提供 SQLite。
 - `/card/:id`：旧详情链接。
 - 首页 `?tag=<id-or-slug>`：加载时迁移为路径。
-- Vercel `/api/storage/:path* -> /api/storage` rewrite：让 API 子路径进入同一个 Function。
+- Vercel `/api/storage/:path* -> /api/storage` rewrite：Vercel 按文件精确路由，`/api/storage/login` 等子路径经该 rewrite 进入同一个 Function，缺失时请求落入 SPA fallback 返回 HTML。
 
-卡片使用多标签，必须保留 `tagIds` 顺序并由 `MultiSelect` 保存完整数组。筛选按 `tagIds` 判断，详情按卡片 ID 查找；section 只用于 URL 和返回位置。没有列表上下文时，默认详情路径取 `tagIds[0]`，调整标签顺序可能改变默认 URL。
+卡片使用多标签，必须保留 `tagIds` 顺序并由 `MultiSelect` 保存完整数组。筛选按 `tagIds` 判断，详情按卡片 ID 查找；section 只用于 URL 和返回位置。没有列表上下文时，默认详情路径取 `tagIds[0]`，调整标签顺序可能改变默认 URL；无标签且非推荐、非在看的卡片回退到 `recommended` 路径。
 
 section 解析、路径构建和旧 `?tag=` 迁移统一由 `src/utils/routeUtils.ts` 提供。
 
 客户端路由使用 wouter，`src/router/index.tsx` 统一提供 History state、查询字符串、后退导航和站内链接适配。业务组件不直接导入 wouter；新增导航目标必须是以单个 `/` 开头的站内绝对路径。`/tat` 及其子路径使用带边界的匹配规则，不能误匹配 `/tattoo`。
 
-结构化首页按推荐、在看、顶部卡片、普通标签分区排列，顶部卡片优先无标签内容，前面分区使用过的卡片不再重复出现。标签 slug 支持 Unicode，保留 `recommended`、`watching`、`tat`、`card`；保留词追加 `-tag`，无法生成名称 slug 时使用 `tag-{id}`。归一化保证 ID 和 slug 唯一，历史重复 slug 按 ID 追加确定性后缀；修改 slug 规则会使旧书签失效。
+结构化首页依次渲染正在观看、最新收录和标签分区。正在观看用 `PublicShelf` 的 `wide` 变体渲染横版卡（`PublicWatchingCard`），与标签分区的竖版海报卡拉开视觉语言。正在观看和标签分区各自收录全部命中卡片，标题旁的数量与「查看更多」目标页一致，同一张卡片可以出现在多个分区。
 
-当前现状：无标签且非推荐/在看的卡片暂时回退到 `recommended` 路径。
+最新收录收录非在看且满足以下之一的卡片：`createdAt` 落在 `LATEST_WINDOW_DAYS`（14 天）窗口内，或没有任何标签。无标签卡片落不进任何标签分区，因此不受窗口约束，始终有归宿。窗口内没有新卡时 `topCards` 为空，该分区整体不渲染，首页只剩正在观看与标签分区。排序固定为无标签优先、组内按 `createdAt` 倒序，不跟随顶栏排序。窗口以 `Date.now()` 在 `useMemo` 内计算，依赖项不含时间，页面长时间不刷新跨天时窗口不会移动。
+
+已在正在观看（前 `SHELF_CARD_LIMIT` 张）或最新收录中露出的卡片会沉到各标签分区末尾，避免同一张卡在两行同时占据首位。降权只调整顺序，分区集合与数量保持完整，「查看更多」目标页不受影响——子页 `activeTag !== 'all'`，不经过 `useStructuredHomeSections`，排序完全跟随顶栏。各分区按 `SHELF_CARD_LIMIT` 截断展示。推荐卡片没有独立分区，只经 Hero、最新收录和标签分区露出。
+
+标签 slug 支持 Unicode，保留 `recommended`、`watching`、`tat`、`card`；保留词追加 `-tag`，无法生成名称 slug 时使用 `tag-{id}`。归一化保证 ID 和 slug 唯一，历史重复 slug 按 ID 追加确定性后缀；修改 slug 规则会使旧书签失效。
 
 ## 五、封面与媒体生命周期
 
@@ -119,9 +138,9 @@ SQLite 媒体在 `media_store`，Redis 使用 `<prefix>:media:<name>` 和元数�
 
 外部 URL 或同源读取失败时使用需管理员 Session 的 `/api/storage/remote-image`。服务端负责 SSRF、重定向、响应类型、签名、超时和大小校验；媒体只接受 JPEG、PNG、WebP、GIF、AVIF，不能放行 SVG 或其他主动内容。
 
-Media GC 只识别 `/api/storage/media?name=...` 和 `/api/sqlite/media?name=...`，扫描 `coverUrl` 及全部 `coverVariants`，仅删除未引用且超过 24 小时宽限期的资源。新增媒体 URL 或引用字段时同步修改 `server/core/mediaGc.js`，并保持 SQLite/Redis 判定一致。
+Media GC 只识别 `/api/storage/media?name=...` 和 `/api/sqlite/media?name=...`，扫描 `coverUrl` 及全部 `coverVariants`，仅删除未引用且超过 24 小时宽限期的资源。新增媒体 URL 或引用字段时同步修改 `server/core/mediaGc.js`，并保持 SQLite / Redis 判定一致。
 
-跨存储传输先按名称差集分批复制媒体，再校验并覆盖 `private_data`、`public_data`；无效源数据不覆盖目标，目标多余媒体不删除，凭据覆盖会清除目标 Session，限流和审计日志不传输。传输由服务端 `/api/storage/transfer` 完成，客户端不要新增驱动分支。
+跨存储传输先按名称差集分批复制媒体，再校验并原子覆盖目标驱动的 `private_data`、`public_data`；任一数据写入失败时不保留部分更新。无效源数据不覆盖目标，目标多余媒体不删除，凭据覆盖会在同一提交中清除目标 Session，限流和审计日志不传输。传输由服务端 `/api/storage/transfer` 完成，客户端不要新增驱动分支。
 
 ## 六、凭据、Session 与审计
 
@@ -132,8 +151,6 @@ Media GC 只识别 `/api/storage/media?name=...` 和 `/api/sqlite/media?name=...
 SQLite 和 Redis 必须保持同一规则。审计日志经过 `auditContract.js` 和对应的 `appendAuditLog` / `appendRedisAudit`；`action` 只允许字母、数字、下划线、冒号、横线，`status` 只能是 `success` 或 `failed`。生产 Cookie 带 `Secure`，本机 HTTP 运行生产模式会导致浏览器不回传 Session Cookie。
 
 ## 七、浏览器端兼容状态
-
-本节是前端状态相关任务的按需兼容细节。
 
 `localStorage` 跨会话，`sessionStorage` 仅当前标签页；所有内容按不可信输入读取。
 
@@ -156,15 +173,13 @@ React 端浏览器状态经 `src/utils/browserState.ts` 校验读写；`public/b
 - **存储传输：**核对 `server/storage/transferApi.js`、`server/storage/transfer.js`、`src/services/storageMaintenanceClient.ts` 和 `src/components/admin/hooks/useSyncOperations.ts`，保持媒体先于数据传输。
 - **凭据和 Session：**核对 `server/core/credentialPolicy.js`、`server/core/adminCredentials.js`、`server/core/sessionCookie.js`、`server/core/sessionStore.js`、`server/storage/redisSession.js`、`server/storage/redisApi.js`、`server/sharedSecurity.js` 和 `src/services/authClient.ts`。
 - **请求和媒体安全：**核对 `server/core/constants.js`、`server/core/requestOrigin.js`、`server/core/mediaValidation.js`、`server/core/remoteImage.js`、`server/core/remoteSecurity.js`、`server/core/mediaGc.js`、SQLite/Redis 媒体存储以及客户端封面服务；覆盖上传、远程图片、GC 和失败恢复测试。
-- **路由、标签和浏览器状态：**核对 `src/router/`、`src/utils/routeUtils.ts`、`src/utils/browserState.ts`、`src/components/PublicHome.tsx`、`src/components/public/PublicNavigationContext.tsx`、`public/bootstrap.js` 和对应兼容测试。
+- **路由、标签和浏览器状态：**核对 `src/router/`、`src/utils/routeUtils.ts`、`src/utils/browserState.ts`、`src/components/PublicHome.tsx`、`src/hooks/useStructuredHomeSections.ts`、`src/components/public/PublicNavigationContext.tsx`、`public/bootstrap.js` 和对应兼容测试。
 
-改变共享契约前先补回归测试；兼容入口必须有迁移方案和弃用周期后才能删除。修改数据、API、路由、媒体或 npm scripts 时，同时检查本文引用的路径、命令和规则是否仍然有效。
+改变共享契约前先补回归测试。修改数据、API、路由、媒体或 npm scripts 时，同时检查本文引用的路径、命令和规则是否仍然有效。
 
 ## 九、验证
 
-版本来自 `VITE_APP_VERSION`，发布流水线从 Git tag 注入；`package.json` 的 `version` 不参与发布，发版步骤见 [`docs/RELEASE.md`](./RELEASE.md)。
-
-按改动风险选择验证范围：
+版本来自 `VITE_APP_VERSION`，发布流水线从 Git tag 注入；`package.json` 的 `version` 不参与发布。
 
 | 改动 | 最低验证 |
 |---|---|
