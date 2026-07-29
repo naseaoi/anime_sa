@@ -13,8 +13,9 @@ export const ImagePreview: React.FC<{
   loading?: 'eager' | 'lazy';
   fetchPriority?: 'high' | 'low' | 'auto';
   decoding?: 'async' | 'sync' | 'auto';
+  deferred?: boolean;
   onLoad?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
-}> = ({ src, srcSet, sizes, alt, className, imageClassName, loading = 'lazy', fetchPriority = 'auto', decoding = 'async', onLoad }) => {
+}> = ({ src, srcSet, sizes, alt, className, imageClassName, loading = 'lazy', fetchPriority = 'auto', decoding = 'async', deferred = false, onLoad }) => {
   const [error, setError] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
 
@@ -24,8 +25,9 @@ export const ImagePreview: React.FC<{
   }, [src]);
 
   const showImage = !!src && !error;
-  const showSkeleton = showImage && !loaded;
-  const showFallback = !showImage;
+  const showDeferred = deferred && !showImage;
+  const showSkeleton = showDeferred || (showImage && !loaded);
+  const showFallback = !showImage && !showDeferred;
 
   return (
     <div className={`relative overflow-hidden bg-stone-100 dark:bg-zinc-800 flex items-center justify-center ${className}`}>

@@ -4,7 +4,6 @@ import { resolveInitialShelfKey, resolveShelfEagerCount } from './PublicStructur
 
 const emptySections = (): StructuredHomeSections => ({
   topCards: [],
-  recommendedCards: [],
   watchingCards: [],
   tagSections: []
 });
@@ -12,15 +11,23 @@ const emptySections = (): StructuredHomeSections => ({
 describe('public structured home resource priority', () => {
   it('selects the first rendered shelf', () => {
     const sections = emptySections();
-    sections.recommendedCards = [{ id: 'recommended' } as StructuredHomeSections['recommendedCards'][number]];
+    sections.watchingCards = [{ id: 'watching' } as StructuredHomeSections['watchingCards'][number]];
+    sections.topCards = [{ id: 'top' } as StructuredHomeSections['topCards'][number]];
     sections.tagSections = [{ tag: { id: 'anime', name: '番剧' }, cards: [] }];
 
-    expect(resolveInitialShelfKey(sections)).toBe('recommended');
+    expect(resolveInitialShelfKey(sections)).toBe('watching');
+  });
+
+  it('falls back to the latest shelf when nothing is being watched', () => {
+    const sections = emptySections();
+    sections.topCards = [{ id: 'top' } as StructuredHomeSections['topCards'][number]];
+
+    expect(resolveInitialShelfKey(sections)).toBe('top');
   });
 
   it('only eagerly loads the first shelf when Hero is absent', () => {
-    expect(resolveShelfEagerCount(false, 'top', 'top')).toBe(2);
-    expect(resolveShelfEagerCount(false, 'recommended', 'top')).toBe(0);
-    expect(resolveShelfEagerCount(true, 'top', 'top')).toBe(0);
+    expect(resolveShelfEagerCount(false, 'watching', 'watching')).toBe(2);
+    expect(resolveShelfEagerCount(false, 'top', 'watching')).toBe(0);
+    expect(resolveShelfEagerCount(true, 'watching', 'watching')).toBe(0);
   });
 });

@@ -1,28 +1,18 @@
 import React from 'react';
 import { Link } from '../../router';
 import { PlayCircle, Star, ThumbsUp } from 'lucide-react';
-import type { CardData } from '../../types';
 import { ImagePreview } from '../Common';
 import { getCardCoverSourceSet } from '../../utils/cardCover';
+import type { PublicCardProps } from './publicCardProps';
 
 // 卡片白色文字在亮/暗封面上的可读性增强：纯文字阴影方案
 // 双层均匀辐射：2px 紧贴硬阴影（提供对比） + 6px 远距软阴影（提供柔和氛围光）
 // 总外扩 ≤6px，配合简介 <p> 的 py-1.5 留出 6px+line-box 余量，规避 overflow-hidden 截断
 const COVER_TEXT_SHADOW = '[text-shadow:0_0_2px_rgba(0,0,0,1),0_0_6px_rgba(0,0,0,0.65)]';
 
-interface PublicCardProps {
-  card: CardData;
-  href: string;
-  state?: unknown;
-  tagNameById: Map<string, string>;
-  eager?: boolean;
-  sizes?: string;
-  className?: string;
-}
-
 // 前台通用卡片：网格与 shelf 共用，hover 发光按推荐/在看/普通三态语义色
 const PublicCardInner: React.FC<PublicCardProps> = ({
-  card, href, state, tagNameById, eager = false, sizes, className = ''
+  card, href, state, tagNameById, eager = false, loadImage = true, imageKey, sizes, className = ''
 }) => {
   const coverSource = getCardCoverSourceSet(card);
 
@@ -42,6 +32,7 @@ const PublicCardInner: React.FC<PublicCardProps> = ({
     <Link
       to={href}
       state={state}
+      data-viewport-image-key={imageKey}
       className={`group relative z-0 block cursor-pointer rounded-xl transition-all duration-500 hover:z-10 hover:scale-[1.02] focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] focus-visible:ring-offset-4 focus-visible:ring-offset-[color:var(--bg)] ${glowTone} ${className}`}
     >
       <div className={`relative rounded-xl transition-all duration-500 w-full aspect-video overflow-hidden border bg-[color:var(--surface)] ${frameTone}`}>
@@ -49,14 +40,15 @@ const PublicCardInner: React.FC<PublicCardProps> = ({
             规避 webkit-mask 边缘渐隐把贴近左/底的文字阴影衰减成"截断" */}
         <div className="absolute inset-0 rounded-xl overflow-hidden isolate" style={{ WebkitMaskImage: '-webkit-radial-gradient(white, black)' }}>
           <ImagePreview
-            src={coverSource.src}
-            srcSet={coverSource.srcSet}
+            src={loadImage ? coverSource.src : ''}
+            srcSet={loadImage ? coverSource.srcSet : undefined}
             sizes={sizes || '(max-width: 639px) 100vw, (max-width: 1023px) 50vw, (max-width: 1279px) 33vw, (max-width: 1535px) 25vw, 20vw'}
             alt={card.title}
             className="w-full h-full transition-transform duration-1000 group-hover:scale-110"
             loading={eager ? 'eager' : 'lazy'}
             fetchPriority={eager ? 'high' : 'auto'}
             decoding="async"
+            deferred={!loadImage}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent pointer-events-none" />
         </div>
@@ -91,15 +83,18 @@ const PublicCardInner: React.FC<PublicCardProps> = ({
           </div>
         </div>
 
-        {card.isRecommended && (
-          <div className="absolute top-0 left-0 bg-amber-500 text-white p-2 rounded-br-xl shadow-lg z-20 pointer-events-none">
-            <ThumbsUp size={14} />
-          </div>
-        )}
-
-        {card.isWatching && !card.isRecommended && (
-          <div className="absolute top-0 left-0 bg-sky-500 text-white p-2 rounded-br-xl shadow-lg z-20 pointer-events-none">
-            <PlayCircle size={14} />
+        {(card.isRecommended || card.isWatching) && (
+          <div className="absolute top-0 left-0 flex items-stretch rounded-br-xl overflow-hidden shadow-lg z-20 pointer-events-none">
+            {card.isRecommended && (
+              <span className="bg-amber-500 text-white p-2">
+                <ThumbsUp size={14} />
+              </span>
+            )}
+            {card.isWatching && (
+              <span className="bg-sky-500 text-white p-2">
+                <PlayCircle size={14} />
+              </span>
+            )}
           </div>
         )}
       </div>

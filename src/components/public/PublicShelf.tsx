@@ -2,6 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { CardData, Tag } from '../../types';
 import { PublicCard } from './PublicCard';
+import { PublicWatchingCard } from './PublicWatchingCard';
+
+export type ShelfVariant = 'poster' | 'wide';
 
 interface PublicShelfProps {
   icon: React.ReactNode;
@@ -12,18 +15,34 @@ interface PublicShelfProps {
   getCardState: () => { from: string };
   onViewMore?: () => void;
   tags: Tag[];
+  visibleImageKeys: ReadonlySet<string>;
   eagerCount?: number;
+  variant?: ShelfVariant;
 }
 
-const SHELF_CARD_SIZES = '(max-width: 639px) 70vw, (max-width: 1023px) 40vw, 300px';
+const SHELF_VARIANTS = {
+  poster: {
+    Card: PublicCard,
+    sizes: '(max-width: 639px) 70vw, (max-width: 1023px) 40vw, 300px',
+    cardClassName: 'w-[68vw] sm:w-[280px] lg:w-[300px] shrink-0 snap-start',
+    arrowThreshold: 4
+  },
+  wide: {
+    Card: PublicWatchingCard,
+    sizes: '(max-width: 639px) 170px, 220px',
+    cardClassName: 'w-[86vw] sm:w-[400px] lg:w-[440px] shrink-0 snap-start',
+    arrowThreshold: 2
+  }
+} as const;
 
 // 首页横向分区：标题行 + snap 滚动卡片带，桌面端悬停浮现两侧翻页钮
 export const PublicShelf: React.FC<PublicShelfProps> = ({
-  icon, title, cards, limit, getCardHref, getCardState, onViewMore, tags, eagerCount = 0
+  icon, title, cards, limit, getCardHref, getCardState, onViewMore, tags, visibleImageKeys, eagerCount = 0, variant = 'poster'
 }) => {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const visibleCards = cards.slice(0, limit);
   const [scrollState, setScrollState] = useState({ canScrollPrev: false, canScrollNext: false });
+  const { Card, sizes, cardClassName, arrowThreshold } = SHELF_VARIANTS[variant];
 
   const tagNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -77,7 +96,7 @@ export const PublicShelf: React.FC<PublicShelfProps> = ({
     node.scrollBy({ left: direction * Math.max(node.clientWidth - 120, 240), behavior: 'smooth' });
   };
 
-  const showArrows = visibleCards.length > 4 && (scrollState.canScrollPrev || scrollState.canScrollNext);
+  const showArrows = visibleCards.length > arrowThreshold && (scrollState.canScrollPrev || scrollState.canScrollNext);
   const edgeMask = scrollState.canScrollPrev
     ? (scrollState.canScrollNext ? 'mask-shelf-both' : 'mask-shelf-left')
     : (scrollState.canScrollNext ? 'mask-shelf-right' : '');
@@ -109,15 +128,17 @@ export const PublicShelf: React.FC<PublicShelfProps> = ({
           className={`shelf-scroller flex gap-4 overflow-x-auto no-scrollbar snap-x snap-proximity py-12 -my-12 ${edgeMask}`}
         >
           {visibleCards.map((card, index) => (
-            <PublicCard
+            <Card
               key={card.id}
               card={card}
               href={getCardHref(card)}
               state={getCardState()}
               tagNameById={tagNameById}
               eager={index < eagerCount}
-              sizes={SHELF_CARD_SIZES}
-              className="w-[68vw] sm:w-[280px] lg:w-[300px] shrink-0 snap-start"
+              loadImage={index < eagerCount || visibleImageKeys.has(card.id)}
+              imageKey={card.id}
+              sizes={sizes}
+              className={cardClassName}
             />
           ))}
         </div>

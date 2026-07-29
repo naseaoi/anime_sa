@@ -16,12 +16,13 @@ interface PublicHeroProps {
   onTouchEnd: () => void;
   getCardHref: (card: CardData) => string;
   getCardState: () => { from: string };
+  visibleImageKeys: ReadonlySet<string>;
 }
 
 // 剧场 Hero：桌面端封面 16:9 右置 + 模糊封面铺底 + 信息层垂直居中，窄屏全宽裁切，底部熔接页面背景
 export const PublicHero: React.FC<PublicHeroProps> = ({
   heroCards, heroIndex, setHeroIndex, setIsHeroPaused,
-  onTouchStart, onTouchMove, onTouchEnd, getCardHref, getCardState
+  onTouchStart, onTouchMove, onTouchEnd, getCardHref, getCardState, visibleImageKeys
 }) => {
   const [ambient, setAmbient] = useState<string | null>(null);
   const thumbStripRef = useRef<HTMLDivElement>(null);
@@ -161,11 +162,19 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
                   {heroCards.map((card, idx) => (
                     <button
                       key={card.id}
+                      data-viewport-image-key={card.id}
                       onClick={() => setHeroIndex(idx)}
                       className={`w-36 xl:w-40 aspect-video shrink-0 rounded-lg overflow-hidden border transition-all duration-300 ${idx === heroIndex ? 'border-[color:var(--accent)] ring-2 ring-[color:var(--accent-soft)] opacity-100' : 'border-[color:var(--line)] opacity-50 hover:opacity-90'}`}
                       aria-label={`切换到 ${card.title}`}
                     >
-                      <ImagePreview src={getCardCoverUrl(card, 'thumb')} alt="" className="w-full h-full" loading="lazy" decoding="async" />
+                      <ImagePreview
+                        src={idx === heroIndex || visibleImageKeys.has(card.id) ? getCardCoverUrl(card, 'thumb') : ''}
+                        alt=""
+                        className="w-full h-full"
+                        loading="lazy"
+                        decoding="async"
+                        deferred={idx !== heroIndex && !visibleImageKeys.has(card.id)}
+                      />
                     </button>
                   ))}
                 </div>

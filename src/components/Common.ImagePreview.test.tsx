@@ -37,4 +37,15 @@ describe('ImagePreview', () => {
     await act(async () => image.props.onLoad({}));
     expect(tree!.root.findAll((node) => node.props.className?.includes('cover-loading-shimmer'))).toHaveLength(0);
   });
+
+  it('keeps a stable placeholder without mounting a deferred image', async () => {
+    let tree: ReturnType<typeof create>;
+
+    await act(async () => {
+      tree = create(<ImagePreview src="" alt="cover" deferred />);
+    });
+
+    expect(tree!.root.findAllByType('img')).toHaveLength(0);
+    expect(tree!.root.findAll((node) => node.props.className?.includes('cover-loading-shimmer'))).toHaveLength(1);
+  });
 });

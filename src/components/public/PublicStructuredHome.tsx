@@ -1,11 +1,12 @@
-import React from 'react';
-import { Clock3, ThumbsUp, PlayCircle } from 'lucide-react';
+import React, { useMemo, useRef } from 'react';
+import { Clock3, PlayCircle } from 'lucide-react';
 import type { CardData, Tag } from '../../types';
 import type { StructuredHomeSections } from '../../hooks/useStructuredHomeSections';
 import { PublicHero } from './PublicHero';
 import { PublicShelf } from './PublicShelf';
 import { getTagIcon } from '../../utils/tagIcons';
 import { getTagSlug } from '../../utils/routeUtils';
+import { useViewportImageKeys } from '../../hooks/useViewportImageKeys';
 
 interface HeroProps {
   showHero: boolean;
@@ -29,9 +30,8 @@ interface PublicStructuredHomeProps extends HeroProps {
 }
 
 export const resolveInitialShelfKey = (sections: StructuredHomeSections) => {
-  if (sections.topCards.length > 0) return 'top';
-  if (sections.recommendedCards.length > 0) return 'recommended';
   if (sections.watchingCards.length > 0) return 'watching';
+  if (sections.topCards.length > 0) return 'top';
   const firstTagId = sections.tagSections[0]?.tag.id;
   return firstTagId ? `tag:${firstTagId}` : null;
 };
@@ -46,12 +46,20 @@ export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
   heroIndex, setHeroIndex, setIsHeroPaused, onTouchStart, onTouchMove, onTouchEnd,
   getCardHref, getCardState, onTagChange, tags
 }) => {
-  const shelfProps = { limit: sectionCardLimit, getCardState, tags };
+  const contentRef = useRef<HTMLDivElement>(null);
+  const observationKey = useMemo(() => [
+    ...heroCards.map((card) => card.id),
+    ...sections.watchingCards.slice(0, sectionCardLimit).map((card) => card.id),
+    ...sections.topCards.slice(0, sectionCardLimit).map((card) => card.id),
+    ...sections.tagSections.flatMap((section) => section.cards.slice(0, sectionCardLimit).map((card) => card.id))
+  ].join('|'), [heroCards, sections, sectionCardLimit]);
+  const visibleImageKeys = useViewportImageKeys(contentRef, observationKey);
+  const shelfProps = { limit: sectionCardLimit, getCardState, tags, visibleImageKeys };
   const firstShelfKey = resolveInitialShelfKey(sections);
   const eagerCountFor = (key: string) => resolveShelfEagerCount(showHero, key, firstShelfKey);
 
   return (
-    <div key={`sections-${gridKey}`}>
+    <div ref={contentRef} key={`sections-${gridKey}`}>
       {showHero && (
         <PublicHero
           heroCards={heroCards}
@@ -63,10 +71,24 @@ export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
           onTouchEnd={onTouchEnd}
           getCardHref={(card) => getCardHref(card, 'all')}
           getCardState={getCardState}
+          visibleImageKeys={visibleImageKeys}
         />
       )}
 
       <div className={`relative px-[var(--page-x)] space-y-10 ${showHero ? 'mt-2' : 'mt-6'}`}>
+        {sections.watchingCards.length > 0 && (
+          <PublicShelf
+            icon={<span className="w-6 h-6 inline-flex items-center justify-center text-sky-500"><PlayCircle size={22} /></span>}
+            title="正在观看"
+            cards={sections.watchingCards}
+            variant="wide"
+            eagerCount={eagerCountFor('watching')}
+            getCardHref={(card) => getCardHref(card, 'watching')}
+            onViewMore={() => onTagChange('watching')}
+            {...shelfProps}
+          />
+        )}
+
         {sections.topCards.length > 0 && (
           <PublicShelf
             icon={<span className="w-6 h-6 inline-flex items-center justify-center text-[color:var(--accent)]"><Clock3 size={22} /></span>}
@@ -74,30 +96,6 @@ export const PublicStructuredHome: React.FC<PublicStructuredHomeProps> = ({
             cards={sections.topCards}
             eagerCount={eagerCountFor('top')}
             getCardHref={(card) => getCardHref(card, 'all')}
-            {...shelfProps}
-          />
-        )}
-
-        {sections.recommendedCards.length > 0 && (
-          <PublicShelf
-            icon={<span className="w-6 h-6 inline-flex items-center justify-center text-amber-500"><ThumbsUp size={22} /></span>}
-            title="精选推荐"
-            cards={sections.recommendedCards}
-            eagerCount={eagerCountFor('recommended')}
-            getCardHref={(card) => getCardHref(card, 'recommended')}
-            onViewMore={() => onTagChange('recommended')}
-            {...shelfProps}
-          />
-        )}
-
-        {sections.watchingCards.length > 0 && (
-          <PublicShelf
-            icon={<span className="w-6 h-6 inline-flex items-center justify-center text-sky-500"><PlayCircle size={22} /></span>}
-            title="正在观看"
-            cards={sections.watchingCards}
-            eagerCount={eagerCountFor('watching')}
-            getCardHref={(card) => getCardHref(card, 'watching')}
-            onViewMore={() => onTagChange('watching')}
             {...shelfProps}
           />
         )}
