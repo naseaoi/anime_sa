@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState, Suspense } from 'react';
-import { useParams, useNavigate, useLocation } from '../router';
+import { useParams, useNavigate } from '../router';
 import { ArrowLeft, ThumbsUp, Calendar, AlertCircle, Edit2, PlayCircle, Maximize2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -9,6 +9,7 @@ import { PublicData, CardData } from '../types';
 import { Button, ImagePreview, Rating, useToast } from './Common';
 import { usePublicNavigation } from './public/PublicNavigationContext';
 import { useCardCreate, QUICK_CREATE_INITIAL_CARD } from '../hooks/useCardCreate';
+import { useDetailBack } from '../hooks/useDetailBack';
 import { getCardCoverUrl } from '../utils/cardCover';
 import { getCoverAmbientColor } from '../utils/coverAmbientColor';
 import { applyPageMetadata } from '../utils/seo';
@@ -25,7 +26,6 @@ interface PublicDetailProps {
 export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, isAdmin }) => {
   const { id, section } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const card = data.cards.find(c => c.id === id);
   const [isEditing, setIsEditing] = useState(false);
   const [isOriginalPreviewOpen, setIsOriginalPreviewOpen] = useState(false);
@@ -73,20 +73,7 @@ export const PublicDetail: React.FC<PublicDetailProps> = ({ data, refreshData, i
     return () => { cancelled = true; };
   }, [card]);
 
-  const handleBack = () => {
-    const from = (location.state as { from?: string } | null)?.from;
-    if (from && from.startsWith('/')) {
-      navigate(from, { replace: true });
-      return;
-    }
-
-    const fromSameOrigin = !!document.referrer && document.referrer.startsWith(window.location.origin);
-    if (window.history.length > 1 && fromSameOrigin) {
-      navigate(-1);
-    } else {
-      navigate(section && section !== 'all' ? `/${section}` : '/', { replace: true });
-    }
-  };
+  const handleBack = useDetailBack(section);
 
   const handlePersist = async (updatedCard: Partial<CardData>) => {
     if (!card) return failedResult('卡片不存在');

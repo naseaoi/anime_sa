@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   LayoutGrid, ThumbsUp, PlayCircle, Search, X, Plus,
-  ArrowUpDown, Sun, Moon, Monitor, Library, Check
+  ArrowUpDown, Sun, Moon, Monitor, Library, Check, ArrowLeft
 } from 'lucide-react';
 import type { Tag } from '../../types';
 import { resolveNavigationIconUrl } from '../../domain/publicData';
 import type { CardStats } from '../../utils/cardStats';
 import { getTagIcon } from '../../utils/tagIcons';
+import { useHorizontalOverflow } from '../../hooks/useHorizontalOverflow';
 import type { SortKey, SortOrder } from '../../utils/browserState';
 
 export type { SortKey, SortOrder } from '../../utils/browserState';
@@ -37,6 +38,8 @@ interface PublicTopNavProps {
   toggleTheme: () => void;
   overlay?: boolean;
   narrow?: boolean;
+  backTitle?: string;
+  onBack?: () => void;
 }
 
 interface NavItem {
@@ -46,19 +49,22 @@ interface NavItem {
   count: number;
 }
 
-// 顶部导航：logo（三连击进后台）+ 分区 + 搜索 + 排序 + 分区总览 + 主题
+// 顶部导航：logo（三连击进后台）+ 分区 + 搜索 + 排序 + 分区总览 + 主题；详情页换成返回 + 标题
 export const PublicTopNav: React.FC<PublicTopNavProps> = ({
   iconUrl, title, tags, activeTag, totalCards, cardStats, onTagChange,
   searchTerm, onSearchChange, onClearSearch,
   sortKey, sortOrder, onSortChange,
-  isAdmin, onCreateClick, theme, toggleTheme, overlay = false, narrow = false
+  isAdmin, onCreateClick, theme, toggleTheme, overlay = false, narrow = false,
+  backTitle, onBack
 }) => {
   const [openMenu, setOpenMenu] = useState<'sort' | 'overview' | null>(null);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(() => searchTerm.length > 0);
   const [scrolled, setScrolled] = useState(false);
   const menuAreaRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const logoSrc = resolveNavigationIconUrl(iconUrl);
+  const isDetailBar = !!onBack;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -137,6 +143,9 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
     onTagChange(tagId);
   };
 
+  const navOverflowing = useHorizontalOverflow(navRef, `${navItems.length}-${isDetailBar}`);
+  const showOverview = isDetailBar || navOverflowing;
+
   const iconButtonClass = 'w-9 h-9 inline-flex items-center justify-center rounded-xl border border-transparent text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)] hover:border-[color:var(--line)] hover:bg-[color:color-mix(in_srgb,var(--surface)_70%,transparent)] transition-all';
   const dropdownPanelClass = 'bg-[color:color-mix(in_srgb,var(--surface)_94%,transparent)] border border-[color:var(--line)] backdrop-blur-2xl shadow-[var(--shadow-lg)]';
 
@@ -163,32 +172,56 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
     <header className={`sticky top-0 z-40 border-b transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ${overlay ? 'lg:-mb-16' : ''} ${scrolled ? 'backdrop-blur-2xl border-[color:color-mix(in_srgb,var(--line)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--surface)_30%,transparent)] shadow-[0_10px_36px_rgba(0,0,0,0.10)]' : 'backdrop-blur-0 bg-transparent border-transparent shadow-none'}`}>
       <div className={`relative z-10 transition-[padding] duration-500 ease-out ${narrow ? 'px-[var(--detail-x)]' : 'px-[var(--page-x)]'}`}>
         <div className="h-14 lg:h-16 flex items-center gap-4 lg:gap-6">
-          <button type="button" className="flex items-center gap-3 shrink-0 cursor-pointer select-none text-left" onClick={handleLogoClick}>
-            <img src={logoSrc} alt="Logo" width={32} height={32} decoding="async" className="w-8 h-8 object-contain" />
-            <div className="hidden sm:block">
-              <p className="font-display text-lg leading-tight text-[color:var(--text-primary)] whitespace-nowrap">{title}</p>
-              <p className="text-[9px] tracking-[0.24em] uppercase text-[color:var(--text-secondary)] whitespace-nowrap leading-none">Cinema Archive</p>
+          {isDetailBar ? (
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <button
+                type="button"
+                onClick={onBack}
+                className={`${iconButtonClass} shrink-0 border-[color:var(--line)] bg-[color:color-mix(in_srgb,var(--surface)_62%,transparent)] backdrop-blur-sm`}
+                title="返回"
+              >
+                <ArrowLeft size={18} />
+              </button>
+              <p className={`font-display text-base lg:text-xl text-[color:var(--text-primary)] truncate transition-opacity duration-300 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>
+                {backTitle}
+              </p>
             </div>
-          </button>
+          ) : (
+            <>
+              <button type="button" className="flex items-center gap-3 shrink-0 cursor-pointer select-none text-left" onClick={handleLogoClick}>
+                <img src={logoSrc} alt="Logo" width={32} height={32} decoding="async" className="w-8 h-8 object-contain" />
+                <div className="hidden sm:block">
+                  <p className="font-display text-lg leading-tight text-[color:var(--text-primary)] whitespace-nowrap">{title}</p>
+                  <p className="text-[9px] tracking-[0.24em] uppercase text-[color:var(--text-secondary)] whitespace-nowrap leading-none">Cinema Archive</p>
+                </div>
+              </button>
 
-          <nav className="hidden lg:flex items-center gap-1 flex-1 min-w-0 overflow-x-auto no-scrollbar mask-linear-fade h-full">
-            {navItems.map((item) => {
-              const active = activeTag === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => handleNavClick(item.id)}
-                  className={`relative h-full px-3 inline-flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap transition-colors ${active ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]'}`}
-                >
-                  {item.icon && <span className="inline-flex items-center justify-center">{item.icon}</span>}
-                  {item.label}
-                  <span className={`absolute left-3 right-3 bottom-0 h-0.5 rounded-full bg-[color:var(--accent)] transition-opacity ${active ? 'opacity-100' : 'opacity-0'}`} />
-                </button>
-              );
-            })}
-          </nav>
+              <nav ref={navRef} className="hidden lg:flex items-center gap-1 flex-1 min-w-0 overflow-x-auto no-scrollbar mask-linear-fade h-full">
+                {navItems.map((item) => {
+                  const active = activeTag === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleNavClick(item.id)}
+                      className={`relative h-full px-3 inline-flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap transition-colors ${active ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]'}`}
+                    >
+                      {item.icon && <span className="inline-flex items-center justify-center">{item.icon}</span>}
+                      {item.label}
+                      <span className={`absolute left-3 right-3 bottom-0 h-0.5 rounded-full bg-[color:var(--accent)] transition-opacity ${active ? 'opacity-100' : 'opacity-0'}`} />
+                    </button>
+                  );
+                })}
+              </nav>
+            </>
+          )}
 
           <div ref={menuAreaRef} className="flex items-center gap-1.5 ml-auto shrink-0">
+            {isAdmin && (
+              <button onClick={onCreateClick} className={iconButtonClass} title="快速添加">
+                <Plus size={18} />
+              </button>
+            )}
+
             <div className="hidden md:block w-44 focus-within:w-64 transition-[width] duration-300">
               {renderSearchInput()}
             </div>
@@ -227,7 +260,7 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
               )}
             </div>
 
-            <div className="relative">
+            <div className={`relative ${showOverview ? '' : 'lg:hidden'}`}>
               <button
                 onClick={() => setOpenMenu((prev) => (prev === 'overview' ? null : 'overview'))}
                 className={`${iconButtonClass} ${openMenu === 'overview' ? 'text-[color:var(--text-primary)] border-[color:var(--line)] bg-[color:color-mix(in_srgb,var(--surface)_70%,transparent)]' : ''}`}
@@ -262,12 +295,6 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
             <button onClick={toggleTheme} className={iconButtonClass} title="主题">
               <ThemeIcon size={16} />
             </button>
-
-            {isAdmin && (
-              <button onClick={onCreateClick} className={iconButtonClass} title="快速添加">
-                <Plus size={18} />
-              </button>
-            )}
           </div>
         </div>
 
@@ -277,21 +304,23 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
           </div>
         )}
 
-        <nav className="lg:hidden flex items-center gap-1.5 overflow-x-auto no-scrollbar mask-linear-fade pb-2.5 -mt-0.5">
-          {navItems.map((item) => {
-            const active = activeTag === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleNavClick(item.id)}
-                className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold whitespace-nowrap transition-all ${active ? 'border-[color:color-mix(in_srgb,var(--accent)_60%,transparent)] bg-[color:var(--accent-soft)] text-[color:var(--text-primary)]' : 'border-[color:var(--line)] bg-[color:color-mix(in_srgb,var(--surface)_60%,transparent)] text-[color:var(--text-secondary)]'}`}
-              >
-                {item.icon && <span className="inline-flex items-center justify-center">{item.icon}</span>}
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
+        {!isDetailBar && (
+          <nav className="lg:hidden flex items-center gap-1.5 overflow-x-auto no-scrollbar mask-linear-fade pb-2.5 -mt-0.5">
+            {navItems.map((item) => {
+              const active = activeTag === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavClick(item.id)}
+                  className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold whitespace-nowrap transition-all ${active ? 'border-[color:color-mix(in_srgb,var(--accent)_60%,transparent)] bg-[color:var(--accent-soft)] text-[color:var(--text-primary)]' : 'border-[color:var(--line)] bg-[color:color-mix(in_srgb,var(--surface)_60%,transparent)] text-[color:var(--text-secondary)]'}`}
+                >
+                  {item.icon && <span className="inline-flex items-center justify-center">{item.icon}</span>}
+                  {item.label}
+                </button>
+              );
+            })}
+          </nav>
+        )}
       </div>
     </header>
   );

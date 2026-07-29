@@ -97,7 +97,7 @@ test('public and administrator routes preserve navigation behavior', async ({ pa
   await page.goto('/anime/e2e-route-card');
   await expect(page.getByRole('heading', { name: '路由回归卡片' })).toBeVisible();
   await page.evaluate(() => window.history.replaceState({ from: '/?q=history-state' }, '', window.location.href));
-  await page.getByRole('button', { name: '返回' }).click();
+  await page.getByRole('banner').getByRole('button', { name: '返回' }).click();
   await expect(page).toHaveURL(/\/\?q=history-state$/);
 
   await page.goto('/card/e2e-route-card');

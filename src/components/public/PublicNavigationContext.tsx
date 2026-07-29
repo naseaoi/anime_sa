@@ -5,6 +5,7 @@ import { useTheme } from '../Common';
 import { buildCardStats } from '../../utils/cardStats';
 import { buildSectionPath, resolveSectionTag } from '../../utils/routeUtils';
 import { clearScrollPosition, getHomeScrollKey, readSortConfig, writeSortConfig } from '../../utils/browserState';
+import { useDetailBack } from '../../hooks/useDetailBack';
 import { PublicTopNav, type SortKey, type SortOrder } from './PublicTopNav';
 
 interface PublicNavigationContextValue {
@@ -16,6 +17,22 @@ interface PublicNavigationContextValue {
   onSortChange: (key: SortKey) => void;
   createRequestToken: number;
 }
+
+interface PublicTopNavOverlayState {
+  isDetail: boolean;
+  pathname: string;
+  searchTerm: string;
+  recommendedCount: number;
+}
+
+export const shouldOverlayPublicTopNav = ({
+  isDetail,
+  pathname,
+  searchTerm,
+  recommendedCount
+}: PublicTopNavOverlayState) => (
+  isDetail || (pathname === '/' && !searchTerm && recommendedCount > 0)
+);
 
 const PublicNavigationContext = createContext<PublicNavigationContextValue | null>(null);
 
@@ -33,12 +50,23 @@ export const PublicNavigationProvider: React.FC<{
   const cardStats = useMemo(() => buildCardStats(data.cards), [data.cards]);
   const searchTerm = searchParams.get('q') || '';
   const isAdminRoute = isAdminRoutePath(location.pathname);
-  const isDetail = !isAdminRoute && location.pathname.split('/').filter(Boolean).length >= 2;
+  const pathSegments = useMemo(() => location.pathname.split('/').filter(Boolean), [location.pathname]);
+  const isDetail = !isAdminRoute && pathSegments.length >= 2;
+  const detailCard = useMemo(
+    () => (isDetail ? data.cards.find((card) => card.id === pathSegments[1]) : undefined),
+    [data.cards, isDetail, pathSegments]
+  );
+  const onDetailBack = useDetailBack(pathSegments[0]);
+  const overlayTopNav = shouldOverlayPublicTopNav({
+    isDetail,
+    pathname: location.pathname,
+    searchTerm,
+    recommendedCount: cardStats.recommendedCount
+  });
 
   const activeTag = useMemo(() => {
-    const section = location.pathname.split('/').filter(Boolean)[0];
-    return resolveSectionTag(section, data.tags) || 'all';
-  }, [data.tags, location.pathname]);
+    return resolveSectionTag(pathSegments[0], data.tags) || 'all';
+  }, [data.tags, pathSegments]);
 
   const onTagChange = (tagId: string) => {
     const path = buildSectionPath(tagId, data.tags);
@@ -115,8 +143,10 @@ export const PublicNavigationProvider: React.FC<{
           onCreateClick={() => setCreateRequestToken((value) => value + 1)}
           theme={theme}
           toggleTheme={toggleTheme}
-          overlay={isDetail || location.pathname === '/'}
+          overlay={overlayTopNav}
           narrow={isDetail}
+          backTitle={detailCard?.title}
+          onBack={isDetail ? onDetailBack : undefined}
         />
       )}
       {children}
