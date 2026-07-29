@@ -3,84 +3,75 @@ import type { CardData, Tag } from '../types';
 
 export interface StructuredHomeSections {
   topCards: CardData[];
-  recommendedCards: CardData[];
   watchingCards: CardData[];
   tagSections: { tag: Tag; cards: CardData[] }[];
 }
 
 interface Params {
   isStructuredHome: boolean;
-  heroCards: CardData[];
   filteredCards: CardData[];
   tags: Tag[];
   sectionCardLimit: number;
 }
 
-// 结构化首页分区计算：先剔除轮播、再依次挑选"最新/推荐/观看中/按标签"，保持全局排序
+export const LATEST_WINDOW_DAYS = 14;
+const LATEST_WINDOW_MS = LATEST_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+// 结构化首页分区计算：观看中/标签分区收录完整命中集合，"最新收录"只收窗口期新卡与无标签卡
 export const useStructuredHomeSections = (params: Params): StructuredHomeSections | null => {
-  const { isStructuredHome, heroCards, filteredCards, tags, sectionCardLimit } = params;
+  const { isStructuredHome, filteredCards, tags, sectionCardLimit } = params;
 
   return useMemo(() => {
     if (!isStructuredHome) return null;
 
-    const heroIds = new Set(heroCards.map((card) => card.id));
-    const topCardsTarget = sectionCardLimit;
-
-    const nonHeroCards: CardData[] = [];
-    const recommendedCards: CardData[] = [];
+    const windowStart = Date.now() - LATEST_WINDOW_MS;
     const watchingCards: CardData[] = [];
+    const topCandidates: CardData[] = [];
     const cardsByTag = new Map<string, CardData[]>();
-    const usedCardIds = new Set<string>();
 
     tags.forEach((tag) => {
       cardsByTag.set(tag.id, []);
     });
 
     for (const card of filteredCards) {
-      if (!heroIds.has(card.id)) {
-        nonHeroCards.push(card);
-      }
-    }
-
-    // 精选推荐区沿用当前排序，不因轮播抽走卡片而打乱顺序
-    for (const card of nonHeroCards) {
-      if (card.isRecommended) {
-        recommendedCards.push(card);
-        usedCardIds.add(card.id);
-      }
-    }
-
-    for (const card of nonHeroCards) {
-      if (usedCardIds.has(card.id)) continue;
-      if (card.isWatching) {
-        watchingCards.push(card);
-        usedCardIds.add(card.id);
-      }
-    }
-
-    const topCandidates = nonHeroCards.filter((card) => !usedCardIds.has(card.id));
-    // 顶部无标签卡片
-    const topCandidatesSorted = [...topCandidates].sort((a, b) => {
-      const aHasTag = a.tagIds.length > 0;
-      const bHasTag = b.tagIds.length > 0;
-      if (aHasTag === bHasTag) return 0;
-      return aHasTag ? 1 : -1;
-    });
-    const topCards = topCandidatesSorted.slice(0, topCardsTarget);
-    topCards.forEach((card) => usedCardIds.add(card.id));
-
-    for (const card of nonHeroCards) {
-      if (usedCardIds.has(card.id)) continue;
+      if (card.isWatching) watchingCards.push(card);
       for (const tagId of card.tagIds) {
-        const bucket = cardsByTag.get(tagId);
-        if (bucket) bucket.push(card);
+        cardsByTag.get(tagId)?.push(card);
+      }
+      // 无标签卡片落不进任何标签分区，不受窗口约束
+      if (!card.isWatching && (card.tagIds.length === 0 || card.createdAt >= windowStart)) {
+        topCandidates.push(card);
       }
     }
+
+    // 无标签卡片优先；组内固定按收录时间倒序，不跟随顶栏排序
+    const topCards = [...topCandidates]
+      .sort((a, b) => {
+        const aHasTag = a.tagIds.length > 0;
+        const bHasTag = b.tagIds.length > 0;
+        if (aHasTag !== bHasTag) return aHasTag ? 1 : -1;
+        return b.createdAt - a.createdAt;
+      })
+      .slice(0, sectionCardLimit);
+
+    // 已在上方分区露出的卡沉到标签分区末尾，分区集合本身保持完整
+    const shownIds = new Set([
+      ...watchingCards.slice(0, sectionCardLimit).map((card) => card.id),
+      ...topCards.map((card) => card.id)
+    ]);
 
     const tagSections = tags
-      .map((tag) => ({ tag, cards: cardsByTag.get(tag.id) || [] }))
+      .map((tag) => {
+        const cards = cardsByTag.get(tag.id) || [];
+        const fresh: CardData[] = [];
+        const shown: CardData[] = [];
+        for (const card of cards) {
+          (shownIds.has(card.id) ? shown : fresh).push(card);
+        }
+        return { tag, cards: [...fresh, ...shown] };
+      })
       .filter((section) => section.cards.length > 0);
 
-    return { topCards, recommendedCards, watchingCards, tagSections };
-  }, [isStructuredHome, heroCards, filteredCards, tags, sectionCardLimit]);
+    return { topCards, watchingCards, tagSections };
+  }, [isStructuredHome, filteredCards, tags, sectionCardLimit]);
 };

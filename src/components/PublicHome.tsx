@@ -292,7 +292,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData }) => 
   const sectionCardLimit = SHELF_CARD_LIMIT;
 
   const structuredHomeSections = useStructuredHomeSections({
-    isStructuredHome, heroCards, filteredCards, tags: data.tags, sectionCardLimit
+    isStructuredHome, filteredCards, tags: data.tags, sectionCardLimit
   });
 
   // --- 瀑布流加载 ---
