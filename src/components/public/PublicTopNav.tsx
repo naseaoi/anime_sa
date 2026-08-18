@@ -8,6 +8,7 @@ import { resolveNavigationIconUrl } from '../../domain/publicData';
 import type { CardStats } from '../../utils/cardStats';
 import { getTagIcon } from '../../utils/tagIcons';
 import { useHorizontalOverflow } from '../../hooks/useHorizontalOverflow';
+import { usePublicTopNavTransition } from '../../hooks/usePublicTopNavTransition';
 import type { SortKey, SortOrder } from '../../utils/browserState';
 
 export type { SortKey, SortOrder } from '../../utils/browserState';
@@ -60,7 +61,7 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
   const [openMenu, setOpenMenu] = useState<'sort' | 'overview' | null>(null);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(() => searchTerm.length > 0);
   const [scrolled, setScrolled] = useState(false);
-  const menuAreaRef = useRef<HTMLDivElement>(null);
+  const { leadingRef, trailingRef: menuAreaRef } = usePublicTopNavTransition(narrow);
   const navRef = useRef<HTMLElement>(null);
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const logoSrc = resolveNavigationIconUrl(iconUrl);
@@ -120,7 +121,7 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
       document.removeEventListener('mousedown', onPointerDown);
       document.removeEventListener('touchstart', onPointerDown);
     };
-  }, [openMenu]);
+  }, [openMenu, menuAreaRef]);
 
   useEffect(() => {
     if (mobileSearchOpen) mobileSearchInputRef.current?.focus();
@@ -170,50 +171,52 @@ export const PublicTopNav: React.FC<PublicTopNavProps> = ({
 
   return (
     <header className={`sticky top-0 z-40 border-b transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ${overlay ? 'lg:-mb-16' : ''} ${scrolled ? 'backdrop-blur-2xl border-[color:color-mix(in_srgb,var(--line)_60%,transparent)] bg-[color:color-mix(in_srgb,var(--surface)_30%,transparent)] shadow-[0_10px_36px_rgba(0,0,0,0.10)]' : 'backdrop-blur-0 bg-transparent border-transparent shadow-none'}`}>
-      <div className={`relative z-10 transition-[padding] duration-500 ease-out ${narrow ? 'px-[var(--detail-x)]' : 'px-[var(--page-x)]'}`}>
+      <div className={`relative z-10 ${narrow ? 'px-[var(--detail-x)]' : 'px-[var(--page-x)]'}`}>
         <div className="h-14 lg:h-16 flex items-center gap-4 lg:gap-6">
-          {isDetailBar ? (
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <button
-                type="button"
-                onClick={onBack}
-                className={`${iconButtonClass} shrink-0 border-[color:var(--line)] bg-[color:color-mix(in_srgb,var(--surface)_62%,transparent)] backdrop-blur-sm`}
-                title="返回"
-              >
-                <ArrowLeft size={18} />
-              </button>
-              <p className={`font-display text-base lg:text-xl text-[color:var(--text-primary)] truncate transition-opacity duration-300 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>
-                {backTitle}
-              </p>
-            </div>
-          ) : (
-            <>
-              <button type="button" className="flex items-center gap-3 shrink-0 cursor-pointer select-none text-left" onClick={handleLogoClick}>
-                <img src={logoSrc} alt="Logo" width={32} height={32} decoding="async" className="w-8 h-8 object-contain" />
-                <div className="hidden sm:block">
-                  <p className="font-display text-lg leading-tight text-[color:var(--text-primary)] whitespace-nowrap">{title}</p>
-                  <p className="text-[9px] tracking-[0.24em] uppercase text-[color:var(--text-secondary)] whitespace-nowrap leading-none">Cinema Archive</p>
-                </div>
-              </button>
+          <div ref={leadingRef} className={`flex items-center min-w-0 flex-1 h-full ${isDetailBar ? 'gap-3' : 'gap-4 lg:gap-6'}`}>
+            {isDetailBar ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className={`${iconButtonClass} shrink-0 border-[color:var(--line)] bg-[color:color-mix(in_srgb,var(--surface)_62%,transparent)] backdrop-blur-sm`}
+                  title="返回"
+                >
+                  <ArrowLeft size={18} />
+                </button>
+                <p className={`font-display text-base lg:text-xl text-[color:var(--text-primary)] truncate transition-opacity duration-300 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>
+                  {backTitle}
+                </p>
+              </>
+            ) : (
+              <>
+                <button type="button" className="flex items-center gap-3 shrink-0 cursor-pointer select-none text-left" onClick={handleLogoClick}>
+                  <img src={logoSrc} alt="Logo" width={32} height={32} decoding="async" className="w-8 h-8 object-contain" />
+                  <div className="hidden sm:block">
+                    <p className="font-display text-lg leading-tight text-[color:var(--text-primary)] whitespace-nowrap">{title}</p>
+                    <p className="text-[9px] tracking-[0.24em] uppercase text-[color:var(--text-secondary)] whitespace-nowrap leading-none">Cinema Archive</p>
+                  </div>
+                </button>
 
-              <nav ref={navRef} className="hidden lg:flex items-center gap-1 flex-1 min-w-0 overflow-x-auto no-scrollbar mask-linear-fade h-full">
-                {navItems.map((item) => {
-                  const active = activeTag === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleNavClick(item.id)}
-                      className={`relative h-full px-3 inline-flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap transition-colors ${active ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]'}`}
-                    >
-                      {item.icon && <span className="inline-flex items-center justify-center">{item.icon}</span>}
-                      {item.label}
-                      <span className={`absolute left-3 right-3 bottom-0 h-0.5 rounded-full bg-[color:var(--accent)] transition-opacity ${active ? 'opacity-100' : 'opacity-0'}`} />
-                    </button>
-                  );
-                })}
-              </nav>
-            </>
-          )}
+                <nav ref={navRef} className="hidden lg:flex items-center gap-1 flex-1 min-w-0 overflow-x-auto no-scrollbar mask-linear-fade h-full">
+                  {navItems.map((item) => {
+                    const active = activeTag === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => handleNavClick(item.id)}
+                        className={`relative h-full px-3 inline-flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap transition-colors ${active ? 'text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]'}`}
+                      >
+                        {item.icon && <span className="inline-flex items-center justify-center">{item.icon}</span>}
+                        {item.label}
+                        <span className={`absolute left-3 right-3 bottom-0 h-0.5 rounded-full bg-[color:var(--accent)] transition-opacity ${active ? 'opacity-100' : 'opacity-0'}`} />
+                      </button>
+                    );
+                  })}
+                </nav>
+              </>
+            )}
+          </div>
 
           <div ref={menuAreaRef} className="flex items-center gap-1.5 ml-auto shrink-0">
             {isAdmin && (
