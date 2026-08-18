@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from '../../router';
 import { PlayCircle, Star, ThumbsUp } from 'lucide-react';
-import { ImagePreview } from '../Common';
+import { ImagePreview } from '../common/visual';
 import { getCardCoverSourceSet } from '../../utils/cardCover';
 import type { PublicCardProps } from './publicCardProps';
 

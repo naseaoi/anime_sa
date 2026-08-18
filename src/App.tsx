@@ -10,7 +10,8 @@ import {
   getStorageRuntimeState
 } from './services/storageFactory';
 import { PublicData } from './types';
-import { ToastProvider, ThemeProvider } from './components/Common';
+import { ThemeProvider } from './components/common/ThemeContext';
+import { ToastProvider } from './components/common/ToastContext';
 import { applyThemeColor } from './utils/themeColor';
 import { applyPageMetadata } from './utils/seo';
 import { PublicHome } from './components/PublicHome';

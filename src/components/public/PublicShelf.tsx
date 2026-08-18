@@ -3,10 +3,11 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { CardData, Tag } from '../../types';
 import { PublicCard } from './PublicCard';
 import { PublicWatchingCard } from './PublicWatchingCard';
+import { useViewportImageKeys } from '../../hooks/useViewportImageKeys';
 
 export type ShelfVariant = 'poster' | 'wide';
 
-interface PublicShelfProps {
+export interface PublicShelfProps {
   icon: React.ReactNode;
   title: string;
   cards: CardData[];
@@ -15,7 +16,6 @@ interface PublicShelfProps {
   getCardState: () => { from: string };
   onViewMore?: () => void;
   tags: Tag[];
-  visibleImageKeys: ReadonlySet<string>;
   eagerCount?: number;
   variant?: ShelfVariant;
 }
@@ -37,10 +37,14 @@ const SHELF_VARIANTS = {
 
 // 首页横向分区：标题行 + snap 滚动卡片带，桌面端悬停浮现两侧翻页钮
 export const PublicShelf: React.FC<PublicShelfProps> = ({
-  icon, title, cards, limit, getCardHref, getCardState, onViewMore, tags, visibleImageKeys, eagerCount = 0, variant = 'poster'
+  icon, title, cards, limit, getCardHref, getCardState, onViewMore, tags, eagerCount = 0, variant = 'poster'
 }) => {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const visibleCards = cards.slice(0, limit);
+  const visibleImageKeys = useViewportImageKeys(
+    scrollerRef,
+    visibleCards.map((card) => card.id).join('|')
+  );
   const [scrollState, setScrollState] = useState({ canScrollPrev: false, canScrollNext: false });
   const { Card, sizes, cardClassName, arrowThreshold } = SHELF_VARIANTS[variant];
 
@@ -134,7 +138,7 @@ export const PublicShelf: React.FC<PublicShelfProps> = ({
               href={getCardHref(card)}
               state={getCardState()}
               tagNameById={tagNameById}
-              eager={index < eagerCount}
+              eager={index < eagerCount || visibleImageKeys.has(card.id)}
               loadImage={index < eagerCount || visibleImageKeys.has(card.id)}
               imageKey={card.id}
               sizes={sizes}

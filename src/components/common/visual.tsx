@@ -40,7 +40,7 @@ export const ImagePreview: React.FC<{
           className={`w-full h-full object-cover ${imageClassName || ''}`}
           loading={loading}
           decoding={decoding}
-          fetchPriority={fetchPriority}
+          {...{ fetchpriority: fetchPriority }}
           onLoad={(e) => {
             setLoaded(true);
             onLoad?.(e);

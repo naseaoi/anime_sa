@@ -1,13 +1,23 @@
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import type React from 'react';
 
 // Hero 卡片自动轮播 + 左右滑动切换
 // enabled=false 时完全不创建定时器；悬停可通过 setIsHeroPaused(true) 暂停
 export const useHeroRotation = (length: number, enabled: boolean, intervalMs = 4000) => {
-  const [heroIndex, setHeroIndex] = useState(0);
+  const [heroState, setHeroState] = useState<{ current: number; previous: number | null }>({
+    current: 0,
+    previous: null
+  });
   const [isHeroPaused, setIsHeroPaused] = useState(false);
   const touchStart = useRef<number | null>(null);
   const touchEnd = useRef<number | null>(null);
+  const setHeroIndex = useCallback<React.Dispatch<React.SetStateAction<number>>>((update) => {
+    setHeroState((state) => {
+      const next = typeof update === 'function' ? update(state.current) : update;
+      if (next === state.current) return state;
+      return { current: next, previous: state.current };
+    });
+  }, []);
 
   const onTouchStart = (e: React.TouchEvent) => {
     touchEnd.current = null;
@@ -29,10 +39,22 @@ export const useHeroRotation = (length: number, enabled: boolean, intervalMs = 4
       setHeroIndex(prev => (prev + 1) % length);
     }, intervalMs);
     return () => clearInterval(timer);
-  }, [enabled, isHeroPaused, length, intervalMs]);
+  }, [enabled, isHeroPaused, length, intervalMs, setHeroIndex]);
+
+  useEffect(() => {
+    if (heroState.previous === null) return;
+    const previous = heroState.previous;
+    const timer = window.setTimeout(() => {
+      setHeroState((state) => (
+        state.previous === previous ? { ...state, previous: null } : state
+      ));
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [heroState.previous]);
 
   return {
-    heroIndex,
+    heroIndex: heroState.current,
+    previousHeroIndex: heroState.previous,
     setHeroIndex,
     setIsHeroPaused,
     onTouchStart,

@@ -1,14 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from '../../router';
 import { ChevronLeft, ChevronRight, Star } from 'lucide-react';
 import type { CardData } from '../../types';
-import { ImagePreview } from '../Common';
+import { ImagePreview } from '../common/visual';
 import { getCardCoverSourceSet, getCardCoverUrl } from '../../utils/cardCover';
 import { getCoverAmbientColor } from '../../utils/coverAmbientColor';
+import { useViewportImageKeys } from '../../hooks/useViewportImageKeys';
 
 interface PublicHeroProps {
   heroCards: CardData[];
   heroIndex: number;
+  previousHeroIndex: number | null;
   setHeroIndex: React.Dispatch<React.SetStateAction<number>>;
   setIsHeroPaused: React.Dispatch<React.SetStateAction<boolean>>;
   onTouchStart: (e: React.TouchEvent) => void;
@@ -16,24 +18,35 @@ interface PublicHeroProps {
   onTouchEnd: () => void;
   getCardHref: (card: CardData) => string;
   getCardState: () => { from: string };
-  visibleImageKeys: ReadonlySet<string>;
 }
 
 // 剧场 Hero：桌面端封面 16:9 右置 + 模糊封面铺底 + 信息层垂直居中，窄屏全宽裁切，底部熔接页面背景
 export const PublicHero: React.FC<PublicHeroProps> = ({
-  heroCards, heroIndex, setHeroIndex, setIsHeroPaused,
-  onTouchStart, onTouchMove, onTouchEnd, getCardHref, getCardState, visibleImageKeys
+  heroCards, heroIndex, previousHeroIndex, setHeroIndex, setIsHeroPaused,
+  onTouchStart, onTouchMove, onTouchEnd, getCardHref, getCardState
 }) => {
   const [ambient, setAmbient] = useState<string | null>(null);
+  const [preparedCoverIds, setPreparedCoverIds] = useState<ReadonlySet<string>>(() => new Set());
   const thumbStripRef = useRef<HTMLDivElement>(null);
 
   const heroLength = heroCards.length;
   const currentCard = heroCards[heroIndex];
-  const neighborIndexes = new Set<number>([
-    heroIndex,
-    (heroIndex + 1) % Math.max(heroLength, 1),
-    (heroIndex - 1 + Math.max(heroLength, 1)) % Math.max(heroLength, 1)
-  ]);
+  const neighborIndexes = useMemo(() => {
+    if (heroLength === 0) return [];
+    return [...new Set([
+      heroIndex,
+      (heroIndex + 1) % heroLength,
+      (heroIndex - 1 + heroLength) % heroLength
+    ])];
+  }, [heroIndex, heroLength]);
+  const renderedIndexes = new Set(neighborIndexes);
+  if (previousHeroIndex !== null && previousHeroIndex >= 0 && previousHeroIndex < heroLength) {
+    renderedIndexes.add(previousHeroIndex);
+  }
+  const visibleImageKeys = useViewportImageKeys(
+    thumbStripRef,
+    heroCards.map((card) => card.id).join('|')
+  );
 
   // 当前缩略图滚动到条带可视中心
   useEffect(() => {
@@ -56,6 +69,18 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
     return () => { cancelled = true; };
   }, [currentCard]);
 
+  useEffect(() => {
+    if (heroLength <= 1) return;
+    const timer = window.setTimeout(() => {
+      const neighborIds = neighborIndexes
+        .filter((index) => index !== heroIndex)
+        .map((index) => heroCards[index]?.id)
+        .filter((id): id is string => !!id);
+      setPreparedCoverIds((current) => new Set([...current, ...neighborIds]));
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [heroCards, heroIndex, heroLength, neighborIndexes]);
+
   if (heroLength === 0) return null;
 
   return (
@@ -75,10 +100,11 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
       <div className="relative w-full h-[min(70vw,320px)] min-h-[260px] max-h-[320px] sm:h-[min(54vw,380px)] sm:min-h-[300px] sm:max-h-[380px] lg:h-[calc(52vh+4rem)] lg:min-h-[calc(440px+4rem)] lg:max-h-[744px] overflow-hidden">
         <div aria-hidden className="absolute inset-0 hero-stage" />
         {heroCards.map((card, idx) => {
+          if (!renderedIndexes.has(idx)) return null;
           const coverSource = getCardCoverSourceSet(card);
           const coverUrl = getCardCoverUrl(card, 'thumb');
-          const showCover = neighborIndexes.has(idx);
           const active = idx === heroIndex;
+          const showCover = active || idx === previousHeroIndex || preparedCoverIds.has(card.id);
           return (
             <Link
               key={card.id}
@@ -96,6 +122,7 @@ export const PublicHero: React.FC<PublicHeroProps> = ({
                     alt=""
                     className="w-full h-full object-cover hero-backdrop-img select-none"
                     loading={active ? 'eager' : 'lazy'}
+                    {...{ fetchpriority: active ? 'high' : 'low' }}
                     decoding="async"
                     draggable={false}
                   />

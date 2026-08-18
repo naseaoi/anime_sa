@@ -1,18 +1,19 @@
 
-import React, { useState, useEffect, useMemo, useRef, useLayoutEffect, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from '../router';
 import { ThumbsUp, PlayCircle, Grid, ArrowUp } from 'lucide-react';
 import { PublicData, CardData } from '../types';
 import { usePublicNavigation } from './public/PublicNavigationContext';
 import { PublicCardGrid } from './public/PublicCardGrid';
 import type { SortKey, SortOrder } from './public/PublicTopNav';
-import { getHomeScrollKey, readScrollPosition, readVisibleCount, writeScrollPosition, writeVisibleCount } from '../utils/browserState';
+import { getHomeScrollKey, readVisibleCount, writeScrollPosition, writeVisibleCount } from '../utils/browserState';
 import { PUBLIC_DATA_LIMITS } from '../../shared/publicDataSchema.js';
 import { PublicStructuredHome } from './public/PublicStructuredHome';
 import { CardGridSkeleton } from './public/PublicSkeletons';
 import { useBackToTop } from '../hooks/useBackToTop';
 import { useCardCreate, QUICK_CREATE_INITIAL_CARD } from '../hooks/useCardCreate';
 import { useHeroRotation } from '../hooks/useHeroRotation';
+import { useHomeScrollRestoration } from '../hooks/useHomeScrollRestoration';
 import { useStructuredHomeSections } from '../hooks/useStructuredHomeSections';
 import { getCardCoverUrl } from '../utils/cardCover';
 import { getCoverAmbientColor } from '../utils/coverAmbientColor';
@@ -69,7 +70,6 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData }) => 
 
   // 列表滚动位置
   const scrollStorageKey = getHomeScrollKey(location.pathname, location.search);
-  const hasRestoredScrollRef = useRef(false);
   const gridTransitionTimerRef = useRef<number | null>(null);
   const visitedGridKeysRef = useRef<Set<string>>(new Set());
 
@@ -263,30 +263,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData }) => 
     return list;
   }, [data.cards, activeTag, sortConfig, searchTerm]);
 
-  // 首次滚动位置恢复
-  useLayoutEffect(() => {
-    if (hasRestoredScrollRef.current) return;
-    if (filteredCards.length === 0) return;
-
-    const saved = readScrollPosition(scrollStorageKey);
-    hasRestoredScrollRef.current = true;
-    if (saved === null || saved <= 0) return;
-
-    const y = saved;
-
-    // 滚动恢复重试
-    let attempts = 0;
-    const tryScroll = () => {
-      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-      if (maxScroll >= y || attempts >= 30) {
-        window.scrollTo({ top: y, behavior: 'auto' });
-        return;
-      }
-      attempts += 1;
-      requestAnimationFrame(tryScroll);
-    };
-    tryScroll();
-  }, [filteredCards.length, scrollStorageKey]);
+  useHomeScrollRestoration(scrollStorageKey, filteredCards.length > 0);
 
   const isStructuredHome = activeTag === 'all' && !searchTerm;
   const sectionCardLimit = SHELF_CARD_LIMIT;
@@ -381,6 +358,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({ data, refreshData }) => 
             showHero={showHero}
             heroCards={heroCards}
             heroIndex={hero.heroIndex}
+            previousHeroIndex={hero.previousHeroIndex}
             setHeroIndex={hero.setHeroIndex}
             setIsHeroPaused={hero.setIsHeroPaused}
             onTouchStart={hero.onTouchStart}

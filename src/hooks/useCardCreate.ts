@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CardData, PublicData } from '../types';
-import { useToast } from '../components/Common';
+import { useToast } from '../components/common/ToastContext';
 
 export const QUICK_CREATE_INITIAL_CARD: Partial<CardData> = {
   tagIds: [],

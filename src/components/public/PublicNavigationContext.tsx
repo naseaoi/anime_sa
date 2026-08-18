@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import { isAdminRoutePath, useLocation, useNavigate, useSearchParams } from '../../router';
 import type { PublicData } from '../../types';
-import { useTheme } from '../Common';
+import { useTheme } from '../common/ThemeContext';
 import { buildCardStats } from '../../utils/cardStats';
 import { buildSectionPath, resolveSectionTag } from '../../utils/routeUtils';
 import { clearScrollPosition, getHomeScrollKey, readSortConfig, writeSortConfig } from '../../utils/browserState';
